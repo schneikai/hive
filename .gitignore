@@ -1,0 +1,15 @@
+/.bundle
+/db/*.sqlite3
+/db/*.sqlite3-journal
+/log/*.log
+/tmp
+/test/dummy/db/*.sqlite3
+/test/dummy/db/*.sqlite3-journal
+/test/dummy/log/*.log
+/test/dummy/tmp
+/test/dummy/public/uploads
+
+.DS_Store
+.rvmrc
+Gemfile.lock
+/bin

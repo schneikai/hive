@@ -1,0 +1,8 @@
+en:
+  devise_easy_omniauthable:
+    index:
+      headline: Manage authentications
+  devise:
+    authentications:
+      user:
+        authentication_destroyed: Authentication was successfully deleted.

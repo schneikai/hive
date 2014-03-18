@@ -1,0 +1,39 @@
+= render "hive/shared/pending_confirmation"
+= render "hive/shared/pending_reconfirmation"
+
+%h2 Edit #{resource_name.to_s.humanize}
+
+= twitter_bootstrap_form_for(resource, as: resource_name, url: registration_path(resource_name), layout: :horizontal, html: { method: :put, data: { validate: true, model: resource_name, id: resource.id, behavior: 'devise_attributable-password-required' } }) do |f|
+  = f.errors only: :base
+
+  = f.avatar_field :avatar
+
+  = f.email_field :email, autofocus: true
+
+  - attributables(resource).each do |name, options|
+    = f.attributable name
+
+  - if resource.password?
+    = f.inputs "Change password <span>Leave blank if you don't want to change it.</span>".html_safe do
+      = f.password_field :password
+      = f.password_field :password_confirmation, 'Confirm password'
+
+    = f.inputs 'We need your current password to confirm your changes.', id: 'current-password-container' do
+      = f.password_field :current_password
+
+  = f.actions do
+    = f.submit 'Update'
+
+- if resource.deletable?
+  %h3 Unhappy? - Cancel my account
+
+  = twitter_bootstrap_form_for(resource, as: resource_name, url: registration_path(resource_name), layout: :horizontal, html: { method: :delete } ) do |f|
+    = f.errors only: :base
+
+    - if resource.password_required_for_delete?
+      = f.password_field :current_password
+
+    = f.actions do
+      = f.submit 'Cancel my account', class: 'btn btn-danger'
+
+= link_to "Back", :back

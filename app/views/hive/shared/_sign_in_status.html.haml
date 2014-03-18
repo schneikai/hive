@@ -1,0 +1,19 @@
+- if user_signed_in?
+  %div.hive-sign-in-status.hive-signed-in
+    - if devise_avatar_present? current_user, :avatar
+      = devise_avatar_for current_user, :avatar, class: 'current-user-avatar'
+    Hello #{current_user}!
+    = link_to 'Edit account', main_app.edit_user_registration_path
+    = link_to 'Manage authentications', main_app.user_authentications_path if current_user.omniauthable?
+    = link_to 'Logout', main_app.destroy_user_session_path, method: :delete
+
+- else
+  %div.hive-sign-in-status.hive-signed-out
+    Welcome stranger!
+    = link_to 'Login', main_app.new_user_session_path
+    or
+    = link_to 'Register', main_app.new_user_registration_path
+    - if User.omniauthable?
+      or sign-in via
+      - User.omniauth_providers.each do |provider|
+        = link_to "#{provider.to_s.titleize}", main_app.user_omniauth_authorize_path(provider)

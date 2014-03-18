@@ -1,0 +1,19 @@
+- hive_title t('.title')
+
+.hive-sessions.hive-sessions-new{ class: "#{hive_animation_class}" }
+  = twitter_bootstrap_form_for(resource, as: resource_name, url: session_path(resource_name)) do |f|
+    = f.errors only: :base
+
+    %h2
+      = link_to Hive.app_name, root_url
+      %span= t('.title')
+
+    = f.devise_login false, autofocus: true
+
+    = f.password_field :password, false
+    = f.check_box :remember_me if devise_mapping.rememberable?
+
+    = f.actions do
+      = f.submit t('.submit'), class: 'btn btn-lg btn-primary btn-block', data: { disable_with: t('.submitting') }
+
+    = render 'hive/shared/links'

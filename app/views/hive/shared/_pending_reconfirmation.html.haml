@@ -1,0 +1,2 @@
+- if devise_mapping.confirmable? && resource.pending_reconfirmation?
+  %div.alert.alert-warning= t('hive.confirmations.pending_reconfirmation', email: resource.unconfirmed_email).html_safe

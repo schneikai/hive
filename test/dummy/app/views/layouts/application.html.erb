@@ -1,0 +1,16 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title><%= hive_title %></title>
+  <%= stylesheet_link_tag    "application", media: "all", "data-turbolinks-track" => true %>
+  <%= javascript_include_tag "application", "data-turbolinks-track" => true %>
+  <%= csrf_meta_tags %>
+</head>
+<body class="<%= "dummy #{controller_name} #{action_name}".squish %>" data-controller="<%= controller_name %>" data-action="<%= action_name %>">
+  <div class="container">
+    <%= render 'hive/shared/flash' %>
+    <%= render 'hive/shared/sign_in_status' %>
+    <%= yield %>
+  </div>
+</body>
+</html>

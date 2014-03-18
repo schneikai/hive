@@ -1,0 +1,17 @@
+/*
+ * This is a manifest file that'll be compiled into hive.css, which will include all the files
+ * listed below. Require this in the host application via *require hive* and you are ready to go.
+ *
+ * You're free to add application-wide styles to this file and they'll appear at the top of the
+ * compiled file, but it's generally better to create a new file per style scope.
+ *
+ *= require_self
+ *= require devise_avatarable
+ *= require twitter_bootstrap_form_for
+*/
+
+@import "bootstrap/variables";
+@import "bootstrap/mixins";
+@import "animate/mixins";
+@import "animate/fadeInDown";
+@import "hive/*";

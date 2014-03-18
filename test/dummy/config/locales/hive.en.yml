@@ -1,0 +1,46 @@
+# Translations for Hive.
+# For default Devise translations check https://github.com/plataformatec/devise/wiki/I18n.
+
+en:
+  activerecord:
+    attributes:
+      user:
+        accept_terms: I have read and agree to the terms of use.
+        login: Username or Password
+  hive:
+    links:
+      new_session: Already have an account?
+      new_registration: Not yet a member?
+      new_password: Forgot your password?
+      new_confirmation: Didn't receive confirmation instructions?
+      new_unlock: Didn't receive unlock instructions?
+      omniauth_authorize: Sign in with
+      back: Return home
+    confirmations:
+      pending_confirmation: 'You still need to confirm your account. A message with confirmation instructions has been sent to %{email}. If you didn''t get the email you can <a href="%{link}">request a new one</a>.'
+      pending_reconfirmation: 'Currently waiting confirmation for: %{email}'
+      new:
+        title: Resend confirmation instructions
+        submit: Resend confirmation instructions
+        submitting: Sending
+    passwords:
+      new:
+        title: Forgot your password?
+        submit: Send me reset password instructions
+        submitting: Sending...
+      edit:
+        title: Change your password
+        new_password: New password
+        confirm_new_password: Confirm new password
+        submit: Change my password
+        submitting: Changing...
+    registrations:
+      new:
+        title: Please sign up
+        submit: Sign up
+        submitting: Signing up...
+    sessions:
+      new:
+        title: Please sign in
+        submit: Sign in
+        submitting: Signing in...
