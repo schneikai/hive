@@ -194,11 +194,54 @@ and link to "Configure social logins" in this README.
 
 ### Mails
 
-TODO: Wirte about when and where mails are send and remind user of changing
+TODO: Write about when and where mails are send and remind user of changing
 <tt>config.mailer_sender</tt> in the Hive initializer.
 
+#### Modify or translate mail subjects
+
+Translating email subject works via [I18n](http://guides.rubyonrails.org/i18n.html)
+and is using the following keys in your locale file.
+
+```yml
+en:
+  devise:
+    mailer:
+      confirmation_instructions:
+        subject: "Confirmation instructions"
+      reset_password_instructions:
+        subject: "Reset password instructions"
+      unlock_instructions:
+        subject: "Unlock Instructions"
+```
+
+#### Modify and/or translate mail templates
+
+By default Hive comes with mail templates (aka views) in these [languages](https://github.com/schneikai/hive/tree/master/app/views/hive/mailer).
+
+If you want to modify these templates you need to create them in your app
+by running:
+
+```console
+bundle exec rails generate hive:views mailer
+```
+
+This will copy all Hive mailer templates to <tt>app/views/hive/mailer</tt>.
+Now just change whatever template you like. To add translations you simply
+duplicate the default file, add the locale to the filename and translate the content.
+For example to translate <tt>reset_password_instructions.html.haml</tt>  to German
+just duplicate that file to <tt>reset_password_instructions.de.html.haml</tt>
+(notice +de+ in the file name) open the new file and translate the content.
+
+Hive will use the template without a locale in the filename as the default or if
+no localized template could be found for a given locale.
+
+You might also need to send emails to users when doing administrative tasks or
+in background jobs. To make sure the users get emails in a language they understand
+you probably have a +locale+ attribute on your user model that returns the users locale.
+Hive will use that too when sending emails.
 
 
+### Devise
 
 Because Hive is based on [Devise](https://github.com/plataformatec/devise)
 you can checkout their documentation if you are interested in how everything works.

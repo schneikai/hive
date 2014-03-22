@@ -1,0 +1,9 @@
+Description:
+  Copies Hive views to your application.
+
+Example:
+  To copy all views:
+  `rails generate hive:views`
+
+  To copy just specified view directories use
+  `rails generate hive:views confirmations mailer passwords registrations sessions shared unlocks`

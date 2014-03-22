@@ -25,7 +25,7 @@ Gem::Specification.new do |s|
   s.add_dependency "animate-scss", ">= 0.0.5", "< 1"
   s.add_dependency "twitter_bootstrap_form_for"
 
-  s.add_dependency "devise", "~> 3.1"
+  s.add_dependency "devise", "~> 3.0"
   s.add_dependency "devise_avatarable"
   s.add_dependency "devise_authorizable"
   s.add_dependency "devise_easy_omniauthable"
