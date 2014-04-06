@@ -151,6 +151,10 @@ Devise.setup do |config|
   # https://github.com/settings/applications
   # config.omniauth :github, 'APP_ID', 'APP_SECRET', scope: 'user:email'
 
+  # TODO: We have not yet styled the templates for <tt>Devise::AuthenticationsController</tt>
+  # so this is disabled until we really need it.
+  config.omniauth_manageable = false
+
   # ==> Configuration for :confirmable
   # A period that the user is allowed to access the website even without
   # confirming his account. For instance, if set to 2.days, the user will be

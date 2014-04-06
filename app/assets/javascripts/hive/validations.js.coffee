@@ -5,9 +5,6 @@
 # the params are assigned and the validation result is returned back to the client.
 #
 # The error messages are then shown on the fields that brought validation errors.
-#
-# This is a really simple implementation. Maybe we should check if there exists
-# a more sophisticated Gem for what we do here instead.
 
 class Validator
   constructor: (@form) ->

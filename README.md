@@ -335,7 +335,7 @@ The default avatar configuration allows to upload jpg, gif or png image files,
 select a square crop from the image and resize the final image to 200x200 pixels.
 
 Hive uses [DeviseAvatarable](http://github.com/schneikai/devise_avatarable)
-to configure social logins. Checkout the project README for more infos and
+to configure avatars. Checkout the DeviseAvatarable README for more infos and
 configuration options.
 
 
@@ -352,8 +352,9 @@ config.omniauth :twitter, 'YOUR_APP_ID', 'YOUR_APP_SECRET'
 That's it. Your users can now login and sign-up via their Twitter account.
 
 Hive uses [DeviseEasyOmniauthable](http://github.com/schneikai/devise_easy_omniauthable)
-to configure social logins. Checkout the project README for more infos and
-configuration options.
+to configure social logins. Checkout the DeviseEasyOmniauthable README for more
+infos and configuration options. If you are stuck with registering your APP-ID
+and -Secret there is good help in the DeviseEasyOmniauthable README.
 
 
 ## Configure user roles and access
@@ -376,8 +377,8 @@ Access rights (aka abilities) are configured via <tt>app/modes/user_abilitiy.rb<
 that was created during setup. Checkout that file on how to add abilities.
 
 Hive uses [DeviseAuthorizable](http://github.com/schneikai/devise_authorizable)
-to manage roles and access abilities. Checkout the project README for more infos
-and configuration options.
+to manage roles and access abilities. Checkout the DeviseAuthorizable README for
+more infos and configuration options.
 
 
 ## Add more attributes to your user model

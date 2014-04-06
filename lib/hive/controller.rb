@@ -18,5 +18,12 @@ module Hive
       end
     end
 
+    private
+      # Do not clear omniauth data when just validating the model...
+      # This method is comming from DeviseEasyOmniauthable.
+      def clear_omniauth?
+        super && !is_a?(ValidationsController)
+      end
+
   end
 end
