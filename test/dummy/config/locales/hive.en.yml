@@ -6,7 +6,7 @@ en:
     attributes:
       user:
         accept_terms: I have read and agree to the terms of use.
-        login: Username or Password
+        login: Email or Username
   hive:
     links:
       new_session: Already have an account?
