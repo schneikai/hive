@@ -1,39 +1,39 @@
-= render "hive/shared/pending_confirmation"
-= render "hive/shared/pending_reconfirmation"
+.hive.hive-registrations.hive-registrations-edit
+  = render "hive/shared/pending_confirmation"
+  = render "hive/shared/pending_reconfirmation"
 
-%h2 Edit #{resource_name.to_s.humanize}
+  %h2= hive_title t('.title')
 
-= twitter_bootstrap_form_for(resource, as: resource_name, url: registration_path(resource_name), layout: :horizontal, html: { method: :put, data: { validate: true, model: resource_name, id: resource.id, behavior: 'devise_attributable-password-required' } }) do |f|
-  = f.errors only: :base
+  = simple_form_for(resource, as: resource_name, url: registration_path(resource_name), html: { method: :put, data: { validate: true, model: resource_name, id: resource.id, behavior: 'devise_attributable-password-required' } }) do |f|
+    = f.error :base
 
-  = f.avatar_field :avatar
+    = f.avatar_field :avatar
 
-  = f.email_field :email, autofocus: true
+    = f.input :email, required: true, input_html: { data: { 'update-requires-password' => true } }
 
-  - attributables(resource).each do |name, options|
-    = f.attributable name
+    - attributables(resource).each do |name, options|
+      = f.attributable name
 
-  - if resource.password?
-    = f.inputs "Change password <span>Leave blank if you don't want to change it.</span>".html_safe do
-      = f.password_field :password
-      = f.password_field :password_confirmation, 'Confirm password'
+    - if resource.password?
+      %h3= t('.change_password')
+      = f.input :password
+      = f.input :password_confirmation
 
-    = f.inputs 'We need your current password to confirm your changes.', id: 'current-password-container' do
-      = f.password_field :current_password
+      #current-password-container
+        %h3= t('.current_password')
+        = f.input :current_password
 
-  = f.actions do
-    = f.submit 'Update'
+    = f.button :submit, t('.submit'), class: 'btn-primary', data: { disable_with: t('.submitting') }
 
-- if resource.deletable?
-  %h3 Unhappy? - Cancel my account
+  - if resource.deletable?
+    %h3= t('hive.registrations.cancel.title')
 
-  = twitter_bootstrap_form_for(resource, as: resource_name, url: registration_path(resource_name), layout: :horizontal, html: { method: :delete } ) do |f|
-    = f.errors only: :base
+    = simple_form_for(resource, as: resource_name, url: registration_path(resource_name), html: { method: :delete } ) do |f|
+      = f.error :base
 
-    - if resource.password_required_for_delete?
-      = f.password_field :current_password
+      - if resource.password_required_for_delete?
+        = f.input :current_password, required: true
 
-    = f.actions do
-      = f.submit 'Cancel my account', class: 'btn btn-danger'
+      = f.button :submit, t('hive.registrations.cancel.submit'), class: 'btn-danger', data: { disable_with: t('hive.registrations.cancel.submitting') }
 
-= link_to "Back", :back
+  = link_to t('.back'), :back

@@ -1,2 +1,2 @@
-- if devise_mapping.confirmable? && !resource.confirmed?
-  %div.alert.alert-warning= t('hive.confirmations.pending_confirmation', email: resource.email, link: new_user_confirmation_path).html_safe
+- if user_need_confirmation?
+  %div.alert.alert-warning.alert-pending-confirmation= t('hive.confirmations.pending_confirmation', email: current_user.email, link: new_user_confirmation_path).html_safe

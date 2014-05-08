@@ -1,4 +1,4 @@
-# Extensions for Devise base controller.
+# Extensions for DeviseController.
 
 module Hive
   module DeviseController
@@ -8,9 +8,25 @@ module Hive
       # Set the layout to use for Hive/Devise views.
       # This is configurable in the Hive initializer.
       layout :hive_layout
+
+      alias_method_chain :devise_i18n_options, :empty_default
     end
 
     private
+      # Allow to remove flash messages by adding empty translations to the
+      # locale file. For example if you don't want to show a flash message after
+      # successful sign-in you would add the following to your locale file:
+      #
+      #   en:
+      #     devise:
+      #       sessions:
+      #         signed_in:
+      #
+      def devise_i18n_options_with_empty_default(options)
+        options[:default] << ''
+        options
+      end
+
       # I wanted to have all views under the Hive namespace and not under Devise.
       # I do this be prepending a new template path to the *prefixes* option Rails
       # uses to find the template. So if a template is present in *hive/[controller_name]*

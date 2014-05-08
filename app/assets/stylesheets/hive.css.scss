@@ -7,10 +7,10 @@
  *
  *= require_self
  *= require devise_avatarable
- *= require twitter_bootstrap_form_for
 */
 
 @import "bootstrap";
-@import "animate/mixins";
+@import "font-awesome";
+@import "animate";
 @import "animate/fadeInDown";
 @import "hive/*";

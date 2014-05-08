@@ -5,7 +5,11 @@ module ActionDispatch::Routing
     def hive_for(*resources)
       options = resources.extract_options!
       defaults = {
-        controllers: { registrations: 'hive/registrations' },
+        controllers: {
+          confirmations: 'hive/confirmations',
+          passwords: 'hive/passwords',
+          registrations: 'hive/registrations'
+        },
         path_names: { sign_in: 'login', sign_out: 'logout' },
         # Added this to make the routes "/account/edit" instead of "/users/edit"
         # because the routes would clash if you setup a users resource in the host app.

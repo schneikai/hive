@@ -67,8 +67,11 @@ class Validator
     @form.serialize() + '&validate_model=' + encodeURIComponent(@model) + '&validate_record_id=' + encodeURIComponent(@recordId)
 
   showValidationResult: (errors)->
-    $.each errors, (field,error)=>
-      @showError @fieldId(field), error
+    $.each errors, (field, error)=>
+      # "error" is an array with all error messages for the field like
+      # ["can't be blank", "is too short"]. We only show the first error message
+      # so that the user is not swamped burried under error messages.
+      @showError @fieldId(field), error[0]
 
   # Show the given error on the given field if
   # * it has changed or

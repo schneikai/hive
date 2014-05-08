@@ -1,16 +1,11 @@
-- hive_title t('.title')
+.hive.hive-confirmations.hive-confirmations-new{ class: "#{hive_animation_class}" }
+  = simple_form_for(resource, as: resource_name, url: confirmation_path(resource_name), html: { method: :post } ) do |f|
+    = f.error :base
 
-.hive-confirmations.hive-confirmations-new{ class: "#{hive_animation_class}" }
-  = twitter_bootstrap_form_for(resource, as: resource_name, url: confirmation_path(resource_name), html: { method: :post } ) do |f|
-    = f.errors only: :base
+    = render "hive/shared/header"
 
-    %h2
-      = link_to Hive.app_name, root_url
-      %span= t('.title')
+    = f.input :email, required: true, input_html: { value: user_signed_in? ? current_user.email : nil, autofocus: true }
 
-    = f.email_field :email, autofocus: true, value: user_signed_in? ? current_user.email : nil
+    = f.button :submit, t('.title'), class: 'btn-lg btn-primary btn-block', data: { disable_with: t('.submitting') }
 
-    = f.actions do
-      = f.submit t('.title'), class: 'btn btn-lg btn-primary btn-block', data: { disable_with: t('.submitting') }
-
-    = render "hive/shared/links"
+    = render "hive/shared/footer"

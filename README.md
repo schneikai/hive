@@ -35,7 +35,7 @@ You should check it out.
 For now this must be added to the Gemfile of the Rails App that uses Hive:
 
 ```ruby
-gem 'twitter_bootstrap_form_for', github: 'schneikai/twitter_bootstrap_form_for'
+gem 'simple_form', github: 'plataformatec/simple_form'
 gem 'devise_avatarable', github: 'schneikai/devise_avatarable'
 gem 'devise_authorizable', github: 'schneikai/devise_authorizable'
 gem 'devise_easy_omniauthable', github: 'schneikai/devise_easy_omniauthable'
@@ -87,12 +87,12 @@ There is more
 * If you need to add defaults for new users add a class method
 <tt>registration_defaults</tt> to your users model:
 
-  ```ruby
-  def self.registration_defaults
-    {
-      locale: I18n.locale
-    }
-  end
+```ruby
+def self.registration_defaults
+  {
+    locale: I18n.locale
+  }
+end
 ```
 
 * If you want your users to give more user data like a adress or phone number or
@@ -275,6 +275,26 @@ config.layout = {
 }
 ```
 
+### Partials
+
+If you want to change the header and footer section of all Hive dialogs checkout
+the partials <tt>app/views/hive/shared/header.html.haml</tt> and <tt>footer.html.haml</tt>.
+This way you don't need to duplicate every view if you just want to add or remove
+something from or to the header or footer of all Hive dialogs.
+
+
+### Forms
+
+Hive uses [simple_form](https://github.com/plataformatec/simple_form) for it's
+forms. Together with Twitter Bootstrap there is one little thing you might want
+to configure to use inline labels on checkboxes and radiobuttons. Open
+<tt>config/initializers/simple_form</tt> and search for <tt>wrapper_mappings</tt>
+and add the following:
+
+```ruby
+config.wrapper_mappings = { check_boxes: :vertical_radio_and_checkboxes, radio_buttons: :vertical_radio_and_checkboxes, file: :vertical_file_input, boolean: :vertical_boolean }
+```
+
 ### Flash messages
 
 Make sure you have a container for [flash messages](http://guides.rubyonrails.org/action_controller_overview.html#the-flash)
@@ -285,20 +305,25 @@ to your <tt>app/views/layouts/application.html.erb</tt> layout file:
 <%= render 'hive/shared/flash' %>
 ```
 
-This partial also renders a container for flash messages from
-[Javascript xhr responses](http://guides.rubyonrails.org/working_with_javascript_in_rails.html).
-We use the [Glow Gem](https://github.com/zweitag/glow) for that.
+This partial will also render a container to display flash messages
+via Javascript. [DeviseAvatarable](https://github.com/schneikai/devise_avatarable)
+is using that for example.
 
-This works by adding the flash message to a special header in the server response
-and by binding to the Javascript event <tt>glow:flash</tt> in the client and showing
-the flash message on the website. If you want to do your own stuff with the flash
-message you can unbind from that event and bind it again:
+If you don't want to show flash messages for certain events like after sign-in
+or sign-up you simply overwrite the translation key with an empty value like this:
 
-```javascript
-  $(document).unbind('glow:flash').bind('glow:flash', function(evt, flash) {
-    alert(flash.type, flash.message)
-  });
-```
+```yaml
+en:
+  devise:
+    sessions:
+      signed_in:
+``
+
+### Redirects
+
+If you need to configure the redirect locations for after sign-up or sign-in and
+other checkout the <tt>redirect_locations</tt> configuration option in the Hive
+initializer under <tt>/config/initializers/hive.rb</tt>.
 
 ### Animations
 

@@ -18,6 +18,28 @@ module Hive
       end
     end
 
+    # The default url to be used after signing in.
+    def after_sign_in_path_for(resource_or_scope)
+      redirect_location(:after_sign_in) || super
+    end
+
+    # Method used by sessions controller to sign out a user.
+    def after_sign_out_path_for(resource_or_scope)
+      redirect_location(:after_sign_out) || super
+    end
+
+    # Returns the redirect location from the Hive initializer if there is one
+    # configured. Otherwise returns nil.
+    def redirect_location(event)
+      if location = Hive.redirect_locations[event]
+        if location.respond_to?(:call)
+          instance_eval &location
+        else
+          location
+        end
+      end
+    end
+
     private
       # Do not clear omniauth data when just validating the model...
       # This method is comming from DeviseEasyOmniauthable.

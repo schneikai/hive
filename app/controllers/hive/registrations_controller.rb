@@ -28,5 +28,23 @@ module Hive
         end
       end
     end
+
+    protected
+
+      # The default url to be used after updating a resource.
+      def after_update_path_for(resource)
+        redirect_location(:after_update) || super
+      end
+
+      # The path used after sign up.
+      def after_sign_up_path_for(resource)
+        redirect_location(:after_sign_up) || super
+      end
+
+      # The path used after sign up for inactive accounts.
+      def after_inactive_sign_up_path_for(resource)
+        redirect_location(:after_inactive_sign_up) || super
+      end
+
   end
 end

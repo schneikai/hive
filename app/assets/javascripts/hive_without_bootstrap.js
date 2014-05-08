@@ -4,7 +4,6 @@
 // It's not advisable to add code directly here, but if you do, it'll appear at the bottom of the
 // compiled file.
 //
-//= require twitter_bootstrap_form_for
 //= require devise_avatarable
 //= require devise_attributable
 //= require_tree ./hive

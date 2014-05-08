@@ -1,5 +1,5 @@
 - flash.each do |name, msg|
-  %div{ class: "alert alert-#{name == :notice ? 'success' : 'danger'} alert-dismissable fade in"}
+  %div{ class: "alert alert-#{name == :notice ? 'success' : 'danger'} alert-dismissable"}
     %button.close{"aria-hidden" => "true", "data-dismiss" => "alert", :type => "button"} &times;
     = msg
 

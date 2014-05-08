@@ -9,10 +9,6 @@
     %li= link_to t('hive.links.new_confirmation'), new_confirmation_path(resource_name)
   - if devise_mapping.lockable? && resource_class.unlock_strategy_enabled?(:email) && controller_name != 'unlocks'
     %li= link_to t('hive.links.new_unlock'), new_unlock_path(resource_name)
-  - if devise_mapping.omniauthable? && resource_class.omniauth_providers.any?
-    %li
-      = t('hive.links.omniauth_authorize')
-      - resource_class.omniauth_providers(true).each do |provider|
-        = link_to provider.human_name, omniauth_authorize_path(resource_name, provider.identifier)
-  %li
-    = link_to t('hive.links.back'), root_path
+  %li= link_to t('hive.links.back'), root_path, class: 'hive-back'
+
+= render "hive/shared/omniauth_links"

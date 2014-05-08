@@ -6,6 +6,22 @@ Hive.setup do |config|
   # Configure the name of your app.
   config.app_name = '<%= Rails.application.class.parent_name.to_s %>'
 
+  # If true this will use animations in the Hive views.
+  config.animate_views = true
+
+  # Allows to configure redirect locations for different events. Can be a string
+  # or a proc. The following events can be configured:
+  #   * :after_sign_up
+  #   * :after_inactive_sign_up
+  #   * :after_sign_in
+  #   * :after_sign_out
+  #   * :after_update
+  #   * :after_resetting_password
+  #   * :after_sending_reset_password_instructions
+  #   * :after_resending_confirmation_instructions
+  #   * :after_confirmation
+  # config.redirect_locations = { after_sign_in: proc { edit_user_registration_path }, after_sign_out: '/' }
+
   # The secret key used by Devise. Devise uses this key to generate
   # random tokens. Changing this key will render invalid all existing
   # confirmation, reset password and unlock tokens in the database.

@@ -6,7 +6,12 @@ require 'haml'
 require 'coffee-rails'
 require 'sass/rails'
 require 'bootstrap-sass'
+require 'font-awesome-rails'
 require 'animate-scss'
+
+require 'simple_form'
+require 'country_select'
+require 'hive/simple_form'
 
 require 'hive/routes'
 
@@ -31,9 +36,14 @@ module Hive
   mattr_accessor :app_name
   @@app_name = 'Hive'
 
-  # Use animations in views?
+  # If true this will use animations in the Hive views.
   mattr_accessor :animate_views
   @@animate_views = true
+
+  # Allows to configure redirect locations for different events. Check the Hive
+  # initializer for documentation.
+  mattr_accessor :redirect_locations
+  @@redirect_locations = { }
 
   # By default the registration dialog has a password and a password confirmation
   # field to make sure users don't have typos in their passwords. If you want

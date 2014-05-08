@@ -5,7 +5,6 @@
 // compiled file.
 //
 //= require bootstrap
-//= require twitter_bootstrap_form_for
 //= require devise_avatarable
 //= require devise_attributable
 //= require_tree ./hive

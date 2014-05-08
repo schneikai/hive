@@ -1,21 +1,16 @@
--# Remember: This is for non-authenticated users to change reset password
+-# Remember: This is for non-authenticated users to reset their password
 -# using a reset token they got via mail.
 
-- hive_title t('.title')
+.hive.hive-passwords.hive-passwords-edit{ class: "#{hive_animation_class}" }
+  = simple_form_for(resource, as: resource_name, url: password_path(resource_name), html: { method: :put }) do |f|
+    = f.error :base
+    = f.input :reset_password_token, as: :hidden
 
-.hive-passwords.hive-passwords-edit{ class: "#{hive_animation_class}" }
-  = twitter_bootstrap_form_for(resource, as: resource_name, url: password_path(resource_name), html: { method: :put }) do |f|
-    = f.errors only: :base
-    = f.hidden_field :reset_password_token
+    = render "hive/shared/header"
 
-    %h2
-      = link_to Hive.app_name, root_url
-      %span= t('.title')
+    = f.input :password, required: true, input_html: { autofocus: true }
+    = f.input :password_confirmation, required: true
 
-    = f.password_field :password, t('.new_password'), autofocus: true
-    = f.password_field :password_confirmation, t('.confirm_new_password')
+    = f.button :submit, t('.submit'), class: 'btn-lg btn-primary btn-block', data: { disable_with: t('.submitting') }
 
-    = f.actions do
-      = f.submit t('.submit'), class: 'btn btn-lg btn-primary btn-block', data: { disable_with: t('.submitting') }
-
-    = render 'hive/shared/links'
+    = render "hive/shared/footer"
