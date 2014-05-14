@@ -10,10 +10,24 @@ class Validator
   constructor: (@form) ->
     @model = @form.data('model') || 'user'
     @recordId = @form.data('id')
-    @lastValidation = new Date().getTime()
+    @validationTimeout = undefined;
+    @unvalidatedChanges = false
 
-    @form.on 'change', (field)=>
-      @changed $(field.target).attr('id')
+    # Add all fields that currently have errors to the changed fields list.
+    # When the form is rendered and a field initally has errors we would hide
+    # its error message here but not display it again because it is not in the
+    # changed fields list when *showError* runs.
+    @form.find('.has-error').each (index, element)=>
+      fieldId = $(element).find('input[id]').attr('id')
+      @changedFields.push fieldId unless @hasChanged(fieldId)
+
+    # Attach to the change event on the form to catch field changes.
+    @form.on 'change', (event)=>
+      @changed $(event.target).attr('id')
+
+    # Hide form errors on fields that are beeing edited.
+    @form.on 'keyup', (event)=>
+      @hideValidationResultOnField $(event.target).attr('id')
 
   # Returns the id for a given field name
   #   fieldId 'email'
@@ -22,9 +36,12 @@ class Validator
     @model + '_' + name
 
   # Runs when a field was changed (via @form.on 'change' )
+  # We can't vaildate file fields right now because we would need to send
+  # the file to the server on every validation which would be a big overhead...
   changed: (fieldId) ->
     unless @isFile(fieldId)
-      @changedFields.push fieldId
+      @unvalidatedChanges = true # We use this to check if the form was changed while being validated.
+      @changedFields.push fieldId unless @hasChanged(fieldId)
       @validate()
 
   # Returns true if field has changed.
@@ -51,55 +68,61 @@ class Validator
   changedFields: []
 
   # Validates the form and show validation errors.
-  # Added a timeout of 300ms between validations because when form autocompletion
+  # Added a timeout between validations because when form autocompletion
   # is used in the browser this would fire instantly for -all- autocompleted form fields.
   validate: ->
-    elapsed = new Date().getTime() - @lastValidation;
+    @hideValidationResult()
+    clearTimeout(@validationTimeout) if @validationTimeout
+    @validationTimeout = setTimeout @validateWithTimeout, 250
 
-    if elapsed >= 300
-      @hideValidationResult()
-      $.post '/validations', @serializeForm(), (data)=>
+  validateWithTimeout: =>
+    @unvalidatedChanges = false
+    $.post '/validations', @serializeForm(), (data)=>
+      if @unvalidatedChanges
+        # The form was changed. We need to validate it again :(
+        @validate()
+      else
         @showValidationResult data
-      @lastValidation = new Date().getTime()
 
   # Serializes the form and adds parameters that we need for server side validation.
   serializeForm: ->
     @form.serialize() + '&validate_model=' + encodeURIComponent(@model) + '&validate_record_id=' + encodeURIComponent(@recordId)
 
-  showValidationResult: (errors)->
-    $.each errors, (field, error)=>
-      # "error" is an array with all error messages for the field like
-      # ["can't be blank", "is too short"]. We only show the first error message
-      # so that the user is not swamped burried under error messages.
-      @showError @fieldId(field), error[0]
-
-  # Show the given error on the given field if
-  # * it has changed or
-  # * it initally had errors when the form was rendered or
-  # * it is a confirmation field of another field and currently does not have the focus
+  # Process the validation result and show the error if the field:
+  # * has changed or
+  # * initally had errors when the form was rendered or
+  # * is a confirmation field of another field and currently does not have the focus
   #   (user typed the password, hit tab to go to the password confirmation field,
   #   we need to wait until he has completed typing the confirmation)
-  showError: (fieldId, error)->
-    if @hasChanged(fieldId) || (@isConfirmation(fieldId) && !@hasFocus(fieldId))
-      field = $('#' + fieldId)
-      if @isToggle(fieldId)
-        field.parents('.checkbox, .radio').addClass('has-error')
-        field.parents('label').after $(@errorHtml(error))
-      else
-        field.parents('.form-group').addClass('has-error')
-        field.after $(@errorHtml(error))
+  showValidationResult: (errors)->
+    console.log errors
+    $.each errors, (field, errors)=>
+      fieldId = @fieldId(field)
 
+      if @hasChanged(fieldId) || (@isConfirmation(fieldId) && !@hasFocus(fieldId))
+        @showError fieldId, errors
+
+  # Show the given error on the given field
+  # If a field has multiple error messages we only show the first to not bomb
+  # the user with error messages.
+  showError: (fieldId, errors)->
+    field = $('#' + fieldId)
+    error = errors[0]
+    if @isToggle(fieldId)
+      field.parents('.checkbox, .radio').addClass('has-error')
+      field.parents('label').after $(@errorHtml(error))
+    else
+      field.parents('.form-group').addClass('has-error')
+      field.after $(@errorHtml(error))
+
+  # Hide all error messages.
   hideValidationResult: ->
-    # Add all fields that currently have errors to the changed fields list.
-    # When the form is rendered and a field initally has errors we would hide
-    # its error message here but not display it again because it is not in the
-    # changed fields list when *showError* runs.
-    @form.find('.has-error').each (index, element)=>
-      fieldId = $(element).find('input[id]').attr('id')
-      @changedFields.push fieldId unless @hasChanged(fieldId)
-
-    @form.find('.has-error').removeClass('has-error');
+    @form.find('.has-error').removeClass('has-error')
     @form.find('.validator-error').remove()
+
+  hideValidationResultOnField: (fieldId)->
+    $('.form-group.' + fieldId + '.has-error').removeClass('has-error')
+    $('.form-group.' + fieldId).find('.validator-error').remove()
 
   # Returns a html code snippet with the error message.
   errorHtml: (error)->

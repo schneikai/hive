@@ -11,6 +11,9 @@
 # model controller.
 
 # This looks interesting: https://github.com/joecorcoran/judge
+# Just tried it and it seems like it is not up to date. simple_form integration
+# doesn't work out of the box. I still think, sending the model to the server
+# might be a nice and simple way...
 
 module Hive
   class ValidationsController < ApplicationController
