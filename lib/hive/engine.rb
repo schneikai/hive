@@ -1,6 +1,6 @@
 module Hive
   class Engine < ::Rails::Engine
-    ActiveSupport.on_load(:action_controller) { helper Hive::Helpers }
+    ActiveSupport.on_load(:action_controller) { include Hive::Helpers }
     ActiveSupport.on_load(:action_controller) { include Hive::ParameterSanitizer }
 
     # We use to_prepare instead of after_initialize here because Devise is a
@@ -8,7 +8,6 @@ module Hive
     # Got to make sure that our methods are included each time.
     config.to_prepare do
       ::DeviseController.send :include, Hive::DeviseController
-      ::Devise::SessionsController.send :include, Hive::SessionsController
       ::ApplicationController.send :include, Hive::Controller
     end
 

@@ -1,3 +1,6 @@
+-# Remember: This is for non-authenticated users who forgot their password.
+-# It will send a email with a password reset token.
+
 .hive.hive-passwords.hive-passwords-new{ class: "#{hive_animation_class}" }
   = simple_form_for(resource, as: resource_name, url: password_path(resource_name), html: { method: :post }) do |f|
     = f.error :base

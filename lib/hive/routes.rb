@@ -8,7 +8,8 @@ module ActionDispatch::Routing
         controllers: {
           confirmations: 'hive/confirmations',
           passwords: 'hive/passwords',
-          registrations: 'hive/registrations'
+          registrations: 'hive/registrations',
+          sessions: 'hive/sessions'
         },
         path_names: { sign_in: 'login', sign_out: 'logout' },
         # Added this to make the routes "/account/edit" instead of "/users/edit"

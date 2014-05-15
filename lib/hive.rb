@@ -8,16 +8,13 @@ require 'sass/rails'
 require 'bootstrap-sass'
 require 'font-awesome-rails'
 require 'animate-scss'
-
 require 'simple_form'
 require 'country_select'
 require 'hive/simple_form'
-
 require 'hive/routes'
 
 module Hive
   autoload :Controller, 'hive/controller'
-  autoload :SessionsController, 'hive/sessions_controller'
   autoload :DeviseController, 'hive/devise_controller'
   autoload :Helpers, 'hive/helpers'
   autoload :ParameterSanitizer, 'hive/parameter_sanitizer'

@@ -1,5 +1,7 @@
 module Hive
   class RegistrationsController < Devise::RegistrationsController
+    before_filter -> { store_location_for 'user', previous_location_for('user') }, only: :new
+
     # DELETE /resource
     # Overwrite Devise destroy action to check if deleting devise models is enabled
     # and if delete requires a password.
