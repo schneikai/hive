@@ -18,53 +18,69 @@ class Validator
     # its error message here but not display it again because it is not in the
     # changed fields list when *showError* runs.
     @form.find('.has-error').each (index, element)=>
-      fieldId = $(element).find('input[id]').attr('id')
-      @changedFields.push fieldId unless @hasChanged(fieldId)
+      attr = @attributeFor($(element).find('input[id]'))
+      @changedFields.push attr unless @hasChanged(attr)
 
     # Attach to the change event on the form to catch field changes.
     @form.on 'change', (event)=>
-      @changed $(event.target).attr('id')
+      @changed @attributeFor($(event.target))
 
     # Hide form errors on fields that are beeing edited.
     @form.on 'keyup', (event)=>
-      @hideValidationResultOnField $(event.target).attr('id')
+      @hideValidationResult @attributeFor($(event.target))
 
-  # Returns the id for a given field name
-  #   fieldId 'email'
-  #   => 'user_email'
-  fieldId: (name)->
-    @model + '_' + name
+  # Returns the attribute for a given field or field id. Removes possible Rails
+  # multi parameter identifiers.
+  #   attributeFor $('#user_dob_1i')
+  #   => user_dob
+  attributeFor: (fieldOrId)->
+    if fieldOrId instanceof jQuery
+      @attributeFor(fieldOrId.attr('id'))
+    else
+      fieldOrId.replace(/_[0-9][i|f|s|a]$/, '') if fieldOrId
+
+  # Returns the field for a given attribute. A jQuery object is returned.
+  # This might return multiple fields if the attribute is entered via a Rails
+  # multi parameter input (date_select for example).
+  #   fields = fieldFor('user_dob')
+  #   fields.length
+  #   => 3
+  fieldFor: (attribute)->
+    @form.find('[id]').filter(->
+      this.id.match(new RegExp('^' + attribute + '($|_[0-9][i|f|s|a]$)'))
+    )
 
   # Runs when a field was changed (via @form.on 'change' )
-  # We can't vaildate file fields right now because we would need to send
+  # We can't validate file fields right now because we would need to send
   # the file to the server on every validation which would be a big overhead...
-  changed: (fieldId) ->
-    unless @isFile(fieldId)
+  changed: (attribute) ->
+    unless @isFile(attribute)
       @unvalidatedChanges = true # We use this to check if the form was changed while being validated.
-      @changedFields.push fieldId unless @hasChanged(fieldId)
+      @changedFields.push attribute unless @hasChanged(attribute)
       @validate()
 
-  # Returns true if field has changed.
-  hasChanged: (fieldId)->
-    $.inArray(fieldId, @changedFields) >= 0
+  # Returns true if the attribute was changed.
+  hasChanged: (attribute)->
+    $.inArray(attribute, @changedFields) >= 0
 
-  # Returns true if the given field currently has the focus.
-  hasFocus: (fieldId)->
-    $(':focus').attr('id') == fieldId
+  # Returns true if the field for the given attribute currently has the focus.
+  hasFocus: (attribute)->
+    @attributeFor($(':focus').attr('id')) == attribute
 
-  # Returns true if field is a confirmation field (id ends with '_confirmation')
-  isConfirmation: (fieldId)->
-    fieldId.split('_').pop() == 'confirmation'
+  # Returns true if attribute is a confirmation field. The id ends with
+  # '_confirmation' for example 'password_confirmation'.
+  isConfirmation: (attribute)->
+    attribute.split('_').pop() == 'confirmation'
 
-  # Returns true if the field is a check box or radio button.
-  isToggle: (fieldId)->
-    $('#' + fieldId).attr('type') == 'checkbox' || $('#' + fieldId).attr('type') == 'radio'
+  # Returns true if the attribute uses a check box or radio button as the input.
+  isToggle: (attribute)->
+    @fieldFor(attribute).attr('type') == 'checkbox' || @fieldFor(attribute).attr('type') == 'radio'
 
-  # Returns true if the field is a file field.
-  isFile: (fieldId)->
-    $('#' + fieldId).attr('type') == 'file'
+  # Returns true if the attribute uses a file input.
+  isFile: (attribute)->
+    @fieldFor(attribute).attr('type') == 'file'
 
-  # Holds an array of all changed field ids.
+  # Holds an array of all changed attributes.
   changedFields: []
 
   # Validates the form and show validation errors.
@@ -88,43 +104,43 @@ class Validator
   serializeForm: ->
     @form.serialize() + '&validate_model=' + encodeURIComponent(@model) + '&validate_record_id=' + encodeURIComponent(@recordId)
 
-  # Process the validation result and show the error if the field:
+  # Process the validation result and show the error if the attributes:
   # * has changed or
   # * initally had errors when the form was rendered or
-  # * is a confirmation field of another field and currently does not have the focus
+  # * is a confirmation of another attribute and currently does not have the focus
   #   (user typed the password, hit tab to go to the password confirmation field,
   #   we need to wait until he has completed typing the confirmation)
   showValidationResult: (errors)->
-    console.log errors
-    $.each errors, (field, errors)=>
-      fieldId = @fieldId(field)
+    $.each errors, (attr, errors)=>
+      attribute = @model + '_' + attr
 
-      if @hasChanged(fieldId) || (@isConfirmation(fieldId) && !@hasFocus(fieldId))
-        @showError fieldId, errors
+      if @hasChanged(attribute) || (@isConfirmation(attribute) && !@hasFocus(attribute))
+        @showError attribute, errors
 
-  # Show the given error on the given field
-  # If a field has multiple error messages we only show the first to not bomb
-  # the user with error messages.
-  showError: (fieldId, errors)->
-    field = $('#' + fieldId)
+  # Show the given error on the input field for the given attribute.
+  # If a attribute has multiple error messages we only show the first to not
+  # bomb the user with error messages.
+  showError: (attribute, errors)->
+    field = @fieldFor(attribute).first()
     error = errors[0]
-    if @isToggle(fieldId)
+    if @isToggle(attribute)
       field.parents('.checkbox, .radio').addClass('has-error')
       field.parents('label').after $(@errorHtml(error))
     else
       field.parents('.form-group').addClass('has-error')
       field.after $(@errorHtml(error))
 
-  # Hide all error messages.
-  hideValidationResult: ->
-    @form.find('.has-error').removeClass('has-error')
-    @form.find('.validator-error').remove()
+  # Hide error messages on given attribute or all attributes
+  # if no attribute is given.
+  hideValidationResult: (attribute)->
+    if attribute
+      $('.form-group.' + attribute + '.has-error').removeClass('has-error')
+      $('.form-group.' + attribute).find('.validator-error').remove()
+    else
+      @form.find('.has-error').removeClass('has-error')
+      @form.find('.validator-error').remove()
 
-  hideValidationResultOnField: (fieldId)->
-    $('.form-group.' + fieldId + '.has-error').removeClass('has-error')
-    $('.form-group.' + fieldId).find('.validator-error').remove()
-
-  # Returns a html code snippet with the error message.
+  # Returns a html markup template for the error message.
   errorHtml: (error)->
     '<span class="help-block validator-error">' + error + '</span>'
 

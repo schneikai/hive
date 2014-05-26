@@ -1,0 +1,66 @@
+es:
+  simple_form:
+    labels:
+      user:
+        login: "Email o nombre de usuario"
+        accept_terms: "He leído las condiciones de uso y las acepto."
+        password_confirmation: "Confirmar contraseña"
+        registrations:
+          edit:
+            password: "Nueva contraseña"
+            password_confirmation: "Confirmar nueva contraseña"
+        passwords:
+          edit:
+            password: "Nueva contraseña"
+            password_confirmation: "Confirmar nueva contraseña"
+    placeholders:
+      user:
+        login: "Email o nombre de usuario"
+        sessions:
+          new:
+            password: Contraseña
+  hive:
+    links:
+      new_session: "¿Ya tienes una cuenta de Photocase?"
+      new_registration: "¿Todavía no tienes una cuenta de Photocase?"
+      new_password: "¿Has olvidado tu contraseña?"
+      new_confirmation: "¿No has recibido el código de activación?"
+      new_unlock: "¿No has recibido un email para desbloquear tu cuenta?"
+      omniauth_authorize: "O inicia sesión con"
+      back: "Volver a la página principal"
+    confirmations:
+      pending_confirmation: "Todavía tienes que activar to cuenta. A este fin, te hemos enviado un email a %{email}. <a href=\"%{link}\">Haz clic aquí para que te podemos enviar otro email</a> en caso de que no lo has recibido la primera vez."
+      pending_reconfirmation: "Esperando activación para: %{email}"
+      new:
+        title: "Reenviar código de activación"
+        submit: "Reenviar código de activación"
+        submitting: Enviar
+    passwords:
+      new:
+        title: "¿Has olvidado tu contraseña?"
+        submit: "Restabler contraseña"
+        submitting: Enviando...
+      edit:
+        title: "Cambiar contraseña"
+        submit: "Cambiar contraseña"
+        submitting: Cambiando...
+    registrations:
+      new:
+        title: "Por favor, regístrate"
+        submit: Registrar
+        submitting: Registrando...
+      edit:
+        title: "Editar tus datos"
+        change_password: "Cambia contraseña (dejar en blanco, si no quieres cambiar tu contraseña)"
+        current_password: "Es necesario tu contraseña actual para confirmar tus cambios."
+        submit: "Guardar cambios"
+        submitting: Guardando...
+      cancel:
+        title: "¿Descontento? – Eliminar cuenta"
+        submit: "Eliminar cuenta de Photocase"
+        submitting: "Eliminando cuenta..."
+    sessions:
+      new:
+        title: "Por favor, inicia sesión"
+        submit: "Iniciar sesión"
+        submitting: "Iniciando sesión..."

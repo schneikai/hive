@@ -1,71 +1,66 @@
-# Translations for Hive.
-# For default Devise translations check https://github.com/plataformatec/devise/wiki/I18n.
-
 en:
   simple_form:
     labels:
       user:
-        login: Email or Username
-        accept_terms: I have read and agree to the terms of use.
-        password_confirmation: Confirm password
+        login: "Email or Username"
+        accept_terms: "I have read and agree to the terms of use."
+        password_confirmation: "Confirm password"
         registrations:
           edit:
-            password: New password
-            password_confirmation: Confirm new password
+            password: "New password"
+            password_confirmation: "Confirm new password"
         passwords:
           edit:
-            password: New password
-            password_confirmation: Confirm new password
+            password: "New password"
+            password_confirmation: "Confirm new password"
     placeholders:
       user:
-        login: Email or Username
+        login: "Email or Username"
         sessions:
           new:
             password: Password
-
   hive:
     links:
-      new_session: Already have an account?
-      new_registration: Not yet a member?
-      new_password: Forgot your password?
-      new_confirmation: Didn't receive confirmation instructions?
-      new_unlock: Didn't receive unlock instructions?
-      omniauth_authorize: Or sign in with
-      back: Return home
+      new_session: "Already have an account?"
+      new_registration: "Not yet a member?"
+      new_password: "Forgot your password?"
+      new_confirmation: "Didn't receive confirmation instructions?"
+      new_unlock: "Didn't receive unlock instructions?"
+      omniauth_authorize: "Or sign in with"
+      back: "Return home"
     confirmations:
-      pending_confirmation: 'You still need to confirm your account. Confirmation instructions have been sent to %{email}. <a href="%{link}">Request a new one</a> if you didn''t get the email.'
-      pending_reconfirmation: 'Currently waiting confirmation for: %{email}'
+      pending_confirmation: "You still need to confirm your account. Confirmation instructions have been sent to %{email}. <a href=\"%{link}\">Request a new one</a> if you didn't get the email."
+      pending_reconfirmation: "Currently waiting confirmation for: %{email}"
       new:
-        title: Resend confirmation instructions
-        submit: Resend confirmation instructions
+        title: "Resend confirmation instructions"
+        submit: "Resend confirmation instructions"
         submitting: Sending
     passwords:
       new:
-        title: Forgot your password?
-        submit: Send me reset password instructions
+        title: "Forgot your password?"
+        submit: "Send me reset password instructions"
         submitting: Sending...
       edit:
-        title: Change your password
-        submit: Change my password
+        title: "Change your password"
+        submit: "Change my password"
         submitting: Changing...
     registrations:
       new:
-        title: Please sign up
-        submit: Sign up
-        submitting: Signing up...
+        title: "Please sign up"
+        submit: "Sign up"
+        submitting: "Signing up..."
       edit:
-        title: Edit your details
-        change_password: Change password (Leave blank if you don't want to change it.)
-        current_password: We need your current password to confirm your changes.
-        submit: Save changes
+        title: "Edit your details"
+        change_password: "Change password (Leave blank if you don't want to change it.)"
+        current_password: "We need your current password to confirm your changes."
+        submit: "Save changes"
         submitting: Saving...
       cancel:
-        title: Unhappy? - Cancel my account
-        submit: Cancel my account
+        title: "Unhappy? - Cancel my account"
+        submit: "Cancel my account"
         submitting: Canceling...
     sessions:
       new:
-        title: Please sign in
-        submit: Sign in
-        submitting: Signing in...
-
+        title: "Please sign in"
+        submit: "Sign in"
+        submitting: "Signing in..."
