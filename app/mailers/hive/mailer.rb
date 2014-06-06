@@ -28,6 +28,6 @@ class Hive::Mailer < Devise.parent_mailer.constantize
 
   protected
     def locale
-      @record.try(:locale) || I18n.locale
+      (@record.try(:locale) || I18n.locale).to_sym
     end
 end
