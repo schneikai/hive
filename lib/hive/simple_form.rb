@@ -1,4 +1,4 @@
-# Add another tranlation lookup key to SimpleForm to allow to use controller
+# Add another translation lookup key to SimpleForm to allow to use controller
 # namespace in translation files.
 #
 # en:

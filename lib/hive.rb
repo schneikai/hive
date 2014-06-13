@@ -16,8 +16,8 @@ require 'hive/routes'
 module Hive
   autoload :Controller, 'hive/controller'
   autoload :DeviseController, 'hive/devise_controller'
-  autoload :Helpers, 'hive/helpers'
   autoload :ParameterSanitizer, 'hive/parameter_sanitizer'
+  autoload :Helpers, 'hive/helpers'
   autoload :Models, 'hive/models'
   autoload :Model, 'hive/model'
 

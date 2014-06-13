@@ -19,6 +19,16 @@ Add Hive to your Gemfile and run the bundle command to install it:
 gem 'hive'
 ```
 
+For now this must be added to the Gemfile of the Rails App that uses Hive:
+
+```ruby
+gem 'simple_form', github: 'plataformatec/simple_form'
+gem 'devise_avatarable', github: 'schneikai/devise_avatarable'
+gem 'devise_authorizable', github: 'schneikai/devise_authorizable'
+gem 'devise_easy_omniauthable', github: 'schneikai/devise_easy_omniauthable'
+gem 'devise_attributable', github: 'schneikai/devise_attributable'
+```
+
 After the gem is installed you need to run the install generator:
 
 ```console
@@ -31,15 +41,26 @@ translations files to <tt>config/locales</tt> and create the Hive initializer in
 <tt>config/initializers/hive.rb</tt>. The initializer is where you configure Hive.
 You should check it out.
 
+Hive uses [simple_form](https://github.com/plataformatec/simple_form) to generate
+Forms with Twitter Boostrap 3 markup. If you already use simple_form in your app
+you are ready to go. If not you need to generate the necessary initializers via:
 
-For now this must be added to the Gemfile of the Rails App that uses Hive:
+```console
+rails generate simple_form:install --bootstrap
+```
+
+Now open <tt>config/initializers/simple_form.rb</tt>, search for *wrapper_mappings*
+and make it look like this:
 
 ```ruby
-gem 'simple_form', github: 'plataformatec/simple_form'
-gem 'devise_avatarable', github: 'schneikai/devise_avatarable'
-gem 'devise_authorizable', github: 'schneikai/devise_authorizable'
-gem 'devise_easy_omniauthable', github: 'schneikai/devise_easy_omniauthable'
-gem 'devise_attributable', github: 'schneikai/devise_attributable'
+config.wrapper_mappings = { check_boxes: :vertical_radio_and_checkboxes, radio_buttons: :vertical_radio_and_checkboxes, file: :vertical_file_input, boolean: :vertical_boolean }
+```
+
+That's it. If you are done configuring Hive via <tt>config/initializers/hive.rb</tt>
+you just need to generate the database migrations and you are ready to go.
+
+```console
+rake db:migrate
 ```
 
 
@@ -251,11 +272,9 @@ you can checkout their documentation if you are interested in how everything wor
 
 Hive comes with a nice layout for login, sign-up, lost password, edit account
 and all its other pages. This is based on  [Twitter Bootstrap 3](http://getbootstrap.com/).
-We added Bootstrap to your App during setup by requiring it in
-<tt>app/assets/javascripts/application.js</tt> and
-<tt>app/assets/stylesheets/application.css</tt>. If you already use Bootstrap 3
-in your App you can replace the <tt>require hive</tt> entries in both files with
-<tt>require hive_without_bootstrap</tt>.
+If you already use Bootstrap 3 in your App you can replace the <tt>require hive</tt>
+entries in <tt>app/assets/javascripts/application.js</tt> and
+<tt>app/assets/stylesheets/application.css</tt> with <tt>require hive_without_bootstrap</tt>.
 
 Hive by default uses your main application layout file from
 <tt>app/views/layouts/application.html.erb</tt>. You can change that in the Hive
@@ -334,7 +353,7 @@ If you get dizzy, you can disable that in the Hive initializer by specifying:
 config.animate_views = false
 ```
 
-### Customisation
+### Customization
 
 TODO: Write about how to modify view templates and css.
 View generator must work!
@@ -417,6 +436,18 @@ Katalog uses the following [locales](https://github.com/schneikai/katalog/blob/m
 Add or change translations by adding or overwriting these files in your app.
 
 
+## Add Hive to a engine
+
+TODO
+* InstallGenerator#copy_migrations needs to be fixed
+  it must use "rake railties:install:migrations" when run inside engine
+* by default a engine does not have jQuery
+  add s.add_development_dependency "jquery-rails" to gemspec
+  fix application.js to require jquery, jquery_uji, hive
+
+
+
+
 ## TODO
 * make the sign_in_status nicer. use something from bootstrap?
   maybe just use the navbar? maybe in a helper method that allows a block for the
@@ -435,6 +466,14 @@ Add or change translations by adding or overwriting these files in your app.
 * add a example layout file that show where the flash messages partial and login status partial should go.
 * add something to the readme about how to setup the main apps app layout for
   TWBS 3 (html5 doctype, meta-viewport tag, ...) http://getbootstrap.com/css/
+* i had added this to theinstall generator readme but removed it because i
+  wasn't sure if this i realy recessary
+    4. Ensure you add current controller and action names as class and data-attributes
+    to the body-tag in app/views/layouts/application.html.erb.
+    For example:
+      <body class="<%= "my-app #{controller_name} #{action_name}".squish %>" data-controller="<%= controller_name %>" data-action="<%= action_name %>">
+* can we refactor to work without simple_form? it just adds another dependency
+  and makes setup more complicated.
 
 Maybe
 * Make the path helpers nicer? *user_login_path* instead of *new_user_session_path*

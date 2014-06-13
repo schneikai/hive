@@ -1,12 +1,5 @@
 module Hive
   module Helpers
-    extend ActiveSupport::Concern
-
-    included do
-      helper_method :stored_location_for, :hive_translate, :user_need_confirmation?,
-        :user_need_reconfirmation?, :user_mapping, :hive_title, :hive_animation_class
-    end
-
     # Use this instead of <tt>I18n.translate</tt> to scope translations to the
     # current hive controller and action.
     #

@@ -6,6 +6,7 @@ module Hive
 
     included do
       validates :accept_terms, acceptance: true, on: :create, if: :must_accept_terms_on_sign_up?
+      before_create :ensure_registration_defaults
     end
 
     module ClassMethods
@@ -23,8 +24,24 @@ module Hive
       end
     end
 
+    # Hive allows to set registration details for new users via the
+    # *registration_defaults* class method. This is executed when Devise
+    # is creating a new user for registration but not when a new user is
+    # created outside of the Devise workflow for example via the Rails console.
+    # So we need to make sure that the defaults are set via this *before_create*
+    # callback here.
+    def ensure_registration_defaults
+      self.class.registration_defaults.each do |key,value|
+        self[key] ||= value
+      end
+    end
+
     def must_accept_terms_on_sign_up?
       Hive.must_accept_terms_on_sign_up
+    end
+
+    def confirmable?
+      Hive.must_confirm_registration
     end
 
     # Returns true if the model can be deleted.

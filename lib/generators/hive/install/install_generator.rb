@@ -10,11 +10,7 @@ module Hive
 
       say_status :copying, "migrations"
       Dir.chdir(Rails.root) do
-        # Side note: This will fail wenn you run the install generator inside
-        # <tt>test/dummy</tt> with error <tt>Don't know how to build task 'hive:install:migrations'</tt>.
-        # Not sure if the dummy app just don't need the migrations because they're
-        # part of the engine anyway or if it's a bug...
-        `rake hive:install:migrations`
+        `rake hive_engine:install:migrations`
       end
     end
 
