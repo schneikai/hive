@@ -5,6 +5,8 @@ module Hive
     extend ActiveSupport::Concern
 
     included do
+      helper_method :stored_location_for
+
       # When a user is not authorized to access a page a *CanCan::AccessDenied*
       # error is raised. We rescue from that error and send to user to the login
       # page if not logged in or to the home page if already logged in but not
