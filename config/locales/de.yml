@@ -2,6 +2,7 @@ de:
   simple_form:
     labels:
       user:
+        remember_me: "Eingeloggt bleiben"
         login: "Email oder Benutzername"
         accept_terms: "Ich habe die Nutzungsbedingungen gelesen und akzeptiere sie."
         password_confirmation: "Passwort bestätigen"

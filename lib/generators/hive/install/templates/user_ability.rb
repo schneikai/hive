@@ -20,6 +20,3 @@ class UserAbility < DeviseAuthorizable::Ability
     can :manage, :all
   end
 end
-
-
-

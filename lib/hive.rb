@@ -21,10 +21,14 @@ module Hive
   autoload :Models, 'hive/models'
   autoload :Model, 'hive/model'
 
-  # Called by hive initializer in host app.
-  # We have a devise initializer in this gem that will setup all important
-  # defaults and users can overwrite application specific configurations
-  # via the hive initializer in the host app.
+  # Allows to set configuration settings via a initializer in the host app.
+  #
+  #   Hive.setup do |config|
+  #     config.app_name = 'Photocase'
+  #   end
+  #
+  # All configuration settings for Devsie available too. If a setting is not
+  # handled here it is sent to Devise via *method_missing* at the bottom of this module.
   def self.setup
     yield self
   end
