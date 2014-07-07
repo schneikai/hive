@@ -35,7 +35,6 @@ module Hive
         unsave_params.delete(:password_confirmation) if unsave_params[:password_confirmation].blank?
       end
 
-
       if id > 0
         model = model_name.classify.constantize.find(id)
         model.assign_attributes(unsave_params)
@@ -46,7 +45,28 @@ module Hive
       if model.valid?
         render json: { }
       else
-        render json: model.errors
+        # Convert attributes to field ids in the error messages because that's
+        # what the validator uses to identify fields.
+        errors = {}
+
+        # When a spam protected form is used the field ids are randomized and
+        # we need to translate the original field ids to those randomized
+        # (aka safe) field ids.
+        # TODO: This was added as a quick test when I added SpamFighter but
+        # I don't know if this is the right place here.
+        pp = ::SpamFighter::ParamsProtector.new(params)
+
+        model.errors.each do |field, error|
+          field_id = "#{model_name}_#{field}"
+          safe_field_id = pp.to_save_field_id(field_id)
+
+          field_id = safe_field_id if safe_field_id.present?
+
+          errors[field_id] ||= []
+          errors[field_id] << error
+        end
+
+        render json: errors
       end
     end
   end

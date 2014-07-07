@@ -39,6 +39,11 @@ Hive.setup do |config|
   # You can configure it to use just <tt>:username</tt> or <tt>:email</tt> instead.
   config.authentication_keys = [ :login ]
 
+  # You can configure to lock a users account after a number of failed
+  # login attempts. If a user is locked out a email is sent to the accounts
+  # email address with a link to unlock the account.
+  # config.lock_account_after_failed_logins = 3
+
   # ==> Social logins
   # Configure the social logins by adding app ids and secrets for the providers
   # your users might use to login and/or register.
@@ -97,9 +102,6 @@ Hive.setup do |config|
   # Configure if users must tick a checkbox to confirm that the have read and
   # agree to the terms of use.
   # config.must_accept_terms_on_sign_up = true
-
-  # ==> Login
-  # config.lock_account_after_failed_logins = 3
 
   # ==> Account deletion
   config.deletable = true

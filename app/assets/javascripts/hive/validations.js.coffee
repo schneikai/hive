@@ -111,9 +111,7 @@ class Validator
   #   (user typed the password, hit tab to go to the password confirmation field,
   #   we need to wait until he has completed typing the confirmation)
   showValidationResult: (errors)->
-    $.each errors, (attr, errors)=>
-      attribute = @model + '_' + attr
-
+    $.each errors, (attribute, errors)=>
       if @hasChanged(attribute) || (@isConfirmation(attribute) && !@hasFocus(attribute))
         @showError attribute, errors
 

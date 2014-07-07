@@ -449,6 +449,12 @@ TODO
 
 
 ## TODO
+* allow admins to lock users. We could change the behavior of Devise Lockable for that:
+  * if a account is locked by a admin do not send unlock instruction regardless
+    even if *unlock_strategy* is set to *:email* or *:both*
+  * do not unlock locked accounts after some time even if *unlock_strategy*
+    is set to *:time* or *:both*
+  * do not allow users to unlock accounts when the account was locked by a admin
 * make the sign_in_status nicer. use something from bootstrap?
   maybe just use the navbar? maybe in a helper method that allows a block for the
   main menue?
@@ -476,6 +482,8 @@ TODO
   and makes setup more complicated.
 
 Maybe
+* https://github.com/plataformatec/devise/wiki/How-To:-Disallow-previously-used-passwords
+* https://github.com/plataformatec/devise/wiki/How-To:-Using-paranoid-mode,-avoid-user-enumeration-on-registerable
 * Make the path helpers nicer? *user_login_path* instead of *new_user_session_path*
 * put validations in extra gem (routes, validations.js, validations controller)
   but first check if there is a more sophisticated gem for client side validations
