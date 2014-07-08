@@ -7,6 +7,11 @@
   = simple_form_for(resource, as: resource_name, url: registration_path(resource_name), html: { method: :put, data: { validate: true, model: resource_name, id: resource.id, behavior: 'devise_attributable-password-required' } }) do |f|
     = f.error :base
 
+    -# Stop Chrome and Safari from auto filling new password field
+    -# http://stackoverflow.com/questions/15738259/disabling-chrome-autofill
+    %input{type: 'text', style: 'display:none;visibility:hidden'}
+    %input{type: 'password', style: 'display:none;visibility:hidden'}
+
     = f.avatar_field :avatar
 
     = f.input :email, required: true, input_html: { data: { 'update-requires-password' => true } }

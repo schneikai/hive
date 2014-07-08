@@ -111,6 +111,8 @@ class Validator
   #   (user typed the password, hit tab to go to the password confirmation field,
   #   we need to wait until he has completed typing the confirmation)
   showValidationResult: (errors)->
+    # TODO: If the server didn't return proper json if for example there was a server error
+    # the loop would fail. We should add some data checks to <tt>validateWithTimeout</tt>.
     $.each errors, (attribute, errors)=>
       if @hasChanged(attribute) || (@isConfirmation(attribute) && !@hasFocus(attribute))
         @showError attribute, errors
