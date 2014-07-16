@@ -27,6 +27,9 @@ class Hive::Mailer < Devise.parent_mailer.constantize
 
 
   protected
+    # Returns the locale for the mailer. The method tries to read a +locale+
+    # attribute from the user model (recipient) if such attribute does not
+    # exist it returns the current locale.
     def locale
       (@record.try(:locale) || I18n.locale).to_sym
     end
