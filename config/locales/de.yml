@@ -34,7 +34,7 @@ de:
       pending_reconfirmation: "Warten auf Aktivierung für: %{email}"
       new:
         title: "Aktivierungscode erneut senden"
-        submit: "Aktivierungscode erneut senden"
+        submit: "Aktivierungscode senden"
         submitting: Senden
     passwords:
       new:
@@ -65,3 +65,7 @@ de:
         title: "Bitte logg Dich ein"
         submit: Einloggen
         submitting: "Einloggen läuft..."
+  activerecord:
+    attributes:
+      user:
+        confirmation_token: Aktivierungscode

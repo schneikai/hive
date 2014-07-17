@@ -11,6 +11,14 @@ module Hive
         options[:base] ||= 'hive'
         options[:controller] ||= controller_name
 
+        # ConfirmationsController is using the +show+ action to validate
+        # confirmation tokens from urls. If such token is not valid it renders
+        # +new+ so we alias +show+ to +new+ here so we don't have to add
+        # translations for the same thing twice.
+        if options[:action].blank? && options[:controller] == 'confirmations' && action_name == 'show'
+          options[:action] = 'new'
+        end
+
         # For translation scopes we don't need to differentiate between new/create
         # and edit/update actions.
         options[:action] ||= { 'create' => 'new', 'update' => 'edit' }[action_name] || action_name

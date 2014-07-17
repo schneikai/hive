@@ -3,7 +3,8 @@
 
 .hive.hive-passwords.hive-passwords-edit{ class: "#{hive_animation_class}" }
   = simple_form_for(resource, as: resource_name, url: password_path(resource_name), html: { method: :put }) do |f|
-    = f.error :base
+    = f.flash_error :base
+
     = f.input :reset_password_token, as: :hidden
 
     = render "hive/shared/header"

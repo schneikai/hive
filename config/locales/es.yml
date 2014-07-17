@@ -34,7 +34,7 @@ es:
       pending_reconfirmation: "Esperando activación para: %{email}"
       new:
         title: "Reenviar código de activación"
-        submit: "Reenviar código de activación"
+        submit: "Reenviar código"
         submitting: Enviar
     passwords:
       new:
@@ -65,3 +65,7 @@ es:
         title: "Por favor, inicia sesión"
         submit: "Iniciar sesión"
         submitting: "Iniciando sesión..."
+  activerecord:
+    attributes:
+      user:
+        confirmation_token: "Código de activación"

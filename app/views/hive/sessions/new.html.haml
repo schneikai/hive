@@ -1,6 +1,6 @@
 .hive.hive-sessions.hive-sessions-new{ class: "#{hive_animation_class}" }
   = simple_form_for(resource, as: resource_name, url: session_path(resource_name)) do |f|
-    = f.error :base
+    = f.flash_error :base
 
     = render "hive/shared/header"
 

@@ -34,7 +34,7 @@ en:
       pending_reconfirmation: "Currently waiting confirmation for: %{email}"
       new:
         title: "Resend confirmation instructions"
-        submit: "Resend confirmation instructions"
+        submit: "Resend instructions"
         submitting: Sending
     passwords:
       new:
@@ -65,3 +65,7 @@ en:
         title: "Please sign in"
         submit: "Sign in"
         submitting: "Signing in..."
+  activerecord:
+    attributes:
+      user:
+        confirmation_token: "Confirmation Token"

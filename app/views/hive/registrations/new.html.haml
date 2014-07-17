@@ -1,6 +1,6 @@
 .hive.hive-registrations.hive-registrations-new{ class: "#{hive_animation_class}" }
   = simple_form_for(resource, as: resource_name, url: registration_path(resource_name), html: { data: { validate: true, model: resource_name, id: resource.id } }) do |f|
-    = f.error :base
+    = f.flash_error :base
 
     = render "hive/shared/header"
 
