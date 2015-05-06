@@ -53,6 +53,10 @@
   .dialog-container {
       text-align: center;
       height: 100%;
+      white-space: nowrap;
+  }
+  .dialog-container * {
+      white-space: initial;
   }
   .dialog-container:before {
       content: '';

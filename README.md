@@ -400,14 +400,12 @@ Add or change translations by adding or overwriting these files in your app.
 ## Add Hive to a engine
 
 TODO
-* InstallGenerator#copy_migrations needs to be fixed
-  it must use "rake railties:install:migrations" when run inside engine
-* by default a engine does not have jQuery
-  add s.add_development_dependency "jquery-rails" to gemspec
-  fix application.js to require jquery, jquery_uji, hive
 
 
 ## TODO
+* use host apps layout just like Devise!
+* InstallGenerator#copy_migrations needs to be fixed
+  it must use "rake railties:install:migrations" when run inside engine
 * allow admins to lock users. We could change the behavior of Devise Lockable for that:
   * if a account is locked by a admin do not send unlock instruction regardless
     even if *unlock_strategy* is set to *:email* or *:both*
