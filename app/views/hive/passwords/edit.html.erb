@@ -1,0 +1,31 @@
+<%#
+  Remember: This is for non-authenticated users to reset their password
+  using a reset token they got via mail.
+%>
+
+<%
+  @title = t('.title')
+  @heading = content_tag :h1, @title, class: 'dialog-heading'
+%>
+
+<div class="dialog" data-ix="reveal-dialog">
+  <%= render "hive/shared/header" %>
+  <div class="w-form">
+    <%= form_for(resource, as: resource_name, url: password_path(resource_name), html: { method: :put }) do |f| %>
+      <% resource.errors.full_messages.each do |message| %>
+        <p class="alert form-error"><%= message %></p>
+      <% end %>
+
+      <%= f.hidden_field :reset_password_token %>
+
+      <%= f.password_field :password, required: true, autofocus: true, class: 'w-input input', placeholder: t('helpers.label.user.registrations.edit.password') %>
+
+      <%= f.password_field :password_confirmation, required: true, class: 'w-input input', placeholder: t('helpers.label.user.registrations.edit.password_confirmation') %>
+
+      <%= f.submit t('.submit'), class: 'w-button button', data: { disable_with: t('.submitting') } %>
+    <% end %>
+  </div>
+  <div class="service">
+    <%= render 'hive/shared/links' %>
+  </div>
+</div>

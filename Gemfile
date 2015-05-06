@@ -16,7 +16,6 @@ gem 'debugger'
 
 # Some gems need special sources.
 # Remember to add this to the Gemfile of the app that uses Hive too.
-gem 'simple_form', github: 'plataformatec/simple_form'
 gem 'devise_avatarable', github: 'schneikai/devise_avatarable'
 gem 'devise_authorizable', github: 'schneikai/devise_authorizable'
 gem 'devise_easy_omniauthable', github: 'schneikai/devise_easy_omniauthable'

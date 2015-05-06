@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html data-wf-site="550c0d767c2c00c55d595fad" data-wf-page="550c0d767c2c00c55d595fae" lang="<%= locale %>">
+<head>
+  <meta charset="utf-8">
+  <title><%= @title %> - Photocase</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <%= stylesheet_link_tag    "hive/application", media: "all" %>
+  <%= javascript_include_tag "hive/application" %>
+  <script src="https://ajax.googleapis.com/ajax/libs/webfont/1.4.7/webfont.js"></script>
+  <script>
+    WebFont.load({
+      google: {
+        families: ["Lato:100,100italic,300,300italic,400,400italic,700,700italic,900,900italic"]
+      }
+    });
+  </script>
+  <!--[if lte IE 9]><script src="https://cdnjs.cloudflare.com/ajax/libs/placeholders/3.0.2/placeholders.min.js"></script><![endif]-->
+  <link rel="shortcut icon" type="image/x-icon" href="<%= asset_url 'hive/photocase_blue_white_carrot_64.png' %>">
+  <link rel="apple-touch-icon" href="<%= asset_url 'hive/photocase_blue_carrot_256.png' %>">
+</head>
+<body style="background-image: url('<%= hive_background_image[:image] %>')">
+  <div class="dialog-container">
+    <%= yield %>
+  </div>
+  <a class="background-photo-credits" href="<%= hive_background_image[:source] %>">Photo: <%= hive_background_image[:author] %></a>
+  <%= google_analytics_tag if track_with_google_analytics? %>
+</body>
+</html>

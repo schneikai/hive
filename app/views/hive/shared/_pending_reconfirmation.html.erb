@@ -1,0 +1,3 @@
+<% if user_need_reconfirmation? %>
+  <p class="notice" style="margin: 0;"><%= t('hive.confirmations.pending_reconfirmation', email: current_user.unconfirmed_email).html_safe %></p>
+<% end %>

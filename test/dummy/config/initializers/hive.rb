@@ -6,9 +6,6 @@ Hive.setup do |config|
   # Configure the name of your app.
   config.app_name = 'HIVE'
 
-  # If true this will use animations in the Hive views.
-  config.animate_views = true
-
   # Allows to configure redirect locations for different events. Can be a string
   # or a proc. The following events can be configured:
   #   * :after_sign_up

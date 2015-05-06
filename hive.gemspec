@@ -18,14 +18,7 @@ Gem::Specification.new do |s|
 
   s.add_dependency "rails", "~> 4.0"
   s.add_dependency "sass-rails", "~> 4.0"
-  s.add_dependency "haml", "~> 4.0"
-  s.add_dependency "haml-rails", "~> 0.4"
   s.add_dependency "coffee-rails", "~> 4.0"
-  s.add_dependency "bootstrap-sass", "~> 3.0"
-  s.add_dependency "animate-scss", ">= 0.0.5", "< 1"
-  s.add_dependency "font-awesome-rails", ">= 4.0.3", "< 5"
-  s.add_dependency "simple_form"
-  s.add_dependency "country_select", "~> 1.3"
 
   s.add_dependency "devise", "~> 3.0"
   s.add_dependency "devise_avatarable"

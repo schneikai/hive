@@ -1,8 +1,8 @@
 es:
-  simple_form:
-    labels:
+  helpers:
+    label:
       user:
-        remember_me: ~
+        remember_me: "Manténgase conectado"
         login: "Email o nombre de usuario"
         accept_terms: "He leído las condiciones de uso y las acepto."
         password_confirmation: "Confirmar contraseña"
@@ -14,7 +14,7 @@ es:
           edit:
             password: "Nueva contraseña"
             password_confirmation: "Confirmar nueva contraseña"
-    placeholders:
+    placeholder:
       user:
         login: "Email o nombre de usuario"
         sessions:

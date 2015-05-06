@@ -1,0 +1,10 @@
+<% flash.each do |name, msg| %>
+  <p class="alert alert-<%= name %>"><%= msg %></p>
+<% end %>
+
+<div class="head">
+  <%= link_to root_url, class: 'w-inline-block logo' do %>
+    <%= image_tag 'hive/photocase_blue_carrot_120.png', alt: Hive.app_name %>
+  <% end %>
+  <%= @heading %>
+</div>

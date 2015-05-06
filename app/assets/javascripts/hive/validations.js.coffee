@@ -5,6 +5,18 @@
 # the params are assigned and the validation result is returned back to the client.
 #
 # The error messages are then shown on the fields that brought validation errors.
+# Field and additional markup must be wrapped with a div and special class and
+# data attribute like this:
+#
+#   <div class="input-group" data-attribute="user_email">
+#     <label for="user_email">Email</label>
+#     <input type="email" id="user_email" name="user[email]" required="required">
+#   </div>
+#
+# If the field has a error the input group recieves class "input-group-with-error"
+# and the error message is added with the following markup:
+#
+#   <div class="input-error">is invalid</div>
 
 class Validator
   constructor: (@form) ->
@@ -17,8 +29,8 @@ class Validator
     # When the form is rendered and a field initally has errors we would hide
     # its error message here but not display it again because it is not in the
     # changed fields list when *showError* runs.
-    @form.find('.has-error').each (index, element)=>
-      attr = @attributeFor($(element).find('input[id]'))
+    @form.find('.input-group-with-error').each (index, element)=>
+      attr = @attributeFor($(element).data('attribute'))
       @changedFields.push attr unless @hasChanged(attr)
 
     # Attach to the change event on the form to catch field changes.
@@ -49,6 +61,9 @@ class Validator
     @form.find('[id]').filter(->
       this.id.match(new RegExp('^' + attribute + '($|_[0-9][i|f|s|a]$)'))
     )
+
+  formGroupFor: (attribute)->
+    @form.find('.input-group[data-attribute=' + attribute + ']')
 
   # Runs when a field was changed (via @form.on 'change' )
   # We can't validate file fields right now because we would need to send
@@ -121,28 +136,25 @@ class Validator
   # If a attribute has multiple error messages we only show the first to not
   # bomb the user with error messages.
   showError: (attribute, errors)->
-    field = @fieldFor(attribute).first()
+    formGroup = @formGroupFor(attribute).first()
     error = errors[0]
-    if @isToggle(attribute)
-      field.parents('.checkbox, .radio').addClass('has-error')
-      field.parents('label').after $(@errorHtml(error))
-    else
-      field.parents('.form-group').addClass('has-error')
-      field.after $(@errorHtml(error))
+    formGroup.addClass 'input-group-with-error'
+    formGroup.append @errorHtml(attribute, error)
 
   # Hide error messages on given attribute or all attributes
   # if no attribute is given.
   hideValidationResult: (attribute)->
     if attribute
-      $('.form-group.' + attribute + '.has-error').removeClass('has-error')
-      $('.form-group.' + attribute).find('.validator-error').remove()
+      formGroup = @formGroupFor(attribute).first()
+      formGroup.removeClass('input-group-with-error')
+      formGroup.find('.input-error').remove()
     else
-      @form.find('.has-error').removeClass('has-error')
-      @form.find('.validator-error').remove()
+      @form.find('.input-group-with-error').removeClass('input-group-with-error')
+      @form.find('.input-error').remove()
 
   # Returns a html markup template for the error message.
-  errorHtml: (error)->
-    '<span class="help-block validator-error">' + error + '</span>'
+  errorHtml: (attribute, error)->
+    '<div class="input-error">' + error + '</p>'
 
 $ ->
   # Crate a validator instance for every form that needs client side validation.

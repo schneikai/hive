@@ -1,6 +1,6 @@
 en:
-  simple_form:
-    labels:
+  helpers:
+    label:
       user:
         remember_me: "Remember me"
         login: "Email or Username"
@@ -14,7 +14,7 @@ en:
           edit:
             password: "New password"
             password_confirmation: "Confirm new password"
-    placeholders:
+    placeholder:
       user:
         login: "Email or Username"
         sessions:

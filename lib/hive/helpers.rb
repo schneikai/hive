@@ -1,32 +1,25 @@
 module Hive
   module Helpers
-    # Use this instead of <tt>I18n.translate</tt> to scope translations to the
-    # current hive controller and action.
-    #
-    #   <%= hive_translate '.title' %>
-    #   => t('hive.registrations.edit.title')
-    #
-    def hive_translate(scope, options={})
-      if scope.first == '.'
-        options[:base] ||= 'hive'
-        options[:controller] ||= controller_name
+    # Returns the Hive background images.
+    # Possible keys: confirmations, passwords, registrations, sessions, unlocks.
+    # Key "default" is used if a more specific key does not exist.
+    def hive_backgrounds
+      {
+        'default' => { image: asset_url('hive/foo.jpg'), author: 'foo / photocase', source: '/' }
+      }
+    end
 
-        # ConfirmationsController is using the +show+ action to validate
-        # confirmation tokens from urls. If such token is not valid it renders
-        # +new+ so we alias +show+ to +new+ here so we don't have to add
-        # translations for the same thing twice.
-        if options[:action].blank? && options[:controller] == 'confirmations' && action_name == 'show'
-          options[:action] = 'new'
-        end
+    # Returns the current controller name. This is used in the
+    # Hive background methods to get the right background for the current view.
+    def hive_location
+      "#{controller_name}"
+    end
 
-        # For translation scopes we don't need to differentiate between new/create
-        # and edit/update actions.
-        options[:action] ||= { 'create' => 'new', 'update' => 'edit' }[action_name] || action_name
-
-        scope = "#{options[:base]}.#{options[:controller]}.#{options[:action]}#{scope}"
-      end
-
-      t(scope)
+    # Returns a hash with the Hive background image for the current view or a default image.
+    # hive_background_image
+    #   => { image: asset_url('hive/676143.jpg'), author: 'kai / photocase', source: '/photodetail.asp?i=676143' }
+    def hive_background_image
+      (hive_backgrounds[hive_location] || hive_backgrounds['default'])
     end
 
     # Returns true if account confirmation is required and the current user
@@ -44,37 +37,6 @@ module Hive
     # Returns the Devise mapping for the current user.
     def user_mapping
       @user_mapping ||= Devise.mappings[:user]
-    end
-
-    # Sets or gets the title for a hive view.
-    #
-    # To set the title in a view use:
-    #
-    #   <% hive_title 'Please Sign-In' %>
-    #
-    # If you want to create a headline and a title at the same time use:
-    #
-    #   <h1><%= hive_title 'Please Sign-In' %></h1>
-    #
-    # To display this title in your layout use
-    #
-    #   <title><%= hive_title %></title>
-    #
-    # If you use a custom way of setting titles in views and displaying them
-    # in your layout you can just overwrite this method.
-    def hive_title(title=nil)
-      if title.nil?
-        content_for?(:hive_title) ? content_for(:hive_title) : Hive.app_name
-      else
-        content_for :hive_title, "#{title} - #{Hive.app_name}"
-      end
-      title
-    end
-
-    # Add the Hive animation class to a element in a view if animations
-    # are enabled (default) in the Hive initializer.
-    def hive_animation_class
-      "hive-animated" if Hive.animate_views
     end
   end
 end

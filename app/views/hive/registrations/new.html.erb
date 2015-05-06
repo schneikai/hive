@@ -1,0 +1,56 @@
+<%
+  @title = t('.title')
+  @heading = content_tag :h1, @title, class: 'dialog-heading'
+%>
+
+<div class="dialog" data-ix="reveal-dialog">
+  <% if current_user_referer_id?('stockphotosecrets') && !referer_special_given?('stockphotosecrets') %>
+    <%@heading = content_tag :h1, 'Welcome to Photocase Stockphotosecrets.com reader! Register now and you\'ll get <span class="referer-special-hightlight">3 credits</span> as well as a <span class="referer-special-hightlight">25% discount</span> for your first purchase.'.html_safe, class: 'dialog-heading referer-special' %>
+  <% elsif current_user_referer_id?('fotoskaufen') && !referer_special_given?('fotoskaufen') %>
+    <%@heading = content_tag :h1, 'Willkommen bei Photocase Fotoskaufen.de Leser. Melde Dich an und bekomme <span class="referer-special-hightlight">3 Credits</span> und <span class="referer-special-hightlight">25% Rabatt</span> beim ersten Einkauf.'.html_safe, class: 'dialog-heading referer-special' %>
+  <% end %>
+  <%= render "hive/shared/header" %>
+  <div class="w-form">
+    <%= form_for(resource, as: resource_name, url: registration_path(resource_name), html: { data: { validate: true, model: resource_name, id: resource.id } }) do |f| %>
+      <% f.errors(except: [:email, :username, :password, :password_confirmation, :newsletter, :first_name, :accept_terms]).each do |message| %>
+        <p class="alert form-error"><%= message %></p>
+      <% end %>
+
+      <%= f.input :email, :email_field, required: true, autofocus: true, class: 'w-input input', label: false, placeholder: true %>
+
+      <%= f.input :username, :text_field, required: true, class: 'w-input input', label: false, placeholder: true %>
+
+      <% if resource.password_required? %>
+        <%= f.input :password, :password_field, required: true, class: 'w-input input', label: false, placeholder: true %>
+
+        <% if Hive.registration_requires_password_confirmation %>
+          <%= f.input :password_confirmation, :password_field, required: true, class: 'w-input input', label: false, placeholder: true %>
+        <% end %>
+      <% end %>
+
+      <%= f.input_group(:newsletter) do %>
+        <div class="w-checkbox input-checkbox">
+          <%= f.check_box :newsletter, checked: true, class: 'w-checkbox-input' %>
+          <%= f.label :newsletter, t('helpers.label.user.newsletter').html_safe, class: 'w-form-label' %>
+          <%= f.errors :newsletter %>
+        </div>
+      <% end %>
+
+      <% if resource.must_accept_terms_on_sign_up? %>
+        <%= f.input_group(:accept_terms) do %>
+          <div class="w-checkbox w-clearfix">
+            <%= f.check_box :accept_terms, class: 'w-checkbox-input' %>
+            <%= f.label :accept_terms, t('helpers.label.user.accept_terms').html_safe, class: 'w-form-label' %>
+            <%= f.errors :accept_terms %>
+          </div>
+        <% end %>
+      <% end %>
+
+      <%= f.submit t('.submit'), class: 'w-button button', style: 'margin-top: 20px;', data: { disable_with: t('.submitting') } %>
+    <% end %>
+  </div>
+  <div class="service">
+    <%= render "hive/shared/omniauth_links" %>
+    <%= render 'hive/shared/links' %>
+  </div>
+</div>

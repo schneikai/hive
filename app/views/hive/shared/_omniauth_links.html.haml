@@ -1,6 +1,0 @@
-- if devise_mapping.omniauthable? && resource_class.omniauth_providers.any?
-  .omniauth-links
-    = t('hive.links.omniauth_authorize')
-    %ul.list-inline
-      - resource_class.omniauth_providers(true).each do |provider|
-        %li= link_to fa_icon(provider.identifier, class: 'fa-box'), omniauth_authorize_path(resource_name, provider.identifier), title: provider.human_name

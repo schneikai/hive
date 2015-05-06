@@ -10,10 +10,7 @@
 # General validations code in application controller that can be overwritten in
 # model controller.
 
-# This looks interesting: https://github.com/joecorcoran/judge
-# Just tried it and it seems like it is not up to date. simple_form integration
-# doesn't work out of the box. I still think, sending the model to the server
-# might be a nice and simple way...
+# This looks interesting too: https://github.com/joecorcoran/judge
 
 module Hive
   class ValidationsController < ApplicationController

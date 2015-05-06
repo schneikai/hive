@@ -1,0 +1,28 @@
+<%
+  @title = t('.title')
+  @heading = content_tag :h1, @title, class: 'dialog-heading'
+%>
+
+<div class="dialog" data-ix="reveal-dialog">
+  <%= render "hive/shared/header" %>
+  <div class="w-form">
+    <%= form_for(resource, as: resource_name, url: session_path(resource_name), html: { class: 'w-clearfix' }) do |f| %>
+      <%= f.devise_login required: true, autofocus: true, placeholder: t('helpers.label.user.login'), class: 'w-input input input-login' %>
+
+      <%= f.password_field :password, required: true, autocomplete: 'off', placeholder: resource.class.human_attribute_name(:password), class: 'w-input input input-login-password' %>
+
+      <% if devise_mapping.rememberable? %>
+      <div class="w-checkbox w-clearfix remember-me">
+        <%= f.check_box :remember_me, class: 'w-checkbox-input' %>
+        <%= f.label :remember_me, class: 'w-form-label' %>
+      </div>
+      <% end %>
+
+      <%= f.submit t('.submit'), class: 'w-button button', data: { disable_with: t('.submitting') } %>
+    <% end %>
+  </div>
+  <div class="service">
+    <%= render "hive/shared/omniauth_links" %>
+    <%= render "hive/shared/links" %>
+  </div>
+</div>

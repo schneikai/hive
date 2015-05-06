@@ -1,0 +1,109 @@
+/*
+ * This is a manifest file that'll be compiled into hive.css, which will include all the files
+ * listed below. Require this in the host application via *require hive* and you are ready to go.
+ *
+ * You're free to add application-wide styles to this file and they'll appear at the end of the
+ * compiled file, but it's generally better to create a new file per style scope.
+ *
+ *= require hive/normalize
+ *= require hive/webflow
+ *= require hive/photocase-hive.webflow
+ *= require devise_avatarable
+ *= require_self
+*/
+
+///////////////////
+// Stuff from the Webflow custom code section
+///////////////////
+
+  /* Remove rounded corners for inputs on iOS */
+  /* Don't use this on input[type="checkbox"] because it would hide the checkbox in in Chrome. */
+  /* Don't use this on input[type="select"] because it would hide the down arrow in Webkit. */
+  /* Other possible inputs that we could include after a test would be: */
+  /* input[type="datetime"], input[type="datetime-local"], input[type="date"], input[type="month"], input[type="time"], input[type="week"], input[type="number"], input[type="url"], input[type="search"], input[type="tel"], input[type="color"] */
+  textarea,
+  input[type="text"],
+  input[type="password"],
+  input[type="email"],
+  input[type="button"],
+  input[type="submit"] {
+      -webkit-appearance: none;
+      border-radius: 0;
+  }
+
+  /* Remove ugly default glow when button is pressed. */
+  .button {
+      outline: 0;
+  }
+
+  /* Default link styles */
+  a {
+      color: #2e9cc1;
+      text-decoration: none;
+  }
+  a:hover {
+      text-decoration: underline;
+  }
+  /* But remove underlines from buttons */
+  .button:hover {
+      text-decoration: none;
+  }
+
+  /* Center dialog on page. */
+  .dialog-container {
+      text-align: center;
+      height: 100%;
+  }
+  .dialog-container:before {
+      content: '';
+      display: inline-block;
+      height: 100%;
+      vertical-align: middle;
+  }
+  .dialog-container .dialog {
+      display: inline-block;
+      vertical-align: middle;
+      text-align: left;
+      /* Reset Webflow styles */
+      margin: 0;
+  }
+
+
+
+///////////////////
+// Add more styles after here
+///////////////////
+
+// Remove Webflows background image because we don't have and use it here.
+// Backgrounds are handled via*hive_background_image* method in the layout.
+body {
+  background-image: none;
+}
+
+// Use asset path helpers.
+.social-login {
+  background-image: asset-url('hive/social-icons.png');
+}
+// Alternate name for the Google+ social login
+.social-login.social-login-google_oauth2 {
+  background-position: 0px -79px;
+}
+.social-login.social-login-google_oauth2:hover {
+  border-color: #da4835;
+  background-position: -40px -79px;
+}
+
+// Add red border to input fields with errors.
+// Use same color as for Webflows .input-with-error
+.input-group-with-error {
+  input, select {
+    color: #ba4e60;
+    border-color: #ba4e60;
+  }
+}
+
+// Do not wrap the login, register, lost password etc. links in the dialogs footer.
+// If I had this in webflow the links didn't stay inside the dialog for unknown reason :(
+.service-link {
+  white-space: nowrap;
+}

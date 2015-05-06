@@ -1,0 +1,6 @@
+<div class="social-logins">
+  <p><%= t('hive.links.omniauth_authorize') %></p>
+  <% resource_class.omniauth_providers(true).each do |provider| %>
+    <%= link_to '', omniauth_authorize_path(resource_name, provider.identifier), title: provider.human_name, class: "w-inline-block social-login social-login-#{provider.identifier}" %>
+  <% end %>
+</div>

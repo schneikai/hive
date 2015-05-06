@@ -1,0 +1,22 @@
+<%
+  @title = t('.title')
+  @heading = content_tag :h1, @title, class: 'dialog-heading'
+%>
+
+<div class="dialog" data-ix="reveal-dialog">
+  <%= render "hive/shared/header" %>
+  <div class="w-form">
+    <%= form_for(resource, as: resource_name, url: confirmation_path(resource_name), html: { method: :post }) do |f| %>
+      <% resource.errors.full_messages.each do |message| %>
+        <p class="alert form-error"><%= message %></p>
+      <% end %>
+
+      <%= f.email_field :email, value: (user_signed_in? ? current_user.email : nil), required: true, autofocus: true, class: 'w-input input', placeholder: resource.class.human_attribute_name(:email) %>
+
+      <%= f.submit t('.submit'), class: 'w-button button', data: { disable_with: t('.submitting') } %>
+    <% end %>
+  </div>
+  <div class="service">
+    <%= render 'hive/shared/links' %>
+  </div>
+</div>

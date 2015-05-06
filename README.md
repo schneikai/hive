@@ -1,7 +1,5 @@
 # Hive
 
-TODO: Add Screenshot(s) (when sign-in status is fixed and we have background images)!
-
 Hive is a instant user authentication and authorization solution based on
 [Devise](http://github.com/plataformatec/devise). It comes with a nice layout,
 social logins via Facebook, Twitter an Co., a username, address and avatar.
@@ -22,7 +20,6 @@ gem 'hive'
 For now this must be added to the Gemfile of the Rails App that uses Hive:
 
 ```ruby
-gem 'simple_form', github: 'plataformatec/simple_form'
 gem 'devise_avatarable', github: 'schneikai/devise_avatarable'
 gem 'devise_authorizable', github: 'schneikai/devise_authorizable'
 gem 'devise_easy_omniauthable', github: 'schneikai/devise_easy_omniauthable'
@@ -40,21 +37,6 @@ include the required javascript and stylesheets in your application, copy
 translations files to <tt>config/locales</tt> and create the Hive initializer in
 <tt>config/initializers/hive.rb</tt>. The initializer is where you configure Hive.
 You should check it out.
-
-Hive uses [simple_form](https://github.com/plataformatec/simple_form) to generate
-Forms with Twitter Boostrap 3 markup. If you already use simple_form in your app
-you are ready to go. If not you need to generate the necessary initializers via:
-
-```console
-rails generate simple_form:install --bootstrap
-```
-
-Now open <tt>config/initializers/simple_form.rb</tt>, search for *wrapper_mappings*
-and make it look like this:
-
-```ruby
-config.wrapper_mappings = { check_boxes: :vertical_radio_and_checkboxes, radio_buttons: :vertical_radio_and_checkboxes, file: :vertical_file_input, boolean: :vertical_boolean }
-```
 
 That's it. If you are done configuring Hive via <tt>config/initializers/hive.rb</tt>
 you just need to generate the database migrations and you are ready to go.
@@ -302,18 +284,6 @@ This way you don't need to duplicate every view if you just want to add or remov
 something from or to the header or footer of all Hive dialogs.
 
 
-### Forms
-
-Hive uses [simple_form](https://github.com/plataformatec/simple_form) for it's
-forms. Together with Twitter Bootstrap there is one little thing you might want
-to configure to use inline labels on checkboxes and radiobuttons. Open
-<tt>config/initializers/simple_form</tt> and search for <tt>wrapper_mappings</tt>
-and add the following:
-
-```ruby
-config.wrapper_mappings = { check_boxes: :vertical_radio_and_checkboxes, radio_buttons: :vertical_radio_and_checkboxes, file: :vertical_file_input, boolean: :vertical_boolean }
-```
-
 ### Flash messages
 
 Make sure you have a container for [flash messages](http://guides.rubyonrails.org/action_controller_overview.html#the-flash)
@@ -343,15 +313,6 @@ en:
 If you need to configure the redirect locations for after sign-up or sign-in and
 other checkout the <tt>redirect_locations</tt> configuration option in the Hive
 initializer under <tt>/config/initializers/hive.rb</tt>.
-
-### Animations
-
-Hive uses animations when showing the different views for like sign-in and sign-up.
-If you get dizzy, you can disable that in the Hive initializer by specifying:
-
-```ruby
-config.animate_views = false
-```
 
 ### Customization
 
@@ -446,8 +407,6 @@ TODO
   fix application.js to require jquery, jquery_uji, hive
 
 
-
-
 ## TODO
 * allow admins to lock users. We could change the behavior of Devise Lockable for that:
   * if a account is locked by a admin do not send unlock instruction regardless
@@ -478,8 +437,6 @@ TODO
     to the body-tag in app/views/layouts/application.html.erb.
     For example:
       <body class="<%= "my-app #{controller_name} #{action_name}".squish %>" data-controller="<%= controller_name %>" data-action="<%= action_name %>">
-* can we refactor to work without simple_form? it just adds another dependency
-  and makes setup more complicated.
 
 Maybe
 * https://github.com/plataformatec/devise/wiki/How-To:-Disallow-previously-used-passwords

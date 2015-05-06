@@ -1,16 +1,8 @@
 # Important to get the right load order for devise overwrites.
 # engine -> main_app -> all (everyting else)
 require 'devise'
-
-require 'haml'
 require 'coffee-rails'
 require 'sass/rails'
-require 'bootstrap-sass'
-require 'font-awesome-rails'
-require 'animate-scss'
-require 'simple_form'
-require 'country_select'
-require 'hive/simple_form'
 require 'hive/routes'
 
 module Hive
@@ -36,10 +28,6 @@ module Hive
   # The name of the app that uses Hive. This is used in the views as a Headline.
   mattr_accessor :app_name
   @@app_name = 'Hive'
-
-  # If true this will use animations in the Hive views.
-  mattr_accessor :animate_views
-  @@animate_views = true
 
   # Allows to configure redirect locations for different events. Check the Hive
   # initializer for documentation.
@@ -89,7 +77,7 @@ module Hive
   # Can be a string to define one layout for all views or it can be a hash that
   # defines individual layouts for individual controllers and actions.
   mattr_accessor :layout
-  @@layout = 'application'
+  @@layout = 'hive/application'
 
   private
     # Send every method missing to devise to make the setup method work.
