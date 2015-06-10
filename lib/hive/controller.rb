@@ -12,10 +12,9 @@ module Hive
       # page if not logged in or to the home page if already logged in but not
       # allowed to access the requested page.
       rescue_from CanCan::AccessDenied do |exception|
-        if user_signed_in?
-          redirect_to main_app.root_url, alert: exception.message
-        else
-          redirect_to main_app.new_user_session_url, alert: exception.message
+        respond_to do |format|
+          format.html { redirect_to (user_signed_in? ? main_app.root_url : main_app.new_user_session_url), alert: exception.message }
+          format.json { render text: exception.message, status: :forbidden }
         end
       end
     end
