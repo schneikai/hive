@@ -15,6 +15,7 @@ module Hive
         respond_to do |format|
           format.html { redirect_to (user_signed_in? ? main_app.root_url : main_app.new_user_session_url), alert: exception.message }
           format.json { render text: exception.message, status: :forbidden }
+          format.jpeg { head :not_found }
         end
       end
     end
