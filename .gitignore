@@ -8,8 +8,9 @@
 /test/dummy/log/*.log
 /test/dummy/tmp
 /test/dummy/public/uploads
-
 .DS_Store
 .rvmrc
+.ruby-gemset
+.ruby-version
 Gemfile.lock
 /bin
