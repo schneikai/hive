@@ -1,7 +1,9 @@
-import { useEffect } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Search, X } from 'lucide-react'
 import { Switch } from '@/components/ui/switch'
 import { useKanbanStore } from '@/stores/useKanbanStore'
+
+const SEARCH_DEBOUNCE_MS = 150
 
 interface BoardSearchBarProps {
   inputRef: React.RefObject<HTMLInputElement | null>
@@ -14,6 +16,31 @@ export function BoardSearchBar({ inputRef, matchCount }: BoardSearchBarProps): R
   const setBoardSearchQuery = useKanbanStore((s) => s.setBoardSearchQuery)
   const setBoardSearchDescriptions = useKanbanStore((s) => s.setBoardSearchDescriptions)
   const closeBoardSearch = useKanbanStore((s) => s.closeBoardSearch)
+
+  // The input is locally controlled so typing stays instant; the store query
+  // (which drives filtering, highlights, and the count) updates debounced.
+  const [inputValue, setInputValue] = useState(query)
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const cancelPendingQuery = (): void => {
+    if (debounceRef.current !== null) {
+      clearTimeout(debounceRef.current)
+      debounceRef.current = null
+    }
+  }
+
+  useEffect(() => cancelPendingQuery, [])
+
+  const handleChange = (value: string): void => {
+    setInputValue(value)
+    cancelPendingQuery()
+    debounceRef.current = setTimeout(() => {
+      debounceRef.current = null
+      setBoardSearchQuery(value)
+    }, SEARCH_DEBOUNCE_MS)
+  }
+
+  const hasText = inputValue.trim().length > 0
   const hasQuery = query.trim().length > 0
 
   // Bare Tab is globally bound to session:mode-toggle (allowInInput, document
@@ -44,22 +71,29 @@ export function BoardSearchBar({ inputRef, matchCount }: BoardSearchBarProps): R
           data-testid="board-search-input"
           placeholder="Search tickets…"
           autoFocus
-          value={query}
-          onChange={(e) => setBoardSearchQuery(e.target.value)}
+          value={inputValue}
+          onChange={(e) => handleChange(e.target.value)}
           onKeyDown={(e) => {
             if (e.key === 'Escape') {
               e.preventDefault()
               e.stopPropagation()
+              cancelPendingQuery()
               closeBoardSearch()
+            } else if (e.key === 'Enter') {
+              // Flush the pending debounce — search now
+              cancelPendingQuery()
+              setBoardSearchQuery(inputValue)
             }
           }}
           className="w-full rounded-md border border-border bg-muted/50 py-1.5 pl-8 pr-8 text-sm placeholder:text-muted-foreground/60 focus:outline-none focus:ring-1 focus:ring-ring"
         />
         <button
           data-testid="board-search-close"
-          title={hasQuery ? 'Clear' : 'Close (Escape)'}
+          title={hasText ? 'Clear' : 'Close (Escape)'}
           onClick={() => {
-            if (hasQuery) {
+            if (hasText) {
+              cancelPendingQuery()
+              setInputValue('')
               setBoardSearchQuery('')
               inputRef.current?.focus()
             } else {
