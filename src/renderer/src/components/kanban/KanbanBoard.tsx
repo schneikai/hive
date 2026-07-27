@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
 import { LayoutGroup, motion } from 'motion/react'
 import { Pin } from 'lucide-react'
 import { parseTicketKey, ticketKey, useKanbanStore } from '@/stores/useKanbanStore'
@@ -9,11 +9,13 @@ import { useSessionStore } from '@/stores/useSessionStore'
 import { KanbanColumn } from '@/components/kanban/KanbanColumn'
 import { KanbanTicketModal } from '@/components/kanban/KanbanTicketModal'
 import { BoardChatLauncher } from '@/components/kanban/BoardChatLauncher'
+import { BoardSearchBar } from '@/components/kanban/BoardSearchBar'
 import { MergeOnDoneDialog } from './MergeOnDoneDialog'
 import { toast } from '@/lib/toast'
 import { useMarkdownKanbanWatcher } from '@/hooks/useMarkdownKanbanWatcher'
 import { cardOccurrenceKeys } from '@/components/kanban/kanban-card-identity'
-import type { KanbanTicketColumn } from '../../../../main/db/types'
+import { normalizeSearchText, ticketMatchesQuery } from '@/lib/board-search'
+import type { KanbanTicket, KanbanTicketColumn } from '../../../../main/db/types'
 
 const COLUMNS: KanbanTicketColumn[] = ['todo', 'in_progress', 'review', 'done']
 const COLUMNS_WITH_MERGED: KanbanTicketColumn[] = ['todo', 'in_progress', 'review', 'merged', 'done']
@@ -66,6 +68,25 @@ export function KanbanBoard({ projectId, connectionId, isPinnedMode }: KanbanBoa
   // Subscribe to the multi-project archive toggle ('' key used by pinned/connection boards)
   const showArchivedAll = useKanbanStore(
     useCallback((s) => s.showArchivedByProject[''] ?? false, [])
+  )
+
+  // ── Board search (Cmd+F) ──────────────────────────────────────────
+  const boardSearch = useKanbanStore((state) => state.boardSearch)
+  // Archive visibility for THIS board's Done column ('' key on pinned/connection boards)
+  const showArchivedForBoard = useKanbanStore(
+    useCallback((s) => s.showArchivedByProject[projectId ?? ''] ?? false, [projectId])
+  )
+  const deferredQuery = useDeferredValue(boardSearch.query)
+  const normQuery = useMemo(() => normalizeSearchText(deferredQuery.trim()), [deferredQuery])
+  const searchActive = boardSearch.open && normQuery.length > 0
+  const searchDescriptions = boardSearch.searchDescriptions
+  const searchInputRef = useRef<HTMLInputElement>(null)
+  const filterBoardTickets = useCallback(
+    (list: KanbanTicket[]): KanbanTicket[] =>
+      searchActive
+        ? list.filter((t) => ticketMatchesQuery(t, normQuery, searchDescriptions) !== null)
+        : list,
+    [searchActive, normQuery, searchDescriptions]
   )
 
   // Derived: source ticket title for dependency mode overlay
@@ -133,6 +154,53 @@ export function KanbanBoard({ projectId, connectionId, isPinnedMode }: KanbanBoa
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [dependencyMode?.active, exitDependencyMode])
+
+  // Cmd+F opens board search — capture phase; KanbanBoard only mounts when the
+  // board is the main-pane content, so no "focused" check needed (RunTab pattern).
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent): void => {
+      if (!((e.metaKey || e.ctrlKey) && e.key === 'f')) return
+      const target = e.target as HTMLElement
+      if (target.closest?.('.xterm')) return // terminal owns its own Cmd+F find
+      if (useKanbanStore.getState().selectedTicketId !== null) return // ticket modal open
+      if (document.querySelector('[role="dialog"], [role="alertdialog"]')) return
+      if (
+        (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) &&
+        target.getAttribute('data-testid') !== 'board-search-input'
+      ) {
+        return
+      }
+      e.preventDefault()
+      e.stopPropagation()
+      useKanbanStore.getState().openBoardSearch()
+      // Re-invoke while open = refocus + select-all (never toggles closed)
+      requestAnimationFrame(() => {
+        searchInputRef.current?.focus()
+        searchInputRef.current?.select()
+      })
+    }
+    document.addEventListener('keydown', handleKeyDown, true)
+    return () => document.removeEventListener('keydown', handleKeyDown, true)
+  }, [])
+
+  // Escape anywhere on the board closes search (input-focused Esc is handled
+  // by the input itself; Radix dialogs and dependency mode take precedence)
+  useEffect(() => {
+    if (!boardSearch.open) return
+    const handleKeyDown = (e: KeyboardEvent): void => {
+      if (e.key !== 'Escape') return
+      if (document.querySelector('[role="dialog"], [role="alertdialog"]')) return
+      if (useKanbanStore.getState().dependencyMode?.active) return
+      useKanbanStore.getState().closeBoardSearch()
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [boardSearch.open])
+
+  // Search is per-board-view: clear when switching boards or unmounting
+  useEffect(() => {
+    return () => useKanbanStore.getState().closeBoardSearch()
+  }, [projectId, connectionId, isPinnedMode])
 
   // Click handler for toggling dependencies during dependency mode
   const handleBoardClick = useCallback((e: React.MouseEvent) => {
@@ -284,10 +352,25 @@ export function KanbanBoard({ projectId, connectionId, isPinnedMode }: KanbanBoa
   }, [computePaths])
 
   // Archived merged tickets surface in Done's archive section too (the Merged
-  // column has no archive UI of its own)
+  // column has no archive UI of its own). Search-filtered like active tickets;
+  // when the archive toggle is off these lists aren't rendered (or even
+  // fetched), so the search domain always equals the rendered domain.
   const archivedDoneFor = (pid: string): ReturnType<typeof getArchivedTicketsByColumn> =>
-    [...getArchivedTicketsByColumn(pid, 'done'), ...getArchivedTicketsByColumn(pid, 'merged')].sort(
-      (a, b) => (b.archived_at ?? '').localeCompare(a.archived_at ?? '')
+    filterBoardTickets(
+      [...getArchivedTicketsByColumn(pid, 'done'), ...getArchivedTicketsByColumn(pid, 'merged')].sort(
+        (a, b) => (b.archived_at ?? '').localeCompare(a.archived_at ?? '')
+      )
+    )
+
+  const ticketsFor = (column: KanbanTicketColumn): KanbanTicket[] =>
+    filterBoardTickets(
+      isPinnedMode
+        ? getTicketsByColumnForPinned(column)
+        : isConnectionMode
+          ? getTicketsByColumnForConnection(connectionId, column)
+          : projectId
+            ? getTicketsByColumn(projectId, column)
+            : []
     )
 
   // Aggregate archived tickets across all connection member projects for the done column
@@ -298,6 +381,24 @@ export function KanbanBoard({ projectId, connectionId, isPinnedMode }: KanbanBoa
   const pinnedArchivedDoneTickets = isPinnedMode
     ? pinnedProjectIdsArray.flatMap(archivedDoneFor)
     : undefined
+
+  const archivedDoneTicketsForBoard = isPinnedMode
+    ? pinnedArchivedDoneTickets
+    : isConnectionMode
+      ? connectionArchivedDoneTickets
+      : projectId
+        ? archivedDoneFor(projectId)
+        : undefined
+
+  const matchCount = searchActive
+    ? (showMergedColumn ? COLUMNS_WITH_MERGED : COLUMNS).reduce(
+        (n, c) => n + ticketsFor(c).length,
+        0
+      ) +
+      (showMergedColumn ? 0 : ticketsFor('merged').length) +
+      (showArchivedForBoard ? (archivedDoneTicketsForBoard?.length ?? 0) : 0)
+    : 0
+
   const invalidPlaceholders = isPinnedMode
     ? getInvalidPlaceholdersForPinned()
     : isConnectionMode && connectionId
@@ -341,6 +442,7 @@ export function KanbanBoard({ projectId, connectionId, isPinnedMode }: KanbanBoa
             </h2>
           </div>
         )}
+        {boardSearch.open && <BoardSearchBar inputRef={searchInputRef} matchCount={matchCount} />}
         {/* Columns */}
         {isPinnedMode && pinnedProjectIdsArray.length === 0 ? (
           <div className="flex-1 flex items-center justify-center text-muted-foreground">
@@ -359,14 +461,6 @@ export function KanbanBoard({ projectId, connectionId, isPinnedMode }: KanbanBoa
           >
             {(() => {
               const occurrenceCounts = new Map<string, number>()
-              const ticketsFor = (column: KanbanTicketColumn): ReturnType<typeof getTicketsByColumn> =>
-                isPinnedMode
-                  ? getTicketsByColumnForPinned(column)
-                  : isConnectionMode
-                    ? getTicketsByColumnForConnection(connectionId, column)
-                    : projectId
-                      ? getTicketsByColumn(projectId, column)
-                      : []
               return (showMergedColumn ? COLUMNS_WITH_MERGED : COLUMNS).map((column) => {
                 let tickets = ticketsFor(column)
 
@@ -379,15 +473,7 @@ export function KanbanBoard({ projectId, connectionId, isPinnedMode }: KanbanBoa
                   }
                 }
 
-                const archivedTickets = column === 'done'
-                  ? isPinnedMode
-                    ? pinnedArchivedDoneTickets
-                    : isConnectionMode
-                      ? connectionArchivedDoneTickets
-                      : projectId
-                        ? archivedDoneFor(projectId)
-                        : undefined
-                  : undefined
+                const archivedTickets = column === 'done' ? archivedDoneTicketsForBoard : undefined
 
                 const activeCardIdentityKeys = cardOccurrenceKeys(
                   tickets,

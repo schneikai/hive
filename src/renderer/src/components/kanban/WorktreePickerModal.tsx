@@ -71,7 +71,12 @@ import {
 } from '@/lib/ticket-launch'
 import type { AvailableAgentSdks } from '@/lib/agent-sdk-availability'
 import { findCustomProvider, type CustomClaudeProvider } from '@shared/types/custom-provider'
-import { resolveCustomProviderSelectedModel } from '@/lib/handoffSelection'
+import {
+  getCachedModelCatalog,
+  loadHandoffModelCatalog,
+  resolveCustomProviderSelectedModel
+} from '@/lib/handoffSelection'
+import { findModelInfo, getVariantKeysForSdk, isUltraVariant } from '@/lib/parseProviders'
 
 // Stable empty array to avoid referential-inequality loops in Zustand selectors
 const EMPTY_ARRAY: readonly never[] = []
@@ -447,6 +452,9 @@ export function WorktreePickerModal({
   // manual uncheck is never overridden.
   const goalPrefillRef = useRef<string | null>(null)
   const promptRef = useRef<HTMLTextAreaElement>(null)
+  const goalCriteriaRef = useRef<HTMLTextAreaElement>(null)
+  // The variant row 1 had before Cmd+U armed ultra, so a second press restores it.
+  const preUltraVariantRef = useRef<string | undefined>(undefined)
   const [sourceBranch, setSourceBranch] = useState<string | null>(null) // null = default
   const [branchPopoverOpen, setBranchPopoverOpen] = useState(false)
   const [branches, setBranches] = useState<BranchInfo[]>([])
@@ -661,6 +669,7 @@ export function WorktreePickerModal({
       setSelectedModel(null)
       setSelectedSdk(null)
       setSelectedCustomProviderId(null)
+      preUltraVariantRef.current = undefined
       setExtraModelRows([])
       setSourceBranch(_lastSourceBranchByProject[projectId] ?? null)
       setBranches([])
@@ -870,6 +879,60 @@ export function WorktreePickerModal({
       return next
     })
   }, [runOnRemote])
+
+  // ── Handle Cmd+G goal-mode shortcut ─────────────────────────────
+  const toggleGoalShortcut = useCallback((): boolean => {
+    if (!goalAvailable) return false
+    const next = !goalMode
+    setGoalMode(next)
+    if (next) {
+      // The criteria textarea mounts on the next render — focus once present.
+      setTimeout(() => goalCriteriaRef.current?.focus(), 0)
+    }
+    return true
+  }, [goalAvailable, goalMode])
+
+  // ── Handle Cmd+U ultra shortcut ─────────────────────────────────
+  // Flips row 1's model to its top-tier variant — claude's `ultracode` or
+  // codex's `ultra`, whichever the current model offers — and back to the
+  // pre-ultra variant on a second press.
+  const toggleUltraShortcut = useCallback((): boolean => {
+    if (preAssignOnly || effectiveCustomProviderId) return false
+    const effectiveModel = selectedModel ?? autoResolvedModel
+    if (!effectiveModel) return false
+    const sdk: PickerAgentSdk = runOnRemote
+      ? 'claude-code-cli'
+      : (effectiveModel.agentSdk ?? agentSdk)
+    const catalog = getCachedModelCatalog(sdk)
+    if (!catalog) {
+      void loadHandoffModelCatalog(sdk) // warm the cache for the next press
+      return false
+    }
+    const modelInfo = findModelInfo(catalog, effectiveModel.providerID, effectiveModel.modelID)
+    if (!modelInfo) return false
+    const variantKeys = getVariantKeysForSdk(modelInfo, sdk)
+    const ultraVariant = variantKeys.find((variant) => isUltraVariant(variant))
+    if (!ultraVariant) return false
+    if (isUltraVariant(effectiveModel.variant)) {
+      const previous = preUltraVariantRef.current
+      const restored =
+        previous && variantKeys.includes(previous) && !isUltraVariant(previous)
+          ? previous
+          : variantKeys.filter((variant) => !isUltraVariant(variant)).pop()
+      setSelectedModel({ ...effectiveModel, variant: restored })
+    } else {
+      preUltraVariantRef.current = effectiveModel.variant
+      setSelectedModel({ ...effectiveModel, variant: ultraVariant })
+    }
+    return true
+  }, [
+    preAssignOnly,
+    effectiveCustomProviderId,
+    selectedModel,
+    autoResolvedModel,
+    runOnRemote,
+    agentSdk
+  ])
 
   // ── Handle Tab / Shift+Tab keys ─────────────────────────────────
   // Must use window-level capture-phase listener to beat SessionView's
@@ -1712,6 +1775,43 @@ export function WorktreePickerModal({
     isMultiModel
   ])
 
+  // ── Handle Cmd+G / Cmd+U / Cmd+Enter shortcuts ──────────────────
+  // Window-level capture listener (same pattern as Tab above) so the
+  // shortcuts win over any global app handlers while the modal is open.
+  useEffect(() => {
+    if (!open) return
+    const handler = (e: KeyboardEvent): void => {
+      if (!(e.metaKey || e.ctrlKey) || e.altKey || e.shiftKey) return
+      let handled = false
+      if (e.key === 'g') {
+        handled = toggleGoalShortcut()
+      } else if (e.key === 'u') {
+        handled = toggleUltraShortcut()
+      } else if (e.key === 'Enter') {
+        const isRemoteRetry = isRemoteLaunchActive && remotePhase === 'failed'
+        if (isRemoteRetry || canSend) {
+          void handleSend()
+          handled = true
+        }
+      }
+      if (!handled) return
+      e.preventDefault()
+      e.stopImmediatePropagation()
+    }
+    window.addEventListener('keydown', handler, true) // capture phase
+    return () => {
+      window.removeEventListener('keydown', handler, true)
+    }
+  }, [
+    open,
+    toggleGoalShortcut,
+    toggleUltraShortcut,
+    canSend,
+    isRemoteLaunchActive,
+    remotePhase,
+    handleSend
+  ])
+
   // ── Mode toggle chip ────────────────────────────────────────────
   const ModeIcon = mode === 'build' ? Hammer : Map
   const modeLabel = mode === 'build' ? 'Build' : 'Plan'
@@ -2124,6 +2224,7 @@ export function WorktreePickerModal({
                       </label>
                       <Textarea
                         id="goal-success-criteria"
+                        ref={goalCriteriaRef}
                         value={goalCriteria}
                         onChange={(e) => setGoalCriteria(e.target.value)}
                         placeholder="What does success look like?"
