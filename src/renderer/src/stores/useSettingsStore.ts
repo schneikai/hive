@@ -105,6 +105,8 @@ export interface AppSettings {
   selectedModel: SelectedModel | null
   selectedModelByProvider: Record<string, SelectedModel>
   defaultModels: ModeDefaultModels | null
+  /** Model + effort used for PR title/description generation (null = follow defaultAgentSdk). */
+  prContentModel: SelectedModel | null
   lastHandoffOverride: {
     agentSdk: HandoffAgentSdk
     customProviderId?: string | null
@@ -226,6 +228,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   selectedModel: null,
   selectedModelByProvider: {},
   defaultModels: null,
+  prContentModel: null,
   lastHandoffOverride: null,
   lastOpenAction: null,
   lastProjectDirectory: null,
@@ -453,6 +456,7 @@ function extractSettings(state: SettingsState): AppSettings {
     selectedModel: state.selectedModel,
     selectedModelByProvider: state.selectedModelByProvider,
     defaultModels: state.defaultModels,
+    prContentModel: state.prContentModel,
     lastHandoffOverride: state.lastHandoffOverride,
     lastOpenAction: state.lastOpenAction,
     lastProjectDirectory: state.lastProjectDirectory,
@@ -821,6 +825,7 @@ export const useSettingsStore = create<SettingsState>()(
         selectedModel: state.selectedModel,
         selectedModelByProvider: state.selectedModelByProvider,
         defaultModels: state.defaultModels,
+        prContentModel: state.prContentModel,
         lastHandoffOverride: state.lastHandoffOverride,
         lastOpenAction: state.lastOpenAction,
         lastProjectDirectory: state.lastProjectDirectory,

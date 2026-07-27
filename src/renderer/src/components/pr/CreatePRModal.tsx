@@ -23,7 +23,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { toast } from '@/lib/toast'
-import { resolvePRContentProvider } from '@/lib/pr-content-provider'
+import { resolvePRContentGeneration } from '@/lib/pr-content-provider'
 import { runCreatePRPipeline } from '@/lib/pr-pipeline'
 import { useGitStore, type GitFileStatus } from '@/stores/useGitStore'
 import { usePRNotificationStore } from '@/stores/usePRNotificationStore'
@@ -63,6 +63,7 @@ export function CreatePRModal({ worktreeId, worktreePath }: CreatePRModalProps):
   const gitCommit = useGitStore((s) => s.commit)
   const defaultAgentSdk = useSettingsStore((s) => s.defaultAgentSdk) ?? 'claude-code'
   const availableAgentSdks = useSettingsStore((s) => s.availableAgentSdks)
+  const prContentModel = useSettingsStore((s) => s.prContentModel)
   const defaultBranchName = useWorktreeStore((s) => {
     for (const [, worktrees] of s.worktreesByProject) {
       if (worktrees.some((w) => w.id === worktreeId)) {
@@ -264,7 +265,7 @@ export function CreatePRModal({ worktreeId, worktreePath }: CreatePRModalProps):
     const prTitle = title.trim()
     const prBody = body.trim()
     const branchName = branchInfo?.name ?? 'Pull Request'
-    const provider = resolvePRContentProvider(defaultAgentSdk, availableAgentSdks)
+    const generation = resolvePRContentGeneration(prContentModel, defaultAgentSdk, availableAgentSdks)
 
     // Persist the selected target branch so the Header dropdowns keep showing it
     // after the push changes branchInfo.tracking
@@ -302,7 +303,9 @@ export function CreatePRModal({ worktreeId, worktreePath }: CreatePRModalProps):
       title: prTitle,
       body: prBody,
       fallbackTitle: branchName,
-      provider,
+      provider: generation?.provider ?? null,
+      model: generation?.model,
+      effort: generation?.effort,
       notifId
     })
   }, [
@@ -313,6 +316,7 @@ export function CreatePRModal({ worktreeId, worktreePath }: CreatePRModalProps):
     body,
     defaultAgentSdk,
     availableAgentSdks,
+    prContentModel,
     branchInfo,
     setOpen
   ])

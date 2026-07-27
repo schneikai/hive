@@ -377,7 +377,9 @@ export interface GitOpsRpcService {
   readonly generatePRContent: (
     worktreePath: string,
     baseBranch: string,
-    provider: string
+    provider: string,
+    model?: string,
+    effort?: string
   ) => Effect.Effect<GitGeneratePullRequestContentResult, unknown, never>
   readonly prMerge: (
     worktreePath: string,
@@ -477,7 +479,9 @@ const generatePullRequestContentParamsSchema = z
   .object({
     worktreePath: z.string().min(1),
     baseBranch: z.string().min(1),
-    provider: z.string().min(1)
+    provider: z.string().min(1),
+    model: z.string().min(1).optional(),
+    effort: z.string().min(1).optional()
   })
   .strict()
 const branchNameParamsSchema = z
@@ -578,6 +582,8 @@ export interface GitOpsRpcServiceDependencies {
     readonly diffSummary: string
     readonly diffPatch: string
     readonly provider: string
+    readonly model?: string
+    readonly effort?: string
     readonly cwd: string
   }) => Promise<{ readonly title: string; readonly body: string }>
 }
@@ -1530,7 +1536,7 @@ export const makeLiveGitOpsRpcService = (
           error: cause instanceof Error ? cause.message : String(cause)
         })
       }),
-    generatePRContent: (worktreePath, baseBranch, provider) =>
+    generatePRContent: (worktreePath, baseBranch, provider, model, effort) =>
       Effect.tryPromise({
         try: async (): Promise<GitGeneratePullRequestContentResult> => {
           try {
@@ -1600,6 +1606,8 @@ export const makeLiveGitOpsRpcService = (
               diffSummary,
               diffPatch,
               provider,
+              model,
+              effort,
               cwd: worktreePath
             })
 
@@ -2313,11 +2321,11 @@ export const makeGitOpsRpcHandlers = (
       'gitOps.generatePRContent',
       (params) =>
         Effect.gen(function* () {
-          const { worktreePath, baseBranch, provider } = yield* Effect.try({
+          const { worktreePath, baseBranch, provider, model, effort } = yield* Effect.try({
             try: () => generatePullRequestContentParamsSchema.parse(params),
             catch: (cause) => cause
           })
-          return yield* service.generatePRContent(worktreePath, baseBranch, provider)
+          return yield* service.generatePRContent(worktreePath, baseBranch, provider, model, effort)
         })
     ],
     [

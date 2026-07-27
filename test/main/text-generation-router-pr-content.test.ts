@@ -109,6 +109,33 @@ describe('text-generation-router codex structured output', () => {
     expect(mockUnlink).toHaveBeenCalledTimes(2)
   })
 
+  it('applies model and effort overrides to the codex invocation', async () => {
+    const { generateText } = await import('../../src/main/services/text-generation-router')
+
+    await generateText('Prompt', 'System', 'codex', {
+      cwd: '/tmp/worktree',
+      modelOverride: 'gpt-5.5',
+      effort: 'high'
+    })
+
+    const options = mockRunOnceOptions.mock.calls[0][0]
+    expect(options.args).toContain('--model')
+    expect(options.args).toContain('gpt-5.5')
+    expect(options.args).toContain('model_reasoning_effort="high"')
+  })
+
+  it('falls back to low effort when the effort value is not a codex effort', async () => {
+    const { generateText } = await import('../../src/main/services/text-generation-router')
+
+    await generateText('Prompt', 'System', 'codex', {
+      cwd: '/tmp/worktree',
+      effort: 'bogus"injection'
+    })
+
+    const options = mockRunOnceOptions.mock.calls[0][0]
+    expect(options.args).toContain('model_reasoning_effort="low"')
+  })
+
   it('uses injected codex binary path when provided', async () => {
     const { generateText, setCodexBinaryPath } = await import('../../src/main/services/text-generation-router')
     setCodexBinaryPath('/resolved/codex')

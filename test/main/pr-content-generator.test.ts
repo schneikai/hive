@@ -47,4 +47,34 @@ describe('pr-content-generator', () => {
       }
     )
   })
+
+  it('passes model and effort overrides through to generateText', async () => {
+    const { generatePRContent, PR_CONTENT_JSON_SCHEMA } = await import(
+      '../../src/main/services/pr-content-generator'
+    )
+
+    await generatePRContent({
+      baseBranch: 'main',
+      headBranch: 'feature/pr-content',
+      commitSummary: 'abc123 Add cwd propagation',
+      diffSummary: ' 1 file changed, 3 insertions(+)',
+      diffPatch: 'diff --git a/file b/file',
+      provider: 'claude-code',
+      model: 'sonnet',
+      effort: 'high',
+      cwd: '/tmp/worktree'
+    })
+
+    expect(mockGenerateText).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.any(String),
+      'claude-code',
+      {
+        cwd: '/tmp/worktree',
+        outputSchema: PR_CONTENT_JSON_SCHEMA,
+        modelOverride: 'sonnet',
+        effort: 'high'
+      }
+    )
+  })
 })
