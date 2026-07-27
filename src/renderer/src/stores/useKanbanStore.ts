@@ -219,6 +219,8 @@ interface KanbanState {
   } | null
   /** Ephemeral board focus target used by the header Telegram toggle. */
   boardTelegramTarget: BoardTelegramTarget | null
+  /** Ephemeral Cmd+F board search — NOT persisted (partialize is inclusion-based). */
+  boardSearch: { open: boolean; query: string; searchDescriptions: boolean }
 
   // ── Actions ────────────────────────────────────────────────────────
   setSelectedTicketId: (id: null) => void
@@ -256,6 +258,10 @@ interface KanbanState {
   unarchiveTicket: (ticketId: string, projectId: string) => Promise<void>
   detachWorktreeTickets: (worktreeId: string) => Promise<void>
   setShowArchived: (projectId: string, show: boolean) => void
+  openBoardSearch: () => void
+  closeBoardSearch: () => void
+  setBoardSearchQuery: (query: string) => void
+  setBoardSearchDescriptions: (on: boolean) => void
   setPendingDoneMove: (data: {
     ticketId: string
     projectId: string
@@ -339,6 +345,7 @@ export const useKanbanStore = create<KanbanState>()(
       markdownPlaceholders: new Map(),
       pendingDoneMove: null,
       boardTelegramTarget: null,
+      boardSearch: { open: false, query: '', searchDescriptions: false },
       dependencyMap: new Map(),
       dependencyMode: null,
       hoveredBlockedTicketKey: null,
@@ -834,6 +841,24 @@ export const useKanbanStore = create<KanbanState>()(
         if (projectId) {
           get().loadTickets(projectId)
         }
+      },
+
+      // ── Board search (Cmd+F) ───────────────────────────────────────
+      openBoardSearch: () => {
+        const s = get().boardSearch
+        if (!s.open) set({ boardSearch: { ...s, open: true } })
+      },
+      // Close = clear query + restore full board; searchDescriptions persists for the app session.
+      closeBoardSearch: () => {
+        const s = get().boardSearch
+        if (!s.open && s.query === '') return
+        set({ boardSearch: { ...s, open: false, query: '' } })
+      },
+      setBoardSearchQuery: (query: string) => {
+        set({ boardSearch: { ...get().boardSearch, query } })
+      },
+      setBoardSearchDescriptions: (on: boolean) => {
+        set({ boardSearch: { ...get().boardSearch, searchDescriptions: on } })
       },
 
       // ── moveTicket (optimistic) ──────────────────────────────────

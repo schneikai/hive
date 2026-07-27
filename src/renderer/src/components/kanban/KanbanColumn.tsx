@@ -293,6 +293,12 @@ export function KanbanColumn({
     useCallback((state) => state.showArchivedByProject[projectId] ?? false, [projectId])
   )
 
+  // Board search (Cmd+F): while a query is active, hide add-ticket affordances
+  // (a new ticket would instantly vanish behind the filter) and relabel empties
+  const searchActive = useKanbanStore(
+    (s) => s.boardSearch.open && s.boardSearch.query.trim().length > 0
+  )
+
   // ── Measure header and pick title fit mode (In Progress column only) ─────
   useLayoutEffect(() => {
     if (!isInProgressColumn) return
@@ -925,7 +931,7 @@ export function KanbanColumn({
             isDragOver ? (
               dropIndicator
             ) : /* Empty state: show the add-ticket card as the only item */
-            isTodoColumn ? (
+            isTodoColumn && !searchActive ? (
               <button
                 data-testid="kanban-add-ticket-card"
                 onClick={() => setIsCreateModalOpen(true)}
@@ -935,7 +941,9 @@ export function KanbanColumn({
                 <span>New ticket</span>
               </button>
             ) : (
-              <p className="px-2 py-4 text-center text-xs text-muted-foreground/60">No tickets</p>
+              <p className="px-2 py-4 text-center text-xs text-muted-foreground/60">
+                {searchActive ? 'No matches' : 'No tickets'}
+              </p>
             )
           ) : (
             <>
@@ -1007,7 +1015,7 @@ export function KanbanColumn({
               )}
 
               {/* Add-ticket card at the end of the To Do column */}
-              {isTodoColumn && (
+              {isTodoColumn && !searchActive && (
                 <button
                   data-testid="kanban-add-ticket-card"
                   onClick={() => setIsCreateModalOpen(true)}

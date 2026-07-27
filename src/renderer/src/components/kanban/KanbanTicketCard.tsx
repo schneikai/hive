@@ -38,6 +38,7 @@ import {
   Radar
 } from 'lucide-react'
 import { CheckeredFlagIcon } from './CheckeredFlagIcon'
+import { HighlightedText } from './HighlightedText'
 import { TicketModelBadge } from './TicketModelBadge'
 import { UpdateStatusModal } from './UpdateStatusModal'
 import { RemoteTerminalDialog } from './RemoteTerminalDialog'
@@ -46,6 +47,7 @@ import { Button } from '@/components/ui/button'
 import { NoteEditorModal } from './NoteEditorModal'
 import { MoveToProjectModal } from './MoveToProjectModal'
 import { cn, parseColorQuad } from '@/lib/utils'
+import { extractSnippet, normalizeSearchText, stripMarkdown } from '@/lib/board-search'
 import { unwrapEnvelope } from '@/lib/ipc-envelope'
 import { opencodeApi } from '@/api/opencode-api'
 import { remoteLaunchApi } from '@/api/remote-launch-api'
@@ -173,6 +175,18 @@ export const KanbanTicketCard = memo(function KanbanTicketCard({
     remoteLaunchInfo && !remoteLaunchInfo.stoppedAt ? remoteLaunchInfo : null
   const hasNote = !!ticket.note && ticket.note.trim().length > 0
   const isExternalTicket = !!ticket.external_provider
+
+  // Board search (Cmd+F): highlight title matches; when only the description
+  // matched (toggle on), surface a one-line snippet under the title
+  const searchOpen = useKanbanStore((s) => s.boardSearch.open)
+  const searchQuery = useKanbanStore((s) => s.boardSearch.query)
+  const searchDescriptions = useKanbanStore((s) => s.boardSearch.searchDescriptions)
+  const normQuery = searchOpen ? normalizeSearchText(searchQuery.trim()) : ''
+  const titleMatched = normQuery.length > 0 && normalizeSearchText(ticket.title).includes(normQuery)
+  const descriptionSnippet =
+    normQuery.length > 0 && searchDescriptions && !titleMatched && ticket.description
+      ? extractSnippet(stripMarkdown(ticket.description), normQuery)
+      : null
   const dragCloneRef = useRef<HTMLElement | null>(null)
   const currentTicketKey = ticketKey(ticket.project_id, ticket.id)
   const domTicketKey = cardIdentityKey ?? currentTicketKey
@@ -1048,7 +1062,9 @@ export const KanbanTicketCard = memo(function KanbanTicketCard({
               >
             {/* Title + top-right indicators */}
             <div className="flex items-start justify-between gap-2">
-              <p className="text-sm font-medium leading-snug text-foreground min-w-0 flex-1 break-words">{ticket.title}</p>
+              <p className="text-sm font-medium leading-snug text-foreground min-w-0 flex-1 break-words">
+                <HighlightedText text={ticket.title} normQuery={normQuery} />
+              </p>
               <div className="flex items-center gap-1.5 shrink-0">
                 {tokenText && (
                   <span className="text-[11px] tabular-nums text-muted-foreground">
@@ -1083,6 +1099,22 @@ export const KanbanTicketCard = memo(function KanbanTicketCard({
                 )}
               </div>
             </div>
+
+            {/* Description match snippet (board search) */}
+            {descriptionSnippet && (
+              <p
+                data-testid="board-search-snippet"
+                className="mt-1.5 truncate border-l-2 border-primary/40 pl-2 text-[11px] leading-snug text-muted-foreground"
+              >
+                {descriptionSnippet.prefixEllipsis && '…'}
+                {descriptionSnippet.before}
+                <mark className="bg-primary/25 text-foreground rounded-[3px] px-px">
+                  {descriptionSnippet.match}
+                </mark>
+                {descriptionSnippet.after}
+                {descriptionSnippet.suffixEllipsis && '…'}
+              </p>
+            )}
 
             {/* Badges + progress row */}
             {(hasAttachments || hasNote || worktreeName || queuedBranchLabel || projectTag || connectionName || ticket.plan_ready || isError || rightAlignedSlot || isArchived || isBlocked || blockingDiagnostic || isRunProcessAlive || ticket.github_pr_number || isCreatingPR || isForwardedToTelegram || ticket.goal_mode || ticket.auto_approve_plan || activeRemoteLaunch || showModelBadge || backgroundWork) && (
