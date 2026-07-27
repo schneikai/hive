@@ -24,7 +24,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { toast } from '@/lib/toast'
-import { resolvePRContentProvider } from '@/lib/pr-content-provider'
+import { resolvePRContentGeneration } from '@/lib/pr-content-provider'
 import {
   assessConnectionMembers,
   commitConnectionMembers,
@@ -62,6 +62,7 @@ export function ConnectionPRModal({ connectionId }: ConnectionPRModalProps): Rea
   const stageAll = useGitStore((s) => s.stageAll)
   const defaultAgentSdk = useSettingsStore((s) => s.defaultAgentSdk) ?? 'claude-code'
   const availableAgentSdks = useSettingsStore((s) => s.availableAgentSdks)
+  const prContentModel = useSettingsStore((s) => s.prContentModel)
 
   // ── Phase & assessment state ────────────────────────────────────
   const [phase, setPhase] = useState<ModalPhase>('loading')
@@ -298,7 +299,7 @@ export function ConnectionPRModal({ connectionId }: ConnectionPRModalProps): Rea
   )
 
   const handleCreate = useCallback(() => {
-    const provider = resolvePRContentProvider(defaultAgentSdk, availableAgentSdks)
+    const generation = resolvePRContentGeneration(prContentModel, defaultAgentSdk, availableAgentSdks)
     const gitStore = useGitStore.getState()
 
     const plans = eligible.map((assessment) => ({
@@ -326,7 +327,9 @@ export function ConnectionPRModal({ connectionId }: ConnectionPRModalProps): Rea
       ineligible,
       title: title.trim(),
       body: body.trim(),
-      provider
+      provider: generation?.provider ?? null,
+      model: generation?.model,
+      effort: generation?.effort
     })
   }, [
     eligible,
@@ -337,6 +340,7 @@ export function ConnectionPRModal({ connectionId }: ConnectionPRModalProps): Rea
     body,
     defaultAgentSdk,
     availableAgentSdks,
+    prContentModel,
     setOpen
   ])
 

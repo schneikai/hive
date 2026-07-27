@@ -52,6 +52,10 @@ export interface CreateConnectionPRsOptions {
   title: string
   body: string
   provider: PRContentProvider | null
+  /** Model override for PR content generation (provider-specific slug) */
+  model?: string | null
+  /** Effort/reasoning level override for PR content generation */
+  effort?: string | null
 }
 
 // ---------------------------------------------------------------------------
@@ -231,7 +235,7 @@ async function pushAttachedPRUpdates(assessment: MemberAssessment, prefix: strin
  * once the whole batch settles.
  */
 export async function createConnectionPRs(options: CreateConnectionPRsOptions): Promise<void> {
-  const { plans, ineligible, title, body, provider } = options
+  const { plans, ineligible, title, body, provider, model, effort } = options
   const { show } = usePRNotificationStore.getState()
 
   await Promise.allSettled(
@@ -282,6 +286,8 @@ export async function createConnectionPRs(options: CreateConnectionPRsOptions): 
         body,
         fallbackTitle: assessment.branchName,
         provider,
+        model,
+        effort,
         notifId,
         labelPrefix: prefix
       })

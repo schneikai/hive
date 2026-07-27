@@ -113,6 +113,25 @@ describe('runCreatePRPipeline', () => {
     expect(useGitStore.getState().creatingPRByWorktreeId.has('wt-1')).toBe(false)
   })
 
+  it('forwards the configured model and effort to generatePRContent', async () => {
+    mockResponses()
+
+    await runCreatePRPipeline({
+      ...baseOptions,
+      model: 'sonnet',
+      effort: 'high',
+      notifId
+    })
+
+    expect(request).toHaveBeenCalledWith('gitOps.generatePRContent', {
+      worktreePath: '/repo/wt-1',
+      baseBranch: 'main',
+      provider: 'claude-code',
+      model: 'sonnet',
+      effort: 'high'
+    })
+  })
+
   it('skips push and generation when nothing to push and content is provided', async () => {
     mockResponses({ 'gitOps.needsPush': false })
 

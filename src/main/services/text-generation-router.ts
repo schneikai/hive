@@ -6,6 +6,8 @@ import { Effect } from 'effect'
 
 import { loadClaudeSDK } from './claude-sdk-loader'
 import { resolveCodexBinaryPath } from './codex-binary-resolver'
+import { CODEX_REASONING_EFFORTS } from './codex-models'
+import type { CodexReasoningEffort } from './codex-models'
 import { getCodexCliEnv } from './codex-cli-env'
 import { detectAgentSdks } from './system-info'
 import type { AgentSdkDetection } from './system-info'
@@ -30,8 +32,25 @@ const MAX_OUTPUT_SIZE = 1024 * 1024 // 1 MB
 
 export interface GenerateTextOptions {
   modelOverride?: string
+  /** Reasoning-effort level (e.g. 'low' | 'medium' | 'high'); defaults to 'low'. */
+  effort?: string
   outputSchema?: string
   cwd?: string
+}
+
+const CLAUDE_EFFORT_LEVELS = ['low', 'medium', 'high', 'xhigh', 'max'] as const
+type ClaudeEffortLevel = (typeof CLAUDE_EFFORT_LEVELS)[number]
+
+function toClaudeEffort(effort?: string): ClaudeEffortLevel {
+  return CLAUDE_EFFORT_LEVELS.includes(effort as ClaudeEffortLevel)
+    ? (effort as ClaudeEffortLevel)
+    : 'low'
+}
+
+function toCodexEffort(effort?: string): CodexReasoningEffort {
+  return CODEX_REASONING_EFFORTS.includes(effort as CodexReasoningEffort)
+    ? (effort as CodexReasoningEffort)
+    : 'low'
 }
 
 let cachedSdks: AgentSdkDetection | null = null
@@ -81,7 +100,7 @@ export async function generateText(
   provider: AgentSdkId,
   options: GenerateTextOptions = {}
 ): Promise<string | null> {
-  const { modelOverride, outputSchema, cwd } = options
+  const { modelOverride, effort, outputSchema, cwd } = options
   const resolvedProvider = resolveProvider(provider)
   if (!resolvedProvider) {
     throw new Error(
@@ -101,6 +120,7 @@ export async function generateText(
         prompt,
         systemPrompt,
         modelOverride,
+        effort,
         outputSchema,
         cwd
       )
@@ -147,17 +167,23 @@ export async function generateText(
  */
 function resolveProvider(provider: AgentSdkId): AgentSdkId | null {
   if (provider === 'terminal') return null
+  // claude-code-cli shares Claude's text-generation path
+  const requested = provider === 'claude-code-cli' ? 'claude-code' : provider
 
   const sdks = getCachedSdkDetection()
-  const providerAvailable: Record<Exclude<AgentSdkId, 'terminal'>, boolean> = {
+  const providerAvailable: Record<Exclude<AgentSdkId, 'terminal' | 'claude-code-cli'>, boolean> = {
     'claude-code': sdks.claude,
     codex: sdks.codex,
     opencode: sdks.opencode
   }
 
-  if (providerAvailable[provider]) return provider
+  if (providerAvailable[requested]) return requested
 
-  const fallbackOrder: Exclude<AgentSdkId, 'terminal'>[] = ['claude-code', 'codex', 'opencode']
+  const fallbackOrder: Exclude<AgentSdkId, 'terminal' | 'claude-code-cli'>[] = [
+    'claude-code',
+    'codex',
+    'opencode'
+  ]
   for (const fallback of fallbackOrder) {
     if (providerAvailable[fallback]) return fallback
   }
@@ -173,14 +199,16 @@ function generateWithProvider(
   prompt: string,
   systemPrompt: string,
   modelOverride?: string,
+  effort?: string,
   outputSchema?: string,
   cwd?: string
 ): Promise<string | null> {
   switch (provider) {
     case 'claude-code':
-      return generateWithClaude(prompt, systemPrompt, modelOverride, cwd)
+    case 'claude-code-cli':
+      return generateWithClaude(prompt, systemPrompt, modelOverride, effort, cwd)
     case 'codex':
-      return generateWithCodex(prompt, systemPrompt, modelOverride, outputSchema, cwd)
+      return generateWithCodex(prompt, systemPrompt, modelOverride, effort, outputSchema, cwd)
     case 'opencode':
       return generateWithOpenCode(prompt, systemPrompt, modelOverride, cwd)
     case 'terminal':
@@ -195,6 +223,7 @@ async function generateWithClaude(
   prompt: string,
   systemPrompt: string,
   modelOverride?: string,
+  effort?: string,
   cwd?: string
 ): Promise<string | null> {
   const sdk = await loadClaudeSDK()
@@ -212,7 +241,7 @@ async function generateWithClaude(
         maxTurns: 2,
         abortController,
         systemPrompt,
-        effort: 'low',
+        effort: toClaudeEffort(effort),
         thinking: { type: 'disabled' },
         tools: [],
         persistSession: false,
@@ -284,6 +313,7 @@ async function generateWithCodex(
   prompt: string,
   systemPrompt: string,
   modelOverride?: string,
+  effort?: string,
   outputSchema?: string,
   cwd?: string
 ): Promise<string | null> {
@@ -307,7 +337,7 @@ async function generateWithCodex(
       '--model',
       model,
       '--config',
-      'model_reasoning_effort="low"'
+      `model_reasoning_effort="${toCodexEffort(effort)}"`
     ]
     if (schemaFile && outputSchema) {
       await writeFile(schemaFile, outputSchema)

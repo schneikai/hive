@@ -1089,6 +1089,32 @@ describe('git ops RPC domain', () => {
     )
   })
 
+  it('forwards model and effort overrides to the PR content generator', async () => {
+    const dir = makeTempDir()
+    git(dir, ['init'])
+    git(dir, ['config', 'user.email', 'hive@example.test'])
+    git(dir, ['config', 'user.name', 'Hive Test'])
+    writeFileSync(join(dir, 'tracked.txt'), 'original\n')
+    git(dir, ['add', 'tracked.txt'])
+    git(dir, ['commit', '-m', 'initial'])
+    git(dir, ['branch', '-M', 'main'])
+    git(dir, ['checkout', '-b', 'feature/pr-content'])
+
+    const runCommand = vi.fn(async () => ({ stdout: '', stderr: '' }))
+    const generatePRContent = vi.fn(async () => ({ title: 'Add RPC', body: 'Body' }))
+    const service = makeLiveGitOpsRpcService({ runCommand, generatePRContent })
+
+    await Effect.runPromise(service.generatePRContent(dir, 'main', 'claude-code', 'sonnet', 'high'))
+
+    expect(generatePRContent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        provider: 'claude-code',
+        model: 'sonnet',
+        effort: 'high'
+      })
+    )
+  })
+
   it('rejects providers that cannot generate pull request content', async () => {
     const generatePRContent = vi.fn(async () => ({ title: 'unused', body: 'unused' }))
     const service = makeLiveGitOpsRpcService({ generatePRContent })

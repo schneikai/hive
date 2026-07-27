@@ -366,6 +366,22 @@ describe('gitApi', () => {
     })
   })
 
+  it('includes model and effort in the generatePRContent payload when provided', async () => {
+    const request = vi.fn().mockResolvedValue({ success: true })
+    const subscribe = vi.fn()
+
+    setRendererRpcClient({ request, subscribe })
+
+    await gitApi.generatePRContent('/tmp/hive', 'origin/main', 'codex', 'gpt-5.5', 'medium')
+    expect(request).toHaveBeenCalledWith('gitOps.generatePRContent', {
+      worktreePath: '/tmp/hive',
+      baseBranch: 'origin/main',
+      provider: 'codex',
+      model: 'gpt-5.5',
+      effort: 'medium'
+    })
+  })
+
   it('routes getDiff through the renderer RPC client', async () => {
     const result = {
       success: true,

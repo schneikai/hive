@@ -17,6 +17,10 @@ export interface CreatePRPipelineOptions {
   /** Used as the PR title when generation fails or is unavailable */
   fallbackTitle: string
   provider: PRContentProvider | null
+  /** Model override for PR content generation (provider-specific slug) */
+  model?: string | null
+  /** Effort/reasoning level override for PR content generation */
+  effort?: string | null
   /** Pre-created notification card driven through the pipeline's states */
   notifId: string
   /** Prepended to every notification message, e.g. 'my-project: ' */
@@ -46,6 +50,8 @@ export async function runCreatePRPipeline(
     baseBranch,
     fallbackTitle,
     provider,
+    model,
+    effort,
     notifId,
     labelPrefix = ''
   } = options
@@ -86,7 +92,13 @@ export async function runCreatePRPipeline(
           'No AI provider available for PR content generation. Using default title and description.'
       } else {
         try {
-          const genResult = await gitApi.generatePRContent(worktreePath, baseBranch, provider)
+          const genResult = await gitApi.generatePRContent(
+            worktreePath,
+            baseBranch,
+            provider,
+            model ?? undefined,
+            effort ?? undefined
+          )
           if (genResult.success) {
             if (!finalTitle && genResult.title) finalTitle = genResult.title
             if (!finalBody && genResult.body) finalBody = genResult.body

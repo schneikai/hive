@@ -10,6 +10,8 @@ export function SettingsModels(): React.JSX.Element {
     resolveModelForSdk(defaultAgentSdk === 'terminal' ? 'opencode' : defaultAgentSdk, s)
   )
   const defaultModels = useSettingsStore((state) => state.defaultModels)
+  const prContentModel = useSettingsStore((state) => state.prContentModel)
+  const updateSetting = useSettingsStore((state) => state.updateSetting)
   const setSelectedModel = useSettingsStore((state) => state.setSelectedModel)
   const setSelectedModelForSdk = useSettingsStore((state) => state.setSelectedModelForSdk)
   const setModeDefaultModel = useSettingsStore((state) => state.setModeDefaultModel)
@@ -170,6 +172,31 @@ export function SettingsModels(): React.JSX.Element {
           </div>
         </>
       )}
+
+      <div className="border-t pt-4" />
+
+      {/* PR content generation */}
+      <div className="space-y-2">
+        <label className="text-sm font-medium">PR Content Generation</label>
+        <p className="text-xs text-muted-foreground">
+          Model and effort used to generate pull request titles and descriptions
+        </p>
+        <div className="flex items-center gap-2">
+          <ModelSelector
+            value={prContentModel || null}
+            onChange={(model) => updateSetting('prContentModel', model)}
+            allowAgentSdkSelection
+          />
+          {prContentModel && (
+            <button
+              onClick={() => updateSetting('prContentModel', null)}
+              className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+            >
+              Use default
+            </button>
+          )}
+        </div>
+      </div>
     </div>
   )
 }

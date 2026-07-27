@@ -328,12 +328,16 @@ export const gitApi = {
   generatePRContent: async (
     worktreePath: string,
     baseBranch: string,
-    provider: GitPRContentProvider
+    provider: GitPRContentProvider,
+    model?: string,
+    effort?: string
   ): Promise<GitGeneratePRContentResult> =>
     getRendererRpcClient().request<GitGeneratePRContentResult>('gitOps.generatePRContent', {
       worktreePath,
       baseBranch,
-      provider
+      provider,
+      ...(model ? { model } : {}),
+      ...(effort ? { effort } : {})
     }),
   getDiff: async (
     worktreePath: string,
