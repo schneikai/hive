@@ -162,7 +162,8 @@ export async function fetchForAccountOp(
 }
 
 export async function refreshAllForProviderOp(
-  provider: UsageProvider
+  provider: UsageProvider,
+  excludeAccountIds?: string[]
 ): Promise<RefreshAllResultItem[]> {
-  return refreshAllForProvider(provider)
+  return refreshAllForProvider(provider, excludeAccountIds)
 }

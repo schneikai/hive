@@ -12,9 +12,13 @@ export const usageApi = {
     getRendererRpcClient().request<UsageResult>('usageOps.fetch', {}),
   fetchOpenai: async (): Promise<OpenAIUsageResult> =>
     getRendererRpcClient().request<OpenAIUsageResult>('usageOps.fetchOpenai', {}),
-  refreshAllForProvider: async (provider: UsageProvider): Promise<RefreshAllResultItem[]> =>
+  refreshAllForProvider: async (
+    provider: UsageProvider,
+    excludeAccountIds?: string[]
+  ): Promise<RefreshAllResultItem[]> =>
     getRendererRpcClient().request<RefreshAllResultItem[]>('usageOps.refreshAllForProvider', {
-      provider
+      provider,
+      ...(excludeAccountIds ? { excludeAccountIds } : {})
     }),
   fetchForAccount: async (
     accountId: string,

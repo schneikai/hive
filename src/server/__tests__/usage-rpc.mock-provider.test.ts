@@ -276,11 +276,35 @@ describe('usage ops RPC mocked provider', () => {
       })
     )
 
-    expect(refreshAllForProvider).toHaveBeenCalledWith('openai')
+    expect(refreshAllForProvider).toHaveBeenCalledWith('openai', undefined)
     expect(response).toEqual({
       id: 'usage-refresh-all-for-provider-1',
       ok: true,
       value: result
+    })
+  })
+
+  it('passes excludeAccountIds through to the injected provider service', async () => {
+    const refreshAllForProvider = vi.fn(() => Effect.succeed([]))
+    const service = { refreshAllForProvider } as unknown as UsageOpsRpcService
+    const router = makeRpcRouter({
+      eventBus: makeEventBus(),
+      usageOps: service
+    })
+
+    const response = await Effect.runPromise(
+      router.handle({
+        id: 'usage-refresh-all-for-provider-exclude',
+        method: 'usageOps.refreshAllForProvider',
+        params: { provider: 'anthropic', excludeAccountIds: ['account-1', 'account-2'] }
+      })
+    )
+
+    expect(refreshAllForProvider).toHaveBeenCalledWith('anthropic', ['account-1', 'account-2'])
+    expect(response).toEqual({
+      id: 'usage-refresh-all-for-provider-exclude',
+      ok: true,
+      value: []
     })
   })
 

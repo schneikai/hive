@@ -43,6 +43,32 @@ export function getMaxUsagePercent(usage: UsageData, nowMs: number): number | nu
 }
 
 /**
+ * True when the account provably sits at/over `thresholdPercent` right now:
+ * some window's cached utilization is at/over it AND that window's reset time
+ * is known to still be in the future — utilization only accrues until a
+ * window resets, so a refresh cannot reveal a viable account. A window whose
+ * reset time is null, invalid, or already passed offers no such guarantee and
+ * never qualifies. Used to skip pointless refreshes in the auto-switch sweep.
+ */
+export function isProvablyAtOrAbove(
+  usage: UsageData,
+  thresholdPercent: number,
+  nowMs: number
+): boolean {
+  const windows: WindowLike[] = [
+    usage.five_hour,
+    usage.seven_day,
+    ...(usage.scoped ?? []).map((s) => ({ utilization: s.used_percent, resets_at: s.resets_at }))
+  ]
+  return windows.some((w) => {
+    if (!w || w.utilization < thresholdPercent) return false
+    if (!w.resets_at) return false
+    const resetTime = new Date(w.resets_at).getTime()
+    return !isNaN(resetTime) && resetTime > nowMs
+  })
+}
+
+/**
  * 0-100 "how long will this account last" score used to pick the auto-switch
  * target: a weighted geometric mean of each window's remaining headroom.
  * Geometric (not arithmetic) so a single nearly-exhausted window drags the

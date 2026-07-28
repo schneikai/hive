@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest'
 
-import { getMaxUsagePercent, scoreAccountHeadroom } from '../auto-switch-score'
+import {
+  getMaxUsagePercent,
+  isProvablyAtOrAbove,
+  scoreAccountHeadroom
+} from '../auto-switch-score'
 import type { UsageData } from '@shared/types/usage'
 
 const NOW = new Date('2026-07-16T10:00:00.000Z').getTime()
@@ -109,5 +113,44 @@ describe('getMaxUsagePercent', () => {
       seven_day: { utilization: 60, resets_at: PAST }
     }
     expect(getMaxUsagePercent(data, NOW)).toBeNull()
+  })
+})
+
+describe('isProvablyAtOrAbove', () => {
+  it('is true when a window is at/over the threshold with a known future reset', () => {
+    expect(isProvablyAtOrAbove(usage(95, 20), 90, NOW)).toBe(true)
+    expect(isProvablyAtOrAbove(usage(10, 20, [{ label: 'Fable', used_percent: 100 }]), 90, NOW)).toBe(
+      true
+    )
+  })
+
+  it('is false when every window sits below the threshold', () => {
+    expect(isProvablyAtOrAbove(usage(10, 20, [{ label: 'Fable', used_percent: 50 }]), 90, NOW)).toBe(
+      false
+    )
+  })
+
+  it('is false when the over-threshold window already reset', () => {
+    const data: UsageData = {
+      five_hour: { utilization: 100, resets_at: PAST },
+      seven_day: { utilization: 10, resets_at: FUTURE }
+    }
+    expect(isProvablyAtOrAbove(data, 90, NOW)).toBe(false)
+  })
+
+  it('is false when the over-threshold window has no known reset horizon', () => {
+    // Without a reset time there is no guarantee the number still holds — a
+    // cached over-threshold reading must not exclude the account forever.
+    const noHorizon: UsageData = {
+      five_hour: { utilization: 95, resets_at: null },
+      seven_day: { utilization: 10, resets_at: FUTURE }
+    }
+    expect(isProvablyAtOrAbove(noHorizon, 90, NOW)).toBe(false)
+
+    const invalidHorizon: UsageData = {
+      five_hour: { utilization: 95, resets_at: 'not-a-date' },
+      seven_day: { utilization: 10, resets_at: FUTURE }
+    }
+    expect(isProvablyAtOrAbove(invalidHorizon, 90, NOW)).toBe(false)
   })
 })

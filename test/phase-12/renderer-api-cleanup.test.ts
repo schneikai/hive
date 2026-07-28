@@ -9327,7 +9327,7 @@ describe('renderer API cleanup', () => {
       'utf-8'
     )
     const actionStart = source.indexOf(
-      'refreshAllForProvider: async (provider: UsageProvider) => {'
+      'refreshAllForProvider: async (provider: UsageProvider, excludeAccountIds?: string[]) => {'
     )
     const actionEnd = source.indexOf('  refreshSavedAccount:', actionStart)
     const actionSource = source.slice(actionStart, actionEnd)
@@ -9335,7 +9335,9 @@ describe('renderer API cleanup', () => {
     expect(actionStart).toBeGreaterThan(-1)
     expect(actionEnd).toBeGreaterThan(actionStart)
     expect(source).toContain("import { usageApi } from '@/api/usage-api'")
-    expect(actionSource).toContain('await usageApi.refreshAllForProvider(provider)')
+    expect(actionSource).toContain(
+      'await usageApi.refreshAllForProvider(provider, excludeAccountIds)'
+    )
     expect(actionSource).toContain('await get().loadSavedAccounts(provider)')
     expect(actionSource).not.toContain('window.usageOps.refreshAllForProvider')
     expect(actionSource).not.toContain('unwrapEnvelope(await window.usageOps.refreshAllForProvider')
