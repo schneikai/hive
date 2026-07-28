@@ -327,6 +327,13 @@ interface KanbanState {
   setHoveredBlockedTicketRef: (ref: TicketRef | null) => void
 }
 
+// Explicit follow-up sends whose session_working matched no loaded ticket —
+// the board hadn't been opened, so the one-shot explicit marker was consumed
+// against an empty map. reconcileFinishedSessions attributes these once the
+// project's tickets load, so the reopen isn't silently lost. In-memory per
+// app run, cleared as soon as a matching ticket handles the send.
+const pendingExplicitReopens = new Set<string>()
+
 // ── Store ──────────────────────────────────────────────────────────────
 export const useKanbanStore = create<KanbanState>()(
   persist(
@@ -434,25 +441,39 @@ export const useKanbanStore = create<KanbanState>()(
       },
 
       // ── reconcileFinishedSessions ────────────────────────────────
-      // Safety net for session_completed/plan_ready events that were dropped
-      // because this project's tickets weren't loaded when the event fired (e.g.
-      // on app relaunch the idle→completed replay can beat the board load). Run
-      // after tickets load: any in_progress ticket whose linked session is in a
-      // concrete "finished" status is advanced to review.
+      // Safety net for session events that were dropped because this project's
+      // tickets weren't loaded when the event fired (e.g. on app relaunch the
+      // idle→completed replay can beat the board load). Run after tickets load:
+      // any in_progress ticket whose linked session is in a concrete "finished"
+      // status is advanced to review, and a done/merged ticket whose session
+      // got an explicit follow-up while unloaded is reopened to in_progress.
       reconcileFinishedSessions: (projectId: string) => {
         const tickets = get().tickets.get(projectId) ?? []
         const statuses = useWorktreeStatusStore.getState().sessionStatuses
         for (const ticket of tickets) {
-          if (ticket.column !== 'in_progress' || !ticket.current_session_id) continue
+          if (!ticket.current_session_id) continue
           const status = statuses[ticket.current_session_id]?.status ?? null
-          // Only act on positive "finished" evidence — never on progressing/asking/
-          // no-status, so we don't yank not-yet-started or actively-running sessions
-          // out of in_progress.
-          if (status !== 'completed' && status !== 'plan_ready') continue
-          if (isPlanLike(ticket.mode) && !ticket.plan_ready) {
-            get().updateTicket(ticket.id, projectId, { plan_ready: true }).catch(() => {})
+          if (ticket.column === 'in_progress') {
+            // Only act on positive "finished" evidence — never on progressing/
+            // asking/no-status, so we don't yank not-yet-started or actively-
+            // running sessions out of in_progress.
+            if (status !== 'completed' && status !== 'plan_ready') continue
+            if (isPlanLike(ticket.mode) && !ticket.plan_ready) {
+              get().updateTicket(ticket.id, projectId, { plan_ready: true }).catch(() => {})
+            }
+            get().moveTicket(ticket.id, projectId, 'review', ticket.sort_order).catch(() => {})
+          } else if (ticket.column === 'done' || ticket.column === 'merged') {
+            // Recover an explicit follow-up reopen that fired before these
+            // tickets were loaded. Only while the session is still actively
+            // running — a session that already finished (or never started)
+            // gives no license to leave the terminal column.
+            if (!pendingExplicitReopens.has(ticket.current_session_id)) continue
+            if (status !== 'working' && status !== 'planning') continue
+            pendingExplicitReopens.delete(ticket.current_session_id)
+            get()
+              .moveTicket(ticket.id, projectId, 'in_progress', ticket.sort_order)
+              .catch(() => {})
           }
-          get().moveTicket(ticket.id, projectId, 'review', ticket.sort_order).catch(() => {})
         }
       },
 
@@ -987,9 +1008,11 @@ export const useKanbanStore = create<KanbanState>()(
       syncTicketWithSession: (sessionId: string, event: KanbanSessionEvent) => {
         // Find all tickets across all projects referencing this session
         const allTickets = get().tickets
+        let matchedTicket = false
         for (const [projectId, tickets] of allTickets.entries()) {
           for (const ticket of tickets) {
             if (ticket.current_session_id !== sessionId) continue
+            matchedTicket = true
 
             // 'done' and 'merged' are terminal columns: once a user moves a
             // ticket there, no session event may auto-move it back. This
@@ -1128,10 +1151,17 @@ export const useKanbanStore = create<KanbanState>()(
                 }
                 // Approving a plan on a done/merged ticket resumes real work,
                 // but its working status carries no send stamp (opencode) or a
-                // PostToolUse hook (CLI), so session_working won't reopen it.
-                // implement only fires on genuine user approvals — reopen here.
-                // Other columns keep moving via session_working as before.
-                if (ticket.column === 'done' || ticket.column === 'merged') {
+                // PostToolUse hook (CLI), so session_working won't reopen it —
+                // reopen here instead. Except when auto_approve_plan is armed:
+                // the hook server answers ExitPlanMode with no fresh user
+                // action, and the manual move to done/merged is the newer
+                // intent. Manual modal / plan-card approvals still reopen via
+                // their explicit send stamps. Other columns keep moving via
+                // session_working as before.
+                if (
+                  (ticket.column === 'done' || ticket.column === 'merged') &&
+                  !ticket.auto_approve_plan
+                ) {
                   get()
                     .moveTicket(ticket.id, projectId, 'in_progress', ticket.sort_order)
                     .catch(() => {})
@@ -1175,6 +1205,12 @@ export const useKanbanStore = create<KanbanState>()(
               }
             }
           }
+        }
+        // Remember explicit sends that found no loaded ticket so the reopen
+        // can be recovered when the project's tickets load (reconcile below).
+        if (event.type === 'session_working' && event.explicitSend === true) {
+          if (matchedTicket) pendingExplicitReopens.delete(sessionId)
+          else pendingExplicitReopens.add(sessionId)
         }
       },
 

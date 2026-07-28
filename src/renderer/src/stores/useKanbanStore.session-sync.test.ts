@@ -501,4 +501,78 @@ describe('syncTicketWithSession — implement reopens done/merged tickets', () =
     expect(columnOf('ticket-1')).toBe('review')
     expect(kanbanApi.ticket.move).not.toHaveBeenCalled()
   })
+
+  it('does not reopen a done ticket on implement when auto_approve_plan is armed', async () => {
+    seed(makeTicket({ column: 'done', mode: 'plan', plan_ready: true, auto_approve_plan: true }))
+
+    useKanbanStore.getState().syncTicketWithSession(SESSION_ID, { type: 'implement' })
+    await flush()
+
+    expect(columnOf('ticket-1')).toBe('done')
+    expect(kanbanApi.ticket.move).not.toHaveBeenCalled()
+  })
+})
+
+describe('reconcileFinishedSessions — recovers explicit reopens missed while unloaded', () => {
+  it('reopens a done ticket whose explicit send fired before tickets loaded', async () => {
+    const sessionId = 'sess-unloaded-reopen'
+    // Board not loaded: the explicit session_working matches nothing.
+    useKanbanStore
+      .getState()
+      .syncTicketWithSession(sessionId, { type: 'session_working', explicitSend: true })
+    await flush()
+
+    // Tickets load afterwards; the session is still running.
+    seed(makeTicket({ column: 'done', current_session_id: sessionId }))
+    setSessionStatus(sessionId, 'working')
+    useKanbanStore.getState().reconcileFinishedSessions(PROJECT_ID)
+    await flush()
+
+    expect(columnOf('ticket-1')).toBe('in_progress')
+
+    // The recovery is one-shot: re-done ticket stays put on the next reconcile.
+    seed(makeTicket({ column: 'done', current_session_id: sessionId }))
+    useKanbanStore.getState().reconcileFinishedSessions(PROJECT_ID)
+    await flush()
+    expect(columnOf('ticket-1')).toBe('done')
+  })
+
+  it('does not reopen when the session already finished by load time', async () => {
+    const sessionId = 'sess-unloaded-finished'
+    useKanbanStore
+      .getState()
+      .syncTicketWithSession(sessionId, { type: 'session_working', explicitSend: true })
+    await flush()
+
+    seed(makeTicket({ column: 'merged', current_session_id: sessionId }))
+    setSessionStatus(sessionId, 'completed')
+    useKanbanStore.getState().reconcileFinishedSessions(PROJECT_ID)
+    await flush()
+
+    expect(columnOf('ticket-1')).toBe('merged')
+    expect(kanbanApi.ticket.move).not.toHaveBeenCalled()
+  })
+
+  it('clears the pending reopen once a loaded ticket handles the explicit send', async () => {
+    const sessionId = 'sess-live-handled'
+    useKanbanStore
+      .getState()
+      .syncTicketWithSession(sessionId, { type: 'session_working', explicitSend: true })
+    await flush()
+
+    // A later explicit send arrives with the ticket loaded — handled live.
+    seed(makeTicket({ column: 'done', current_session_id: sessionId }))
+    useKanbanStore
+      .getState()
+      .syncTicketWithSession(sessionId, { type: 'session_working', explicitSend: true })
+    await flush()
+    expect(columnOf('ticket-1')).toBe('in_progress')
+
+    // The stale pending entry must not resurrect a re-done ticket on load.
+    seed(makeTicket({ column: 'done', current_session_id: sessionId }))
+    setSessionStatus(sessionId, 'working')
+    useKanbanStore.getState().reconcileFinishedSessions(PROJECT_ID)
+    await flush()
+    expect(columnOf('ticket-1')).toBe('done')
+  })
 })
