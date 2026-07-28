@@ -325,6 +325,18 @@ describe('syncTicketWithSession — explicit follow-up reopens done/merged ticke
     expect(kanbanApi.ticket.move).not.toHaveBeenCalled()
   })
 
+  it('does not reopen an archived done ticket on an explicit send', async () => {
+    seed(makeTicket({ column: 'done', archived_at: '2026-01-02T00:00:00.000Z' }))
+
+    useKanbanStore
+      .getState()
+      .syncTicketWithSession(SESSION_ID, { type: 'session_working', explicitSend: true })
+    await flush()
+
+    expect(columnOf('ticket-1')).toBe('done')
+    expect(kanbanApi.ticket.move).not.toHaveBeenCalled()
+  })
+
   it('does not move a merged ticket on session_working with explicitSend false', async () => {
     seed(makeTicket({ column: 'merged' }))
 
@@ -535,6 +547,28 @@ describe('reconcileFinishedSessions — recovers explicit reopens missed while u
     useKanbanStore.getState().reconcileFinishedSessions(PROJECT_ID)
     await flush()
     expect(columnOf('ticket-1')).toBe('done')
+  })
+
+  it('does not reopen an archived ticket during reconcile recovery', async () => {
+    const sessionId = 'sess-archived-reconcile'
+    useKanbanStore
+      .getState()
+      .syncTicketWithSession(sessionId, { type: 'session_working', explicitSend: true })
+    await flush()
+
+    seed(
+      makeTicket({
+        column: 'merged',
+        current_session_id: sessionId,
+        archived_at: '2026-01-02T00:00:00.000Z'
+      })
+    )
+    setSessionStatus(sessionId, 'working')
+    useKanbanStore.getState().reconcileFinishedSessions(PROJECT_ID)
+    await flush()
+
+    expect(columnOf('ticket-1')).toBe('merged')
+    expect(kanbanApi.ticket.move).not.toHaveBeenCalled()
   })
 
   it('does not reopen when the session already finished by load time', async () => {

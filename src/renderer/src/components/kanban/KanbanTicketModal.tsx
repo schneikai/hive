@@ -402,6 +402,12 @@ async function sendFollowupToSession(opts: {
   followUpMode: FollowUpMode
   ticketId: string
   attachments?: Attachment[]
+  /**
+   * Caller already wrote the send stamps + working status for this attempt
+   * (and may use its messageSendTimes stamp as a generation token to detect
+   * newer sends) — don't overwrite them here.
+   */
+  skipSendBookkeeping?: boolean
 }): Promise<void> {
   const result = await findSessionById(opts.sessionId)
   if (!result) {
@@ -440,13 +446,15 @@ async function sendFollowupToSession(opts: {
     useSessionStore.getState().setSessionMode(opts.sessionId, 'plan')
   }
 
-  messageSendTimes.set(opts.sessionId, Date.now())
-  userExplicitSendTimes.set(opts.sessionId, Date.now())
-  snapshotTokenBaseline(opts.sessionId)
-  lastSendMode.set(opts.sessionId, completionSendMode(opts.followUpMode))
-  useWorktreeStatusStore
-    .getState()
-    .setSessionStatus(opts.sessionId, isPlanLike(opts.followUpMode) ? 'planning' : 'working')
+  if (!opts.skipSendBookkeeping) {
+    messageSendTimes.set(opts.sessionId, Date.now())
+    userExplicitSendTimes.set(opts.sessionId, Date.now())
+    snapshotTokenBaseline(opts.sessionId)
+    lastSendMode.set(opts.sessionId, completionSendMode(opts.followUpMode))
+    useWorktreeStatusStore
+      .getState()
+      .setSessionStatus(opts.sessionId, isPlanLike(opts.followUpMode) ? 'planning' : 'working')
+  }
   bumpWorktreeLastMessage({
     worktreeId: session.worktree_id,
     connectionId: session.connection_id ?? connectionId
@@ -2224,6 +2232,14 @@ function PlanReviewModeContent({
     // implementation fails, put the ticket back in its terminal column — an
     // in_progress ticket with no running session is a lie on the board.
     const columnBeforeImplement = ticket.column
+    // Send generation at the time of this attempt. Every send path bumps
+    // messageSendTimes, so a mismatch at failure time means a newer send owns
+    // the session — the late failure must not clear its status or roll the
+    // ticket back under it.
+    let sendStampAtImplement: number | undefined
+    const implementAttemptSuperseded = (): boolean =>
+      ticket.current_session_id != null &&
+      messageSendTimes.get(ticket.current_session_id) !== sendStampAtImplement
     const restoreTerminalColumn = (): void => {
       if (columnBeforeImplement !== 'done' && columnBeforeImplement !== 'merged') return
       // Only undo our own optimistic reopen. The failure can land seconds
@@ -2254,6 +2270,7 @@ function PlanReviewModeContent({
       messageSendTimes.set(sessionId, Date.now())
       userExplicitSendTimes.set(sessionId, Date.now())
       snapshotTokenBaseline(sessionId)
+      sendStampAtImplement = messageSendTimes.get(sessionId)
       useWorktreeStatusStore.getState().setSessionStatus(sessionId, 'working')
 
       // Clear plan_ready badge — ticket is back to working
@@ -2273,11 +2290,13 @@ function PlanReviewModeContent({
             pendingBeforeAction.planContent
           ),
           followUpMode: 'build',
-          ticketId: ticket.id
+          ticketId: ticket.id,
+          skipSendBookkeeping: true
         }).catch((err) => {
           const reason = err instanceof Error ? err.message : String(err)
           console.error('[KanbanTicketModal] background implement send failed:', err)
           toast.error(`Failed to start implementation: ${reason}`)
+          if (implementAttemptSuperseded()) return
           useWorktreeStatusStore.getState().clearSessionStatus(sessionId)
           restoreTerminalColumn()
         })
@@ -2300,8 +2319,10 @@ function PlanReviewModeContent({
             `[KanbanTicketModal] handleImplement: working path not found — worktree_id=${sessionRecord.worktree_id}, connection_id=${sessionRecord.connection_id}`
           )
           toast.error('Failed to approve plan: working path not found')
-          useWorktreeStatusStore.getState().clearSessionStatus(sessionId)
-          restoreTerminalColumn()
+          if (!implementAttemptSuperseded()) {
+            useWorktreeStatusStore.getState().clearSessionStatus(sessionId)
+            restoreTerminalColumn()
+          }
           return
         }
         unwrapEnvelope(
@@ -2315,8 +2336,10 @@ function PlanReviewModeContent({
       const reason = err instanceof Error ? err.message : String(err)
       console.error('[KanbanTicketModal] handleImplement failed:', err)
       toast.error(`Failed to start implementation: ${reason}`)
-      useWorktreeStatusStore.getState().clearSessionStatus(ticket.current_session_id)
-      restoreTerminalColumn()
+      if (!implementAttemptSuperseded()) {
+        useWorktreeStatusStore.getState().clearSessionStatus(ticket.current_session_id)
+        restoreTerminalColumn()
+      }
     } finally {
       setIsActioning(false)
     }

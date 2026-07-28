@@ -482,7 +482,9 @@ export const useKanbanStore = create<KanbanState>()(
             // Recover an explicit follow-up reopen this project missed while
             // unloaded. Only while the session is still actively running — a
             // session that already finished (or never started) gives no
-            // license to leave the terminal column.
+            // license to leave the terminal column. Archived tickets never
+            // reopen (see the session_working guard).
+            if (ticket.archived_at) continue
             if (!recoveredThisPass.has(ticket.current_session_id)) continue
             if (status !== 'working' && status !== 'planning') continue
             get()
@@ -1173,7 +1175,8 @@ export const useKanbanStore = create<KanbanState>()(
                 // session_working as before.
                 if (
                   (ticket.column === 'done' || ticket.column === 'merged') &&
-                  !ticket.auto_approve_plan
+                  !ticket.auto_approve_plan &&
+                  !ticket.archived_at
                 ) {
                   get()
                     .moveTicket(ticket.id, projectId, 'in_progress', ticket.sort_order)
@@ -1202,9 +1205,13 @@ export const useKanbanStore = create<KanbanState>()(
                     .updateTicket(ticket.id, projectId, { plan_ready: false })
                     .catch(() => {})
                 }
+                // Archived tickets never reopen: clearing the column while
+                // archived_at persists would strand them (the archive UI only
+                // renders archived done/merged, so Unarchive would be lost).
                 const reopenedByFollowup =
                   event.explicitSend === true &&
-                  (ticket.column === 'done' || ticket.column === 'merged')
+                  (ticket.column === 'done' || ticket.column === 'merged') &&
+                  !ticket.archived_at
                 if (
                   ticket.column === 'todo' ||
                   ticket.column === 'review' ||
