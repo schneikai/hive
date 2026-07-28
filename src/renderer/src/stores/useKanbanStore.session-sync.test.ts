@@ -19,7 +19,7 @@ vi.mock('./useSettingsStore', () => ({
   useSettingsStore: { getState: () => ({ followUpTriggerColumn: 'done' }) }
 }))
 
-import { useKanbanStore } from './useKanbanStore'
+import { clearPendingSessionReopens, useKanbanStore } from './useKanbanStore'
 import { markNextWorkingStatusExplicit, useWorktreeStatusStore } from './useWorktreeStatusStore'
 import { kanbanApi } from '@/api/kanban-api'
 import { userExplicitSendTimes } from '@/lib/message-send-times'
@@ -593,6 +593,23 @@ describe('reconcileFinishedSessions — recovers explicit reopens missed while u
     await flush()
 
     expect(columnOf('ticket-1')).toBe('merged')
+    expect(kanbanApi.ticket.move).not.toHaveBeenCalled()
+  })
+
+  it('a failed implement rollback clears pending recoveries', async () => {
+    const sessionId = 'sess-implement-rolled-back'
+    useKanbanStore.getState().syncTicketWithSession(sessionId, { type: 'implement' })
+    await flush()
+
+    // The dispatch failed and the failure path rolled the attempt back.
+    clearPendingSessionReopens(sessionId)
+
+    seed(makeTicket({ column: 'done', mode: 'plan', current_session_id: sessionId }))
+    setSessionStatus(sessionId, 'working')
+    useKanbanStore.getState().reconcileFinishedSessions(PROJECT_ID)
+    await flush()
+
+    expect(columnOf('ticket-1')).toBe('done')
     expect(kanbanApi.ticket.move).not.toHaveBeenCalled()
   })
 
