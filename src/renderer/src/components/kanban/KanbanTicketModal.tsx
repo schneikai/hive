@@ -2234,17 +2234,18 @@ function PlanReviewModeContent({
     const columnBeforeImplement = ticket.column
     // Generation of this attempt. Every send path bumps messageSendTimes, and
     // every send, hook event, or auto-resume rewrites the session-status
-    // entry — so if either differs at failure time, something newer owns the
-    // session and the late failure must not clear its status or roll the
-    // ticket back under it.
+    // entry with a fresh object — so if either differs at failure time,
+    // something newer owns the session and the late failure must not clear
+    // its status or roll the ticket back under it. The entry is compared by
+    // identity (not timestamp) so even a same-millisecond newer transition is
+    // detected.
     let sendStampAtImplement: number | undefined
-    let statusStampAtImplement: number | undefined
+    let statusEntryAtImplement: unknown
     const implementAttemptSuperseded = (): boolean => {
       const sessionId = ticket.current_session_id
       if (sessionId == null) return false
       if (messageSendTimes.get(sessionId) !== sendStampAtImplement) return true
-      const entry = useWorktreeStatusStore.getState().sessionStatuses[sessionId]
-      return entry?.timestamp !== statusStampAtImplement
+      return useWorktreeStatusStore.getState().sessionStatuses[sessionId] !== statusEntryAtImplement
     }
     const restoreTerminalColumn = (): void => {
       if (columnBeforeImplement !== 'done' && columnBeforeImplement !== 'merged') return
@@ -2280,8 +2281,7 @@ function PlanReviewModeContent({
       snapshotTokenBaseline(sessionId)
       sendStampAtImplement = messageSendTimes.get(sessionId)
       useWorktreeStatusStore.getState().setSessionStatus(sessionId, 'working')
-      statusStampAtImplement =
-        useWorktreeStatusStore.getState().sessionStatuses[sessionId]?.timestamp
+      statusEntryAtImplement = useWorktreeStatusStore.getState().sessionStatuses[sessionId]
 
       // Clear plan_ready badge — ticket is back to working
       await useKanbanStore
