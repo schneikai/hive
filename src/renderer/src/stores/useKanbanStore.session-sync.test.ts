@@ -561,6 +561,56 @@ describe('reconcileFinishedSessions — recovers explicit reopens missed while u
     expect(columnOf('ticket-1')).toBe('done')
   })
 
+  it('recovers a terminal-approved implement for a project loaded later', async () => {
+    const sessionId = 'sess-implement-unloaded'
+    // Manual ExitPlanMode approval in the CLI terminal, board not loaded.
+    useKanbanStore.getState().syncTicketWithSession(sessionId, { type: 'implement' })
+    await flush()
+
+    seed(makeTicket({ column: 'done', mode: 'plan', current_session_id: sessionId }))
+    setSessionStatus(sessionId, 'working')
+    useKanbanStore.getState().reconcileFinishedSessions(PROJECT_ID)
+    await flush()
+
+    expect(columnOf('ticket-1')).toBe('in_progress')
+  })
+
+  it('implement recovery keeps an armed auto_approve_plan ticket terminal', async () => {
+    const sessionId = 'sess-implement-armed'
+    useKanbanStore.getState().syncTicketWithSession(sessionId, { type: 'implement' })
+    await flush()
+
+    seed(
+      makeTicket({
+        column: 'merged',
+        mode: 'plan',
+        auto_approve_plan: true,
+        current_session_id: sessionId
+      })
+    )
+    setSessionStatus(sessionId, 'working')
+    useKanbanStore.getState().reconcileFinishedSessions(PROJECT_ID)
+    await flush()
+
+    expect(columnOf('ticket-1')).toBe('merged')
+    expect(kanbanApi.ticket.move).not.toHaveBeenCalled()
+  })
+
+  it('a finished run clears a pending implement recovery too', async () => {
+    const sessionId = 'sess-implement-ended'
+    useKanbanStore.getState().syncTicketWithSession(sessionId, { type: 'implement' })
+    useKanbanStore.getState().syncTicketWithSession(sessionId, { type: 'session_completed' })
+    await flush()
+
+    seed(makeTicket({ column: 'done', mode: 'plan', current_session_id: sessionId }))
+    setSessionStatus(sessionId, 'working')
+    useKanbanStore.getState().reconcileFinishedSessions(PROJECT_ID)
+    await flush()
+
+    expect(columnOf('ticket-1')).toBe('done')
+    expect(kanbanApi.ticket.move).not.toHaveBeenCalled()
+  })
+
   it('reopens when the recovered run is blocked awaiting user input', async () => {
     const sessionId = 'sess-blocked-recovery'
     useKanbanStore

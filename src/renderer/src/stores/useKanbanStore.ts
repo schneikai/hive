@@ -346,6 +346,13 @@ interface KanbanState {
 // status (e.g. a background auto-resume) to the old send.
 const pendingExplicitReopens = new Map<string, Set<string>>()
 
+// Same recovery for implement (plan approval) events: a manual ExitPlanMode
+// approval in a CLI terminal emits implement + a PostToolUse working status —
+// neither is an explicit send, so an unloaded project would otherwise lose
+// the reopen. The auto_approve_plan exclusion is applied at reconcile time,
+// when the ticket is available to check. Same lifecycle as above.
+const pendingImplementReopens = new Map<string, Set<string>>()
+
 // ── Store ──────────────────────────────────────────────────────────────
 export const useKanbanStore = create<KanbanState>()(
   persist(
@@ -462,20 +469,27 @@ export const useKanbanStore = create<KanbanState>()(
       reconcileFinishedSessions: (projectId: string) => {
         const tickets = get().tickets.get(projectId) ?? []
         const statuses = useWorktreeStatusStore.getState().sessionStatuses
-        // Sessions whose pending explicit send is being attributed to this
-        // project in this pass — lets several linked tickets all recover,
-        // while the handled-mark stops later reloads from re-attributing.
-        const recoveredThisPass = new Set<string>()
+        // Sessions whose pending explicit send / implement is being
+        // attributed to this project in this pass — lets several linked
+        // tickets all recover, while the handled-mark stops later reloads
+        // from re-attributing.
+        const recoveredExplicit = new Set<string>()
+        const recoveredImplement = new Set<string>()
         for (const ticket of tickets) {
           if (!ticket.current_session_id) continue
           const status = statuses[ticket.current_session_id]?.status ?? null
-          // Attribute a pending explicit send to this project on any linked
-          // ticket visit (whatever its column) — a re-done ticket must not be
-          // reopened by the same send on a future reload.
-          const pendingHandled = pendingExplicitReopens.get(ticket.current_session_id)
-          if (pendingHandled && !pendingHandled.has(projectId)) {
-            pendingHandled.add(projectId)
-            recoveredThisPass.add(ticket.current_session_id)
+          // Attribute pending events to this project on any linked ticket
+          // visit (whatever its column) — a re-done ticket must not be
+          // reopened by the same event on a future reload.
+          const explicitHandled = pendingExplicitReopens.get(ticket.current_session_id)
+          if (explicitHandled && !explicitHandled.has(projectId)) {
+            explicitHandled.add(projectId)
+            recoveredExplicit.add(ticket.current_session_id)
+          }
+          const implementHandled = pendingImplementReopens.get(ticket.current_session_id)
+          if (implementHandled && !implementHandled.has(projectId)) {
+            implementHandled.add(projectId)
+            recoveredImplement.add(ticket.current_session_id)
           }
           if (ticket.column === 'in_progress') {
             // Only act on positive "finished" evidence — never on progressing/
@@ -487,14 +501,18 @@ export const useKanbanStore = create<KanbanState>()(
             }
             get().moveTicket(ticket.id, projectId, 'review', ticket.sort_order).catch(() => {})
           } else if (ticket.column === 'done' || ticket.column === 'merged') {
-            // Recover an explicit follow-up reopen this project missed while
-            // unloaded. Only while the session's run is still active — running
-            // or blocked awaiting user input. A session that already finished
-            // (or never started) gives no license to leave the terminal
-            // column. Archived tickets never reopen (see the session_working
-            // guard).
+            // Recover an explicit follow-up or plan-approval reopen this
+            // project missed while unloaded. Only while the session's run is
+            // still active — running or blocked awaiting user input. A
+            // session that already finished (or never started) gives no
+            // license to leave the terminal column. Archived tickets never
+            // reopen, and auto-approved plans don't reopen armed tickets
+            // (see the session_working / implement guards).
             if (ticket.archived_at) continue
-            if (!recoveredThisPass.has(ticket.current_session_id)) continue
+            const viaExplicit = recoveredExplicit.has(ticket.current_session_id)
+            const viaImplement =
+              recoveredImplement.has(ticket.current_session_id) && !ticket.auto_approve_plan
+            if (!viaExplicit && !viaImplement) continue
             if (
               status !== 'working' &&
               status !== 'planning' &&
@@ -1244,20 +1262,25 @@ export const useKanbanStore = create<KanbanState>()(
             }
           }
         }
-        // Remember explicit sends so projects whose tickets weren't loaded
-        // yet can recover the reopen on load (reconcileFinishedSessions).
-        // The currently-loaded projects have already handled the send live.
+        // Remember explicit sends and plan approvals so projects whose
+        // tickets weren't loaded yet can recover the reopen on load
+        // (reconcileFinishedSessions). The currently-loaded projects have
+        // already handled the event live.
         if (event.type === 'session_working' && event.explicitSend === true) {
           pendingExplicitReopens.set(sessionId, new Set(allTickets.keys()))
         }
-        // The send's run ended — any not-yet-recovered reopen is moot, and a
-        // stale marker must not reopen a ticket on a future unrelated run.
+        if (event.type === 'implement') {
+          pendingImplementReopens.set(sessionId, new Set(allTickets.keys()))
+        }
+        // The run ended — any not-yet-recovered reopen is moot, and a stale
+        // marker must not reopen a ticket on a future unrelated run.
         if (
           event.type === 'session_completed' ||
           event.type === 'plan_ready' ||
           event.type === 'session_error'
         ) {
           pendingExplicitReopens.delete(sessionId)
+          pendingImplementReopens.delete(sessionId)
         }
       },
 
