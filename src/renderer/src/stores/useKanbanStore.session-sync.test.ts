@@ -22,6 +22,7 @@ vi.mock('./useSettingsStore', () => ({
 import { useKanbanStore } from './useKanbanStore'
 import { useWorktreeStatusStore } from './useWorktreeStatusStore'
 import { kanbanApi } from '@/api/kanban-api'
+import { userExplicitSendTimes } from '@/lib/message-send-times'
 import type { SessionStatusType } from '@shared/types/session-status'
 
 const SESSION_ID = 'sess-1'
@@ -287,5 +288,116 @@ describe('syncTicketWithSession — implement consumes auto-approve', () => {
       mode: 'build',
       auto_approve_plan: false
     })
+  })
+})
+
+describe('syncTicketWithSession — explicit follow-up reopens done/merged tickets', () => {
+  it('moves a done ticket to in_progress on session_working with explicitSend', async () => {
+    seed(makeTicket({ column: 'done' }))
+
+    useKanbanStore
+      .getState()
+      .syncTicketWithSession(SESSION_ID, { type: 'session_working', explicitSend: true })
+    await flush()
+
+    expect(columnOf('ticket-1')).toBe('in_progress')
+    expect(kanbanApi.ticket.move).toHaveBeenCalledWith(PROJECT_ID, 'ticket-1', 'in_progress', 0)
+  })
+
+  it('moves a merged ticket to in_progress on session_working with explicitSend', async () => {
+    seed(makeTicket({ column: 'merged' }))
+
+    useKanbanStore
+      .getState()
+      .syncTicketWithSession(SESSION_ID, { type: 'session_working', explicitSend: true })
+    await flush()
+
+    expect(columnOf('ticket-1')).toBe('in_progress')
+  })
+
+  it('does not move a done ticket on session_working without explicitSend', async () => {
+    seed(makeTicket({ column: 'done' }))
+
+    useKanbanStore.getState().syncTicketWithSession(SESSION_ID, { type: 'session_working' })
+    await flush()
+
+    expect(columnOf('ticket-1')).toBe('done')
+    expect(kanbanApi.ticket.move).not.toHaveBeenCalled()
+  })
+
+  it('does not move a merged ticket on session_working with explicitSend false', async () => {
+    seed(makeTicket({ column: 'merged' }))
+
+    useKanbanStore
+      .getState()
+      .syncTicketWithSession(SESSION_ID, { type: 'session_working', explicitSend: false })
+    await flush()
+
+    expect(columnOf('ticket-1')).toBe('merged')
+    expect(kanbanApi.ticket.move).not.toHaveBeenCalled()
+  })
+})
+
+describe('setSessionStatus → session_working explicitSend derivation', () => {
+  beforeEach(() => {
+    userExplicitSendTimes.clear()
+  })
+
+  afterEach(() => {
+    userExplicitSendTimes.clear()
+  })
+
+  it('reopens a done ticket when working follows a recent explicit send', async () => {
+    seed(makeTicket({ column: 'done' }))
+    userExplicitSendTimes.set(SESSION_ID, Date.now())
+
+    useWorktreeStatusStore.getState().setSessionStatus(SESSION_ID, 'working')
+    await flush()
+
+    expect(columnOf('ticket-1')).toBe('in_progress')
+  })
+
+  it('reopens a merged ticket on a UserPromptSubmit hook (terminal-typed prompt)', async () => {
+    seed(makeTicket({ column: 'merged' }))
+
+    useWorktreeStatusStore
+      .getState()
+      .setSessionStatus(SESSION_ID, 'working', { hookEventName: 'UserPromptSubmit' })
+    await flush()
+
+    expect(columnOf('ticket-1')).toBe('in_progress')
+  })
+
+  it('ignores a UserPromptSubmit stamped as a background task-notification', async () => {
+    seed(makeTicket({ column: 'done' }))
+
+    useWorktreeStatusStore.getState().setSessionStatus(SESSION_ID, 'working', {
+      hookEventName: 'UserPromptSubmit',
+      taskNotification: true
+    })
+    await flush()
+
+    expect(columnOf('ticket-1')).toBe('done')
+    expect(kanbanApi.ticket.move).not.toHaveBeenCalled()
+  })
+
+  it('ignores a bare working re-emit when the last explicit send is stale', async () => {
+    seed(makeTicket({ column: 'merged' }))
+    userExplicitSendTimes.set(SESSION_ID, Date.now() - 60_000)
+
+    useWorktreeStatusStore.getState().setSessionStatus(SESSION_ID, 'working')
+    await flush()
+
+    expect(columnOf('ticket-1')).toBe('merged')
+    expect(kanbanApi.ticket.move).not.toHaveBeenCalled()
+  })
+
+  it('still moves a review ticket on a working re-emit without an explicit send', async () => {
+    seed(makeTicket({ column: 'review' }))
+
+    useWorktreeStatusStore.getState().setSessionStatus(SESSION_ID, 'working')
+    await flush()
+
+    expect(columnOf('ticket-1')).toBe('in_progress')
   })
 })

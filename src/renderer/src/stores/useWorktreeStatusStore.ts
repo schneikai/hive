@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { useSessionStore } from './useSessionStore'
 import { useConnectionStore } from './useConnectionStore'
-import { lastSendMode } from '@/lib/message-send-times'
+import { lastSendMode, userExplicitSendTimes } from '@/lib/message-send-times'
 import { notifyKanbanSessionSync } from './store-coordination'
 import { dbApi } from '@/api/db-api'
 import { higherPriority, type SessionStatusType } from '@shared/types/session-status'
@@ -64,6 +64,7 @@ interface WorktreeStatusState {
       hookPath?: string
       toolName?: string
       plan?: string
+      taskNotification?: boolean
     }
   ) => void
   setSessionBackgroundWork: (sessionId: string, work: SessionBackgroundWork) => void
@@ -106,6 +107,7 @@ export const useWorktreeStatusStore = create<WorktreeStatusState>((set, get) => 
       hookPath?: string
       toolName?: string
       plan?: string
+      taskNotification?: boolean
     }
   ) => {
     set((state) => {
@@ -148,7 +150,18 @@ export const useWorktreeStatusStore = create<WorktreeStatusState>((set, get) => 
     } else if (status === 'plan_ready') {
       notifyKanbanSessionSync(sessionId, { type: 'plan_ready' })
     } else if (status === 'working' || status === 'planning') {
-      notifyKanbanSessionSync(sessionId, { type: 'session_working' })
+      // A working status counts as an explicit user follow-up when it either
+      // immediately follows a user-initiated send (every send path writes
+      // userExplicitSendTimes right before flipping the status) or carries a
+      // UserPromptSubmit hook event that isn't a background task-notification
+      // auto-resume (prompts typed straight into a CLI terminal). Streaming
+      // re-emits and status replays match neither, so they can never pull a
+      // ticket out of done/merged.
+      const explicitSendAt = userExplicitSendTimes.get(sessionId)
+      const explicitSend =
+        (explicitSendAt !== undefined && Date.now() - explicitSendAt < 15_000) ||
+        (metadata?.hookEventName === 'UserPromptSubmit' && metadata.taskNotification !== true)
+      notifyKanbanSessionSync(sessionId, { type: 'session_working', explicitSend })
     }
   },
 

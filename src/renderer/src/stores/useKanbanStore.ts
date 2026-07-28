@@ -996,7 +996,9 @@ export const useKanbanStore = create<KanbanState>()(
             // matters on app relaunch/focus, when a still-active session
             // re-emits its status (e.g. an `idle` replay → session_completed)
             // for a done/merged ticket. Each column-moving branch below guards
-            // on those columns.
+            // on those columns. Sole exception: a session_working caused by an
+            // explicit user follow-up (event.explicitSend) returns the ticket
+            // to in_progress — resuming work on a done/merged ticket reopens it.
             switch (event.type) {
               case 'session_completed': {
                 // Plan tickets: surface the finished plan for the review UI.
@@ -1138,13 +1140,22 @@ export const useKanbanStore = create<KanbanState>()(
 
               case 'session_working': {
                 // Session became active — move ticket to in_progress if it's in
-                // todo (pre-assigned, first activity) or review (returning to work).
+                // todo (pre-assigned, first activity) or review (returning to
+                // work). done/merged move only for explicit user follow-ups
+                // (never for streaming re-emits or status replays).
                 if (ticket.plan_ready) {
                   get()
                     .updateTicket(ticket.id, projectId, { plan_ready: false })
                     .catch(() => {})
                 }
-                if (ticket.column === 'todo' || ticket.column === 'review') {
+                const reopenedByFollowup =
+                  event.explicitSend === true &&
+                  (ticket.column === 'done' || ticket.column === 'merged')
+                if (
+                  ticket.column === 'todo' ||
+                  ticket.column === 'review' ||
+                  reopenedByFollowup
+                ) {
                   get()
                     .moveTicket(ticket.id, projectId, 'in_progress', ticket.sort_order)
                     .catch(() => {})

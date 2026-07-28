@@ -42,6 +42,14 @@ export interface KanbanSessionEvent {
   sessionMode?: 'build' | 'plan'
   /** For supercharge: the newly-created session that replaces the old one */
   newSessionId?: string
+  /**
+   * For session_working: the status change was caused by a user-initiated
+   * message send (composer/modal send, or a non-task-notification
+   * UserPromptSubmit hook) rather than a status replay or streaming activity.
+   * Only explicit sends may pull a ticket out of the terminal done/merged
+   * columns.
+   */
+  explicitSend?: boolean
   /** Tokens consumed during the session — accumulated to the ticket's persistent total */
   tokenDelta?: number
 }
