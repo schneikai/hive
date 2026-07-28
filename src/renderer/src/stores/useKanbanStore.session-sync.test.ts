@@ -431,6 +431,18 @@ describe('setSessionStatus → session_working explicitSend derivation', () => {
     expect(columnOf('ticket-1')).toBe('done')
   })
 
+  it('reopens a done ticket on transcript-detected CLI plan feedback', async () => {
+    const sessionId = 'sess-plan-watcher'
+    seed(makeTicket({ column: 'done', current_session_id: sessionId, mode: 'plan' }))
+
+    useWorktreeStatusStore
+      .getState()
+      .setSessionStatus(sessionId, 'planning', { reason: 'claude_cli_plan_followup' })
+    await flush()
+
+    expect(columnOf('ticket-1')).toBe('in_progress')
+  })
+
   it('one-shot marker reopens a done ticket for a queued follow-up drain', async () => {
     const sessionId = 'sess-queued-drain'
     seed(makeTicket({ column: 'done', current_session_id: sessionId }))
@@ -547,6 +559,21 @@ describe('reconcileFinishedSessions — recovers explicit reopens missed while u
     useKanbanStore.getState().reconcileFinishedSessions(PROJECT_ID)
     await flush()
     expect(columnOf('ticket-1')).toBe('done')
+  })
+
+  it('reopens when the recovered run is blocked awaiting user input', async () => {
+    const sessionId = 'sess-blocked-recovery'
+    useKanbanStore
+      .getState()
+      .syncTicketWithSession(sessionId, { type: 'session_working', explicitSend: true })
+    await flush()
+
+    seed(makeTicket({ column: 'done', current_session_id: sessionId }))
+    setSessionStatus(sessionId, 'permission')
+    useKanbanStore.getState().reconcileFinishedSessions(PROJECT_ID)
+    await flush()
+
+    expect(columnOf('ticket-1')).toBe('in_progress')
   })
 
   it('does not reopen an archived ticket during reconcile recovery', async () => {

@@ -193,8 +193,15 @@ export const useWorktreeStatusStore = create<WorktreeStatusState>((set, get) => 
         if (hasUnconsumedSend) {
           consumedExplicitSendTimes.set(sessionId, explicitSendAt)
         }
+        // reason === 'claude_cli_plan_followup': plan feedback typed into the
+        // CLI terminal, detected by the transcript watcher when the
+        // UserPromptSubmit hook is delayed or unavailable — a genuine user
+        // send with neither stamp nor hook event.
         explicitSend =
-          oneShotMarker || hasUnconsumedSend || metadata?.hookEventName === 'UserPromptSubmit'
+          oneShotMarker ||
+          hasUnconsumedSend ||
+          metadata?.hookEventName === 'UserPromptSubmit' ||
+          metadata?.reason === 'claude_cli_plan_followup'
       }
       notifyKanbanSessionSync(sessionId, { type: 'session_working', explicitSend })
     }

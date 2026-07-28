@@ -480,13 +480,21 @@ export const useKanbanStore = create<KanbanState>()(
             get().moveTicket(ticket.id, projectId, 'review', ticket.sort_order).catch(() => {})
           } else if (ticket.column === 'done' || ticket.column === 'merged') {
             // Recover an explicit follow-up reopen this project missed while
-            // unloaded. Only while the session is still actively running — a
-            // session that already finished (or never started) gives no
-            // license to leave the terminal column. Archived tickets never
-            // reopen (see the session_working guard).
+            // unloaded. Only while the session's run is still active — running
+            // or blocked awaiting user input. A session that already finished
+            // (or never started) gives no license to leave the terminal
+            // column. Archived tickets never reopen (see the session_working
+            // guard).
             if (ticket.archived_at) continue
             if (!recoveredThisPass.has(ticket.current_session_id)) continue
-            if (status !== 'working' && status !== 'planning') continue
+            if (
+              status !== 'working' &&
+              status !== 'planning' &&
+              status !== 'answering' &&
+              status !== 'permission' &&
+              status !== 'command_approval'
+            )
+              continue
             get()
               .moveTicket(ticket.id, projectId, 'in_progress', ticket.sort_order)
               .catch(() => {})
