@@ -20,7 +20,7 @@ vi.mock('./useSettingsStore', () => ({
 }))
 
 import { useKanbanStore } from './useKanbanStore'
-import { useWorktreeStatusStore } from './useWorktreeStatusStore'
+import { markNextWorkingStatusExplicit, useWorktreeStatusStore } from './useWorktreeStatusStore'
 import { kanbanApi } from '@/api/kanban-api'
 import { userExplicitSendTimes } from '@/lib/message-send-times'
 import type { SessionStatusType } from '@shared/types/session-status'
@@ -417,6 +417,40 @@ describe('setSessionStatus → session_working explicitSend derivation', () => {
     await flush()
 
     expect(columnOf('ticket-1')).toBe('done')
+  })
+
+  it('one-shot marker reopens a done ticket for a queued follow-up drain', async () => {
+    const sessionId = 'sess-queued-drain'
+    seed(makeTicket({ column: 'done', current_session_id: sessionId }))
+
+    // Drain path: no userExplicitSendTimes stamp, only the one-shot marker.
+    markNextWorkingStatusExplicit(sessionId)
+    useWorktreeStatusStore.getState().setSessionStatus(sessionId, 'working')
+    await flush()
+    expect(columnOf('ticket-1')).toBe('in_progress')
+
+    // The marker is consumed — a replay cannot reopen a re-done ticket.
+    seed(makeTicket({ column: 'done', current_session_id: sessionId }))
+    useWorktreeStatusStore.getState().setSessionStatus(sessionId, 'working')
+    await flush()
+    expect(columnOf('ticket-1')).toBe('done')
+  })
+
+  it('a task-notification does not consume the one-shot marker', async () => {
+    const sessionId = 'sess-marker-notif'
+    seed(makeTicket({ column: 'merged', current_session_id: sessionId }))
+
+    markNextWorkingStatusExplicit(sessionId)
+    useWorktreeStatusStore.getState().setSessionStatus(sessionId, 'working', {
+      hookEventName: 'UserPromptSubmit',
+      taskNotification: true
+    })
+    await flush()
+    expect(columnOf('ticket-1')).toBe('merged')
+
+    useWorktreeStatusStore.getState().setSessionStatus(sessionId, 'working')
+    await flush()
+    expect(columnOf('ticket-1')).toBe('in_progress')
   })
 
   it('a task-notification neither reopens nor consumes a pending send stamp', async () => {

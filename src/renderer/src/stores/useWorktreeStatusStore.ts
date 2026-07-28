@@ -16,6 +16,23 @@ export type { SessionStatusType }
 // the freshness window must not reopen a done/merged ticket.
 const consumedExplicitSendTimes = new Map<string, number>()
 
+// One-shot explicit markers for working transitions whose send bookkeeping
+// cannot use userExplicitSendTimes: a queued user follow-up drains long after
+// the user typed it, and stamping the shared map at dispatch would restart
+// the elapsed timer that map exists to drive. The next working/planning
+// status emitted for the session consumes the marker.
+const pendingExplicitWorking = new Set<string>()
+
+/**
+ * Mark the next working/planning status for this session as caused by an
+ * explicit user send. Call right before setSessionStatus when dispatching a
+ * user-authored message that has no fresh userExplicitSendTimes stamp (e.g.
+ * draining the follow-up queue).
+ */
+export function markNextWorkingStatusExplicit(sessionId: string): void {
+  pendingExplicitWorking.add(sessionId)
+}
+
 export interface SessionStatusEntry {
   status: SessionStatusType
   timestamp: number
@@ -167,6 +184,7 @@ export const useWorktreeStatusStore = create<WorktreeStatusState>((set, get) => 
       // never pull a ticket out of done/merged.
       let explicitSend = false
       if (metadata?.taskNotification !== true) {
+        const oneShotMarker = pendingExplicitWorking.delete(sessionId)
         const explicitSendAt = userExplicitSendTimes.get(sessionId)
         const hasUnconsumedSend =
           explicitSendAt !== undefined &&
@@ -175,7 +193,8 @@ export const useWorktreeStatusStore = create<WorktreeStatusState>((set, get) => 
         if (hasUnconsumedSend) {
           consumedExplicitSendTimes.set(sessionId, explicitSendAt)
         }
-        explicitSend = hasUnconsumedSend || metadata?.hookEventName === 'UserPromptSubmit'
+        explicitSend =
+          oneShotMarker || hasUnconsumedSend || metadata?.hookEventName === 'UserPromptSubmit'
       }
       notifyKanbanSessionSync(sessionId, { type: 'session_working', explicitSend })
     }

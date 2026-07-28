@@ -2219,6 +2219,19 @@ function PlanReviewModeContent({
     if (!ticket.current_session_id || isActioning) return
     setIsActioning(true)
 
+    // The working status + implement event below reopen a done/merged ticket
+    // before the approval/dispatch actually succeeds. If starting the
+    // implementation fails, put the ticket back in its terminal column — an
+    // in_progress ticket with no running session is a lie on the board.
+    const columnBeforeImplement = ticket.column
+    const restoreTerminalColumn = (): void => {
+      if (columnBeforeImplement !== 'done' && columnBeforeImplement !== 'merged') return
+      useKanbanStore
+        .getState()
+        .moveTicket(ticket.id, ticket.project_id, columnBeforeImplement, ticket.sort_order)
+        .catch(() => {})
+    }
+
     try {
       const sessionId = ticket.current_session_id
       const pendingBeforeAction = pendingPlan
@@ -2258,6 +2271,7 @@ function PlanReviewModeContent({
           console.error('[KanbanTicketModal] background implement send failed:', err)
           toast.error(`Failed to start implementation: ${reason}`)
           useWorktreeStatusStore.getState().clearSessionStatus(sessionId)
+          restoreTerminalColumn()
         })
         return
       }
@@ -2278,6 +2292,8 @@ function PlanReviewModeContent({
             `[KanbanTicketModal] handleImplement: working path not found — worktree_id=${sessionRecord.worktree_id}, connection_id=${sessionRecord.connection_id}`
           )
           toast.error('Failed to approve plan: working path not found')
+          useWorktreeStatusStore.getState().clearSessionStatus(sessionId)
+          restoreTerminalColumn()
           return
         }
         unwrapEnvelope(
@@ -2292,6 +2308,7 @@ function PlanReviewModeContent({
       console.error('[KanbanTicketModal] handleImplement failed:', err)
       toast.error(`Failed to start implementation: ${reason}`)
       useWorktreeStatusStore.getState().clearSessionStatus(ticket.current_session_id)
+      restoreTerminalColumn()
     } finally {
       setIsActioning(false)
     }
@@ -2299,6 +2316,8 @@ function PlanReviewModeContent({
     ticket.current_session_id,
     ticket.id,
     ticket.project_id,
+    ticket.column,
+    ticket.sort_order,
     isActioning,
     pendingPlan,
     sessionRecord,

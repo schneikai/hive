@@ -3,7 +3,10 @@ import { useSessionStore } from '@/stores/useSessionStore'
 import type { CodexThreadGoal } from '@/stores/useSessionStore'
 import { useWorktreeStore } from '@/stores/useWorktreeStore'
 import { useGitStore } from '@/stores/useGitStore'
-import { useWorktreeStatusStore } from '@/stores/useWorktreeStatusStore'
+import {
+  markNextWorkingStatusExplicit,
+  useWorktreeStatusStore
+} from '@/stores/useWorktreeStatusStore'
 import { useConnectionStore } from '@/stores/useConnectionStore'
 import { useQuestionStore } from '@/stores/useQuestionStore'
 import { usePermissionStore } from '@/stores/usePermissionStore'
@@ -695,6 +698,10 @@ export function useOpenCodeGlobalListener(): void {
             source: 'other'
           })
           lastSendMode.set(sessionId, isPlanLike(mode) ? 'plan' : 'build')
+          // Queued follow-ups are user-authored; the one-shot marker lets
+          // this working transition reopen a done/merged ticket without
+          // restarting the elapsed timer (userExplicitSendTimes stays).
+          markNextWorkingStatusExplicit(sessionId)
           useWorktreeStatusStore
             .getState()
             .setSessionStatus(sessionId, isPlanLike(mode) ? 'planning' : 'working')

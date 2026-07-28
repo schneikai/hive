@@ -56,7 +56,10 @@ import { useBashRuns } from '@/hooks/useBashRuns'
 import type { FlatFile } from '@/lib/file-search-utils'
 import { useSessionStore } from '@/stores/useSessionStore'
 import type { CodexThreadGoal } from '@/stores/useSessionStore'
-import { useWorktreeStatusStore } from '@/stores/useWorktreeStatusStore'
+import {
+  markNextWorkingStatusExplicit,
+  useWorktreeStatusStore
+} from '@/stores/useWorktreeStatusStore'
 import { useContextStore } from '@/stores/useContextStore'
 import { maybeExtractJsonTitle } from '@shared/title-utils'
 import {
@@ -2996,6 +2999,10 @@ function LegacySessionView({ sessionId }: SessionViewProps): React.JSX.Element {
                 mode: 'build'
               })
               lastSendMode.set(sessionId, 'build')
+              // Queued follow-ups are user-authored; the one-shot marker lets
+              // this working transition reopen a done/merged ticket without
+              // restarting the elapsed timer (userExplicitSendTimes stays).
+              markNextWorkingStatusExplicit(sessionId)
               useWorktreeStatusStore.getState().setSessionStatus(sessionId, 'working')
               lastSentPromptRef.current = message
             },
