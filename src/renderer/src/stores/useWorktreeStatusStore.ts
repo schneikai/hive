@@ -1,13 +1,37 @@
 import { create } from 'zustand'
 import { useSessionStore } from './useSessionStore'
 import { useConnectionStore } from './useConnectionStore'
-import { lastSendMode } from '@/lib/message-send-times'
+import { lastSendMode, userExplicitSendTimes } from '@/lib/message-send-times'
 import { notifyKanbanSessionSync } from './store-coordination'
 import { dbApi } from '@/api/db-api'
 import { higherPriority, type SessionStatusType } from '@shared/types/session-status'
 
 // Re-exported from the shared definition so existing importers keep working.
 export type { SessionStatusType }
+
+// Last userExplicitSendTimes value already attributed to a session_working
+// notification, per session. Each send stamp may mark at most one working
+// transition as explicit (the elapsed timer still owns the stamp itself, so
+// it is never deleted) — later streaming re-emits and status replays within
+// the freshness window must not reopen a done/merged ticket.
+const consumedExplicitSendTimes = new Map<string, number>()
+
+// One-shot explicit markers for working transitions whose send bookkeeping
+// cannot use userExplicitSendTimes: a queued user follow-up drains long after
+// the user typed it, and stamping the shared map at dispatch would restart
+// the elapsed timer that map exists to drive. The next working/planning
+// status emitted for the session consumes the marker.
+const pendingExplicitWorking = new Set<string>()
+
+/**
+ * Mark the next working/planning status for this session as caused by an
+ * explicit user send. Call right before setSessionStatus when dispatching a
+ * user-authored message that has no fresh userExplicitSendTimes stamp (e.g.
+ * draining the follow-up queue).
+ */
+export function markNextWorkingStatusExplicit(sessionId: string): void {
+  pendingExplicitWorking.add(sessionId)
+}
 
 export interface SessionStatusEntry {
   status: SessionStatusType
@@ -64,6 +88,7 @@ interface WorktreeStatusState {
       hookPath?: string
       toolName?: string
       plan?: string
+      taskNotification?: boolean
     }
   ) => void
   setSessionBackgroundWork: (sessionId: string, work: SessionBackgroundWork) => void
@@ -106,6 +131,7 @@ export const useWorktreeStatusStore = create<WorktreeStatusState>((set, get) => 
       hookPath?: string
       toolName?: string
       plan?: string
+      taskNotification?: boolean
     }
   ) => {
     set((state) => {
@@ -148,7 +174,40 @@ export const useWorktreeStatusStore = create<WorktreeStatusState>((set, get) => 
     } else if (status === 'plan_ready') {
       notifyKanbanSessionSync(sessionId, { type: 'plan_ready' })
     } else if (status === 'working' || status === 'planning') {
-      notifyKanbanSessionSync(sessionId, { type: 'session_working' })
+      // A working status counts as an explicit user follow-up when it either
+      // immediately follows a user-initiated send (every send path writes
+      // userExplicitSendTimes right before flipping the status) or carries a
+      // UserPromptSubmit hook event (prompts typed straight into a CLI
+      // terminal). Background task-notification auto-resumes are never
+      // explicit, and each send stamp is consumed by the first working
+      // transition it explains, so streaming re-emits and status replays can
+      // never pull a ticket out of done/merged.
+      let explicitSend = false
+      if (metadata?.taskNotification !== true) {
+        const oneShotMarker = pendingExplicitWorking.delete(sessionId)
+        const explicitSendAt = userExplicitSendTimes.get(sessionId)
+        const hasUnconsumedSend =
+          explicitSendAt !== undefined &&
+          Date.now() - explicitSendAt < 15_000 &&
+          consumedExplicitSendTimes.get(sessionId) !== explicitSendAt
+        if (hasUnconsumedSend) {
+          consumedExplicitSendTimes.set(sessionId, explicitSendAt)
+        }
+        // reason === 'claude_cli_plan_followup': plan feedback typed into the
+        // CLI terminal, detected by the transcript watcher when the
+        // UserPromptSubmit hook is delayed or unavailable — a genuine user
+        // send with neither stamp nor hook event.
+        explicitSend =
+          oneShotMarker ||
+          hasUnconsumedSend ||
+          metadata?.hookEventName === 'UserPromptSubmit' ||
+          metadata?.reason === 'claude_cli_plan_followup'
+      }
+      notifyKanbanSessionSync(sessionId, { type: 'session_working', explicitSend })
+    } else if (status === null) {
+      // A cleared status means the run is gone (canceled dispatch, teardown,
+      // interrupt) — pending unloaded-project reopen recoveries die with it.
+      notifyKanbanSessionSync(sessionId, { type: 'status_cleared' })
     }
   },
 
@@ -175,6 +234,9 @@ export const useWorktreeStatusStore = create<WorktreeStatusState>((set, get) => 
         [sessionId]: null
       }
     }))
+    // Mirror setSessionStatus(sessionId, null): the run is gone, so pending
+    // unloaded-project reopen recoveries must not outlive it.
+    notifyKanbanSessionSync(sessionId, { type: 'status_cleared' })
   },
 
   clearWorktreeUnread: (worktreeId: string) => {
