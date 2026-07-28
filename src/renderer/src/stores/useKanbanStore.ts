@@ -248,7 +248,15 @@ interface KanbanState {
     ticketId: string,
     projectId: string,
     column: KanbanTicketColumn,
-    sortOrder: number
+    sortOrder: number,
+    opts?: {
+      /**
+       * Restoring a prior column, not completing work — don't fire
+       * terminal-move side effects (dependent auto-launch / follow-up
+       * trigger).
+       */
+      skipCompletionEffects?: boolean
+    }
   ) => Promise<void>
   reorderTicket: (ticketId: string, projectId: string, newSortOrder: number) => Promise<void>
   toggleBoardView: () => void
@@ -912,7 +920,8 @@ export const useKanbanStore = create<KanbanState>()(
         ticketId: string,
         projectId: string,
         column: KanbanTicketColumn,
-        sortOrder: number
+        sortOrder: number,
+        opts?: { skipCompletionEffects?: boolean }
       ) => {
         const prev = get().tickets.get(projectId) ?? []
         const snapshot = prev.map((t) => ({ ...t }))
@@ -943,9 +952,10 @@ export const useKanbanStore = create<KanbanState>()(
           const { isBlockerSatisfied } = await import('../lib/blocker-utils')
           const triggerColumn = useSettingsStore.getState().followUpTriggerColumn
           if (
-            column === 'done' ||
-            column === 'merged' ||
-            (triggerColumn === 'review' && column === 'review' && movedTicket?.mode === 'build')
+            !opts?.skipCompletionEffects &&
+            (column === 'done' ||
+              column === 'merged' ||
+              (triggerColumn === 'review' && column === 'review' && movedTicket?.mode === 'build'))
           ) {
             const { dependencyMap, tickets: allTickets } = get()
             const movedKey = ticketKey(projectId, ticketId)

@@ -2258,7 +2258,9 @@ function PlanReviewModeContent({
       if (current?.column !== 'in_progress') return
       useKanbanStore
         .getState()
-        .moveTicket(ticket.id, ticket.project_id, columnBeforeImplement, ticket.sort_order)
+        .moveTicket(ticket.id, ticket.project_id, columnBeforeImplement, ticket.sort_order, {
+          skipCompletionEffects: true
+        })
         .catch(() => {})
     }
 
