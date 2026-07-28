@@ -2232,14 +2232,20 @@ function PlanReviewModeContent({
     // implementation fails, put the ticket back in its terminal column — an
     // in_progress ticket with no running session is a lie on the board.
     const columnBeforeImplement = ticket.column
-    // Send generation at the time of this attempt. Every send path bumps
-    // messageSendTimes, so a mismatch at failure time means a newer send owns
-    // the session — the late failure must not clear its status or roll the
+    // Generation of this attempt. Every send path bumps messageSendTimes, and
+    // every send, hook event, or auto-resume rewrites the session-status
+    // entry — so if either differs at failure time, something newer owns the
+    // session and the late failure must not clear its status or roll the
     // ticket back under it.
     let sendStampAtImplement: number | undefined
-    const implementAttemptSuperseded = (): boolean =>
-      ticket.current_session_id != null &&
-      messageSendTimes.get(ticket.current_session_id) !== sendStampAtImplement
+    let statusStampAtImplement: number | undefined
+    const implementAttemptSuperseded = (): boolean => {
+      const sessionId = ticket.current_session_id
+      if (sessionId == null) return false
+      if (messageSendTimes.get(sessionId) !== sendStampAtImplement) return true
+      const entry = useWorktreeStatusStore.getState().sessionStatuses[sessionId]
+      return entry?.timestamp !== statusStampAtImplement
+    }
     const restoreTerminalColumn = (): void => {
       if (columnBeforeImplement !== 'done' && columnBeforeImplement !== 'merged') return
       // Only undo our own optimistic reopen. The failure can land seconds
@@ -2272,6 +2278,8 @@ function PlanReviewModeContent({
       snapshotTokenBaseline(sessionId)
       sendStampAtImplement = messageSendTimes.get(sessionId)
       useWorktreeStatusStore.getState().setSessionStatus(sessionId, 'working')
+      statusStampAtImplement =
+        useWorktreeStatusStore.getState().sessionStatuses[sessionId]?.timestamp
 
       // Clear plan_ready badge — ticket is back to working
       await useKanbanStore
