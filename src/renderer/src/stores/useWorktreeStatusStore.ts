@@ -204,6 +204,10 @@ export const useWorktreeStatusStore = create<WorktreeStatusState>((set, get) => 
           metadata?.reason === 'claude_cli_plan_followup'
       }
       notifyKanbanSessionSync(sessionId, { type: 'session_working', explicitSend })
+    } else if (status === null) {
+      // A cleared status means the run is gone (canceled dispatch, teardown,
+      // interrupt) — pending unloaded-project reopen recoveries die with it.
+      notifyKanbanSessionSync(sessionId, { type: 'status_cleared' })
     }
   },
 
@@ -230,6 +234,9 @@ export const useWorktreeStatusStore = create<WorktreeStatusState>((set, get) => 
         [sessionId]: null
       }
     }))
+    // Mirror setSessionStatus(sessionId, null): the run is gone, so pending
+    // unloaded-project reopen recoveries must not outlive it.
+    notifyKanbanSessionSync(sessionId, { type: 'status_cleared' })
   },
 
   clearWorktreeUnread: (worktreeId: string) => {

@@ -353,18 +353,6 @@ const pendingExplicitReopens = new Map<string, Set<string>>()
 // when the ticket is available to check. Same lifecycle as above.
 const pendingImplementReopens = new Map<string, Set<string>>()
 
-/**
- * Drop any pending unloaded-project reopen recovery for this session. Called
- * by failure paths that roll back an optimistic reopen (failed implement
- * dispatch): the originating attempt never started a run, so no run-end
- * event would ever clear the stale entries, and a later unrelated activation
- * must not consume them.
- */
-export function clearPendingSessionReopens(sessionId: string): void {
-  pendingExplicitReopens.delete(sessionId)
-  pendingImplementReopens.delete(sessionId)
-}
-
 // ── Store ──────────────────────────────────────────────────────────────
 export const useKanbanStore = create<KanbanState>()(
   persist(
@@ -1284,12 +1272,14 @@ export const useKanbanStore = create<KanbanState>()(
         if (event.type === 'implement') {
           pendingImplementReopens.set(sessionId, new Set(allTickets.keys()))
         }
-        // The run ended — any not-yet-recovered reopen is moot, and a stale
-        // marker must not reopen a ticket on a future unrelated run.
+        // The run ended or its status was cleared (canceled dispatch,
+        // interrupt, teardown) — any not-yet-recovered reopen is moot, and a
+        // stale marker must not reopen a ticket on a future unrelated run.
         if (
           event.type === 'session_completed' ||
           event.type === 'plan_ready' ||
-          event.type === 'session_error'
+          event.type === 'session_error' ||
+          event.type === 'status_cleared'
         ) {
           pendingExplicitReopens.delete(sessionId)
           pendingImplementReopens.delete(sessionId)

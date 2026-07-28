@@ -59,12 +59,7 @@ import { MarkdownRenderer } from '../sessions/MarkdownRenderer'
 import { HandoffSplitButton } from '../sessions/HandoffSplitButton'
 import { IndeterminateProgressBar } from '@/components/sessions/IndeterminateProgressBar'
 import { cn } from '@/lib/utils'
-import {
-  clearPendingSessionReopens,
-  parseTicketKey,
-  ticketKey,
-  useKanbanStore
-} from '@/stores/useKanbanStore'
+import { parseTicketKey, ticketKey, useKanbanStore } from '@/stores/useKanbanStore'
 import { BOARD_TAB_ID, useSessionStore } from '@/stores/useSessionStore'
 import { useWorktreeStore } from '@/stores/useWorktreeStore'
 import { useConnectionStore } from '@/stores/useConnectionStore'
@@ -2313,7 +2308,6 @@ function PlanReviewModeContent({
           toast.error(`Failed to start implementation: ${reason}`)
           if (implementAttemptSuperseded()) return
           useWorktreeStatusStore.getState().clearSessionStatus(sessionId)
-          clearPendingSessionReopens(sessionId)
           restoreTerminalColumn()
         })
         return
@@ -2337,7 +2331,6 @@ function PlanReviewModeContent({
           toast.error('Failed to approve plan: working path not found')
           if (!implementAttemptSuperseded()) {
             useWorktreeStatusStore.getState().clearSessionStatus(sessionId)
-            clearPendingSessionReopens(sessionId)
             restoreTerminalColumn()
           }
           return
@@ -2355,7 +2348,6 @@ function PlanReviewModeContent({
       toast.error(`Failed to start implementation: ${reason}`)
       if (!implementAttemptSuperseded()) {
         useWorktreeStatusStore.getState().clearSessionStatus(ticket.current_session_id)
-        clearPendingSessionReopens(ticket.current_session_id)
         restoreTerminalColumn()
       }
     } finally {

@@ -19,7 +19,7 @@ vi.mock('./useSettingsStore', () => ({
   useSettingsStore: { getState: () => ({ followUpTriggerColumn: 'done' }) }
 }))
 
-import { clearPendingSessionReopens, useKanbanStore } from './useKanbanStore'
+import { useKanbanStore } from './useKanbanStore'
 import { markNextWorkingStatusExplicit, useWorktreeStatusStore } from './useWorktreeStatusStore'
 import { kanbanApi } from '@/api/kanban-api'
 import { userExplicitSendTimes } from '@/lib/message-send-times'
@@ -601,8 +601,9 @@ describe('reconcileFinishedSessions — recovers explicit reopens missed while u
     useKanbanStore.getState().syncTicketWithSession(sessionId, { type: 'implement' })
     await flush()
 
-    // The dispatch failed and the failure path rolled the attempt back.
-    clearPendingSessionReopens(sessionId)
+    // The dispatch failed: the failure path clears the session status, which
+    // notifies status_cleared and drops the pending recoveries.
+    useWorktreeStatusStore.getState().clearSessionStatus(sessionId)
 
     seed(makeTicket({ column: 'done', mode: 'plan', current_session_id: sessionId }))
     setSessionStatus(sessionId, 'working')
