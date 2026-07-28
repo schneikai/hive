@@ -400,4 +400,71 @@ describe('setSessionStatus → session_working explicitSend derivation', () => {
 
     expect(columnOf('ticket-1')).toBe('in_progress')
   })
+
+  it('consumes the send stamp: a working re-emit cannot reopen a re-done ticket', async () => {
+    const sessionId = 'sess-one-shot'
+    seed(makeTicket({ column: 'done', current_session_id: sessionId }))
+    userExplicitSendTimes.set(sessionId, Date.now())
+
+    useWorktreeStatusStore.getState().setSessionStatus(sessionId, 'working')
+    await flush()
+    expect(columnOf('ticket-1')).toBe('in_progress')
+
+    // User drags the ticket back to done while the session is still busy…
+    seed(makeTicket({ column: 'done', current_session_id: sessionId }))
+    // …then a streaming re-emit arrives inside the 15s freshness window.
+    useWorktreeStatusStore.getState().setSessionStatus(sessionId, 'working')
+    await flush()
+
+    expect(columnOf('ticket-1')).toBe('done')
+  })
+
+  it('a task-notification neither reopens nor consumes a pending send stamp', async () => {
+    const sessionId = 'sess-task-notif'
+    seed(makeTicket({ column: 'done', current_session_id: sessionId }))
+    userExplicitSendTimes.set(sessionId, Date.now())
+
+    useWorktreeStatusStore.getState().setSessionStatus(sessionId, 'working', {
+      hookEventName: 'UserPromptSubmit',
+      taskNotification: true
+    })
+    await flush()
+    expect(columnOf('ticket-1')).toBe('done')
+
+    // The genuine transition for the send still gets the marker afterwards.
+    useWorktreeStatusStore.getState().setSessionStatus(sessionId, 'working')
+    await flush()
+    expect(columnOf('ticket-1')).toBe('in_progress')
+  })
+})
+
+describe('syncTicketWithSession — implement reopens done/merged tickets', () => {
+  it('moves a done plan-ready ticket to in_progress on implement', async () => {
+    seed(makeTicket({ column: 'done', mode: 'plan', plan_ready: true }))
+
+    useKanbanStore.getState().syncTicketWithSession(SESSION_ID, { type: 'implement' })
+    await flush()
+
+    expect(columnOf('ticket-1')).toBe('in_progress')
+    expect(kanbanApi.ticket.move).toHaveBeenCalledWith(PROJECT_ID, 'ticket-1', 'in_progress', 0)
+  })
+
+  it('moves a merged plan-ready ticket to in_progress on implement', async () => {
+    seed(makeTicket({ column: 'merged', mode: 'plan', plan_ready: true }))
+
+    useKanbanStore.getState().syncTicketWithSession(SESSION_ID, { type: 'implement' })
+    await flush()
+
+    expect(columnOf('ticket-1')).toBe('in_progress')
+  })
+
+  it('does not move a review ticket on implement (session_working handles it)', async () => {
+    seed(makeTicket({ column: 'review', mode: 'plan', plan_ready: true }))
+
+    useKanbanStore.getState().syncTicketWithSession(SESSION_ID, { type: 'implement' })
+    await flush()
+
+    expect(columnOf('ticket-1')).toBe('review')
+    expect(kanbanApi.ticket.move).not.toHaveBeenCalled()
+  })
 })

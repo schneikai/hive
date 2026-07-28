@@ -9,6 +9,13 @@ import { higherPriority, type SessionStatusType } from '@shared/types/session-st
 // Re-exported from the shared definition so existing importers keep working.
 export type { SessionStatusType }
 
+// Last userExplicitSendTimes value already attributed to a session_working
+// notification, per session. Each send stamp may mark at most one working
+// transition as explicit (the elapsed timer still owns the stamp itself, so
+// it is never deleted) — later streaming re-emits and status replays within
+// the freshness window must not reopen a done/merged ticket.
+const consumedExplicitSendTimes = new Map<string, number>()
+
 export interface SessionStatusEntry {
   status: SessionStatusType
   timestamp: number
@@ -153,14 +160,23 @@ export const useWorktreeStatusStore = create<WorktreeStatusState>((set, get) => 
       // A working status counts as an explicit user follow-up when it either
       // immediately follows a user-initiated send (every send path writes
       // userExplicitSendTimes right before flipping the status) or carries a
-      // UserPromptSubmit hook event that isn't a background task-notification
-      // auto-resume (prompts typed straight into a CLI terminal). Streaming
-      // re-emits and status replays match neither, so they can never pull a
-      // ticket out of done/merged.
-      const explicitSendAt = userExplicitSendTimes.get(sessionId)
-      const explicitSend =
-        (explicitSendAt !== undefined && Date.now() - explicitSendAt < 15_000) ||
-        (metadata?.hookEventName === 'UserPromptSubmit' && metadata.taskNotification !== true)
+      // UserPromptSubmit hook event (prompts typed straight into a CLI
+      // terminal). Background task-notification auto-resumes are never
+      // explicit, and each send stamp is consumed by the first working
+      // transition it explains, so streaming re-emits and status replays can
+      // never pull a ticket out of done/merged.
+      let explicitSend = false
+      if (metadata?.taskNotification !== true) {
+        const explicitSendAt = userExplicitSendTimes.get(sessionId)
+        const hasUnconsumedSend =
+          explicitSendAt !== undefined &&
+          Date.now() - explicitSendAt < 15_000 &&
+          consumedExplicitSendTimes.get(sessionId) !== explicitSendAt
+        if (hasUnconsumedSend) {
+          consumedExplicitSendTimes.set(sessionId, explicitSendAt)
+        }
+        explicitSend = hasUnconsumedSend || metadata?.hookEventName === 'UserPromptSubmit'
+      }
       notifyKanbanSessionSync(sessionId, { type: 'session_working', explicitSend })
     }
   },

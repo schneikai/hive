@@ -996,9 +996,10 @@ export const useKanbanStore = create<KanbanState>()(
             // matters on app relaunch/focus, when a still-active session
             // re-emits its status (e.g. an `idle` replay → session_completed)
             // for a done/merged ticket. Each column-moving branch below guards
-            // on those columns. Sole exception: a session_working caused by an
-            // explicit user follow-up (event.explicitSend) returns the ticket
-            // to in_progress — resuming work on a done/merged ticket reopens it.
+            // on those columns. Exceptions: a session_working caused by an
+            // explicit user follow-up (event.explicitSend) and a plan approval
+            // (implement) return the ticket to in_progress — resuming work on
+            // a done/merged ticket reopens it.
             switch (event.type) {
               case 'session_completed': {
                 // Plan tickets: surface the finished plan for the review UI.
@@ -1123,6 +1124,16 @@ export const useKanbanStore = create<KanbanState>()(
                       mode: 'build',
                       auto_approve_plan: false
                     })
+                    .catch(() => {})
+                }
+                // Approving a plan on a done/merged ticket resumes real work,
+                // but its working status carries no send stamp (opencode) or a
+                // PostToolUse hook (CLI), so session_working won't reopen it.
+                // implement only fires on genuine user approvals — reopen here.
+                // Other columns keep moving via session_working as before.
+                if (ticket.column === 'done' || ticket.column === 'merged') {
+                  get()
+                    .moveTicket(ticket.id, projectId, 'in_progress', ticket.sort_order)
                     .catch(() => {})
                 }
                 break
