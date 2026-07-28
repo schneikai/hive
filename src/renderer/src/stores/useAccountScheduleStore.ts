@@ -274,17 +274,11 @@ export const useAccountScheduleStore = create<AccountScheduleState>()(
                     return isProvablyAtOrAbove(usage, auto.thresholdPercent, nowMs)
                   })
                   .map((a) => a.id)
-
-                if (saved.length > 0 && excludeAccountIds.length === saved.length) {
-                  // Every account is either the active one or provably over
-                  // the threshold — nothing worth refreshing, nothing to hop to.
-                  toast.error(
-                    `Auto-switch: no other account below ${auto.thresholdPercent}% usage to switch to`
-                  )
-                  backOff()
-                  continue
-                }
               }
+              // Even when every known account is excluded the (then refresh-
+              // free) sweep still runs: the main process lists accounts from
+              // the DB, so it refreshes anything this renderer hasn't seen
+              // yet, and the post-sweep reload revalidates the cached list.
 
               let results: RefreshAllResultItem[] | null = null
               let sweepFailed = false

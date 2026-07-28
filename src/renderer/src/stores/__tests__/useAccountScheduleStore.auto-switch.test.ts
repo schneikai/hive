@@ -213,11 +213,16 @@ describe('useAccountScheduleStore auto-switch', () => {
     await useAccountScheduleStore.getState().checkSchedules()
     expect(refreshAllCalls()).toHaveLength(1)
 
-    // After the delay it re-evaluates, but the refreshed numbers now prove
-    // no account can be viable — it backs off again without sweeping.
+    // After the delay it re-evaluates: the refreshed numbers now prove no
+    // known account can be viable, so the second sweep excludes them all —
+    // it refreshes nothing, but still runs to discover unseen accounts.
     vi.setSystemTime(Date.now() + 5 * 60_000 + 1_000)
     await useAccountScheduleStore.getState().checkSchedules()
-    expect(refreshAllCalls()).toHaveLength(1)
+    expect(refreshAllCalls()).toHaveLength(2)
+    expect(refreshAllCalls()[1][1]).toEqual({
+      provider: 'anthropic',
+      excludeAccountIds: ['acc-1', 'acc-2', 'acc-3']
+    })
     expect(toast.error).toHaveBeenCalledTimes(2)
     expect(useAccountScheduleStore.getState().autoSwitch.anthropic?.notBefore).toBe(
       Date.now() + 5 * 60_000
@@ -282,24 +287,37 @@ describe('useAccountScheduleStore auto-switch', () => {
     expect(switchCalls()[0][1]).toEqual({ accountId: 'acc-2' })
   })
 
-  it('skips the sweep entirely when no account could possibly be viable', async () => {
-    // The only alternative sits at 95% with its window resetting well in the
-    // future — refreshing it cannot make it viable, so no sweep at all.
+  it('still runs the refresh-free sweep when every cached account is excluded, discovering new accounts', async () => {
+    // Every account this renderer knows about is hopeless — but the sweep
+    // still runs (excluding all of them, so it refreshes nothing it knows)
+    // because the main process lists accounts from the DB: an account added
+    // by another window/process gets refreshed and becomes the switch target.
+    useUsageStore.setState({
+      savedAccounts: {
+        anthropic: [
+          makeAccount('acc-1', 'current@x.com', makeUsage(0, 0)),
+          makeAccount('acc-2', 'best@x.com', makeUsage(95, 20))
+        ],
+        openai: []
+      }
+    })
     refreshedAccounts = [
       makeAccount('acc-1', 'current@x.com', makeUsage(0, 0)),
-      makeAccount('acc-2', 'best@x.com', makeUsage(95, 20))
+      makeAccount('acc-2', 'best@x.com', makeUsage(95, 20)),
+      makeAccount('acc-9', 'new@x.com', makeUsage(5, 5))
     ]
-    useUsageStore.setState({ savedAccounts: { anthropic: refreshedAccounts, openai: [] } })
+    refreshResults = [{ accountId: 'acc-9', success: true }]
     useAccountScheduleStore.getState().setAutoSwitch('anthropic', 90)
 
     await useAccountScheduleStore.getState().checkSchedules()
 
-    expect(refreshAllCalls()).toHaveLength(0)
-    expect(switchCalls()).toHaveLength(0)
-    expect(toast.error).toHaveBeenCalledWith(expect.stringContaining('Auto-switch'))
-    expect(useAccountScheduleStore.getState().autoSwitch.anthropic?.notBefore).toBe(
-      Date.now() + 5 * 60_000
-    )
+    expect(refreshAllCalls()).toHaveLength(1)
+    expect(refreshAllCalls()[0][1]).toEqual({
+      provider: 'anthropic',
+      excludeAccountIds: ['acc-1', 'acc-2']
+    })
+    expect(switchCalls()).toHaveLength(1)
+    expect(switchCalls()[0][1]).toEqual({ accountId: 'acc-9' })
   })
 
   it('sweeps everything when the saved-account list has not loaded yet', async () => {
