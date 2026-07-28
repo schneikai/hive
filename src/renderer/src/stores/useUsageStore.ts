@@ -50,7 +50,10 @@ interface UsageState {
   loadSavedAccounts: (provider?: UsageProvider) => Promise<void>
   /** Resolves with the per-account fetch outcomes, or null when a sweep for
    * the provider was already running (nothing was refreshed by this call). */
-  refreshAllForProvider: (provider: UsageProvider) => Promise<RefreshAllResultItem[] | null>
+  refreshAllForProvider: (
+    provider: UsageProvider,
+    excludeAccountIds?: string[]
+  ) => Promise<RefreshAllResultItem[] | null>
   refreshSavedAccount: (id: string, opts?: { userInitiated?: boolean }) => Promise<void>
   removeSavedAccount: (id: string) => Promise<void>
   /** Resolves true when the switch op succeeded (failures also toast). */
@@ -133,18 +136,21 @@ export const useUsageStore = create<UsageState>()((set, get) => ({
     }
   },
 
-  refreshAllForProvider: async (provider: UsageProvider) => {
+  refreshAllForProvider: async (provider: UsageProvider, excludeAccountIds?: string[]) => {
     const state = get()
     if (state.refreshingProviders[provider]) return null
 
-    const accountIds = state.savedAccounts[provider].map((account) => account.id)
+    const excluded = new Set(excludeAccountIds ?? [])
+    const accountIds = state.savedAccounts[provider]
+      .filter((account) => !excluded.has(account.id))
+      .map((account) => account.id)
     set((current) => ({
       refreshingProviders: { ...current.refreshingProviders, [provider]: true },
       refreshingAccountIds: new Set([...current.refreshingAccountIds, ...accountIds])
     }))
 
     try {
-      const results = await usageApi.refreshAllForProvider(provider)
+      const results = await usageApi.refreshAllForProvider(provider, excludeAccountIds)
       await get().loadSavedAccounts(provider)
       return results
     } finally {

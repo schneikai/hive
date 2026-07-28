@@ -533,9 +533,12 @@ export async function fetchForSavedAccount(
 }
 
 export async function refreshAllForProvider(
-  provider: UsageProvider
+  provider: UsageProvider,
+  excludeAccountIds?: string[]
 ): Promise<RefreshAllResultItem[]> {
-  const accounts = await listSavedAccounts(provider)
+  const allAccounts = await listSavedAccounts(provider)
+  const excluded = new Set(excludeAccountIds ?? [])
+  const accounts = allAccounts.filter((account) => !excluded.has(account.id))
   const batchId = randomUUID()
   const startedAt = Date.now()
   const results: RefreshAllResultItem[] = []
@@ -544,7 +547,10 @@ export async function refreshAllForProvider(
     provider,
     batchId,
     accountCount: accounts.length,
-    accountIds: accounts.map((account) => account.id)
+    accountIds: accounts.map((account) => account.id),
+    skippedAccountIds: allAccounts
+      .filter((account) => excluded.has(account.id))
+      .map((account) => account.id)
   })
 
   for (const account of accounts) {

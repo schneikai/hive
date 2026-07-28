@@ -23,7 +23,8 @@ export interface UsageOpsRpcService {
     userInitiated?: boolean
   ) => Effect.Effect<FetchForAccountResult, unknown, never>
   readonly refreshAllForProvider: (
-    provider: UsageProvider
+    provider: UsageProvider,
+    excludeAccountIds?: string[]
   ) => Effect.Effect<RefreshAllResultItem[], unknown, never>
 }
 
@@ -32,7 +33,10 @@ const fetchForAccountParamsSchema = z
   .object({ accountId: z.string(), userInitiated: z.boolean().optional() })
   .strict()
 const refreshAllForProviderParamsSchema = z
-  .object({ provider: z.enum(['anthropic', 'openai']) })
+  .object({
+    provider: z.enum(['anthropic', 'openai']),
+    excludeAccountIds: z.array(z.string()).optional()
+  })
   .strict()
 
 export const makeLiveUsageOpsRpcService = (): UsageOpsRpcService => ({
@@ -51,9 +55,9 @@ export const makeLiveUsageOpsRpcService = (): UsageOpsRpcService => ({
       try: () => fetchForAccountOp(accountId, userInitiated),
       catch: (cause) => cause
     }),
-  refreshAllForProvider: (provider) =>
+  refreshAllForProvider: (provider, excludeAccountIds) =>
     Effect.tryPromise({
-      try: () => refreshAllForProviderOp(provider),
+      try: () => refreshAllForProviderOp(provider, excludeAccountIds),
       catch: (cause) => cause
     })
 })
@@ -99,11 +103,11 @@ export const makeUsageOpsRpcHandlers = (
       'usageOps.refreshAllForProvider',
       (params) =>
         Effect.gen(function* () {
-          const { provider } = yield* Effect.try({
+          const { provider, excludeAccountIds } = yield* Effect.try({
             try: () => refreshAllForProviderParamsSchema.parse(params),
             catch: (cause) => cause
           })
-          return yield* service.refreshAllForProvider(provider)
+          return yield* service.refreshAllForProvider(provider, excludeAccountIds)
         })
     ]
   ])

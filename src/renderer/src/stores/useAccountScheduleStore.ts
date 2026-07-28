@@ -30,9 +30,10 @@ export interface ScheduledSwitch {
 
 /**
  * Provider-global "keep me on whichever account has the most headroom" mode:
- * when the ACTIVE account crosses thresholdPercent, refresh every saved
- * account and hop to the best-scoring one — then stay armed for the next
- * crossing. Mutually exclusive with a per-account ScheduledSwitch.
+ * when the ACTIVE account crosses thresholdPercent, refresh the saved
+ * accounts that could plausibly be viable and hop to the best-scoring one —
+ * then stay armed for the next crossing. Mutually exclusive with a
+ * per-account ScheduledSwitch.
  */
 export interface AutoSwitchConfig {
   provider: UsageProvider
@@ -246,12 +247,47 @@ export const useAccountScheduleStore = create<AccountScheduleState>()(
                 continue
               }
 
-              // Refresh every saved account so the pick is based on live
-              // numbers — and so we know which fetches actually succeeded.
+              // Refresh saved accounts so the pick is based on live numbers —
+              // but only the ones with a chance of being viable. A usage
+              // window that hasn't reset yet only ever accrues, so an account
+              // whose cached utilization is already at/over the threshold
+              // provably stays there: refreshing it is a wasted request.
+              // Unknown or reset-expired usage stays in (it could be viable),
+              // and the active account is skipped (it is never a candidate).
+              // Before the first successful account-list load there is nothing
+              // to prove non-viability from — fall back to the full sweep.
+              const usageState = useUsageStore.getState()
+              let excludeAccountIds: string[] | undefined
+              if (usageState.savedAccountsLoaded[provider]) {
+                const saved = usageState.savedAccounts[provider]
+                const nowMs = Date.now()
+                excludeAccountIds = saved
+                  .filter((a) => {
+                    if (a.email === activeEmail) return true
+                    const usage = savedAccountUsage(provider, a)
+                    if (!usage) return false
+                    const maxPercent = getMaxUsagePercent(usage, nowMs)
+                    return maxPercent !== null && maxPercent >= auto.thresholdPercent
+                  })
+                  .map((a) => a.id)
+
+                if (saved.length > 0 && excludeAccountIds.length === saved.length) {
+                  // Every account is either the active one or provably over
+                  // the threshold — nothing worth refreshing, nothing to hop to.
+                  toast.error(
+                    `Auto-switch: no other account below ${auto.thresholdPercent}% usage to switch to`
+                  )
+                  backOff()
+                  continue
+                }
+              }
+
               let results: RefreshAllResultItem[] | null = null
               let sweepFailed = false
               try {
-                results = await useUsageStore.getState().refreshAllForProvider(provider)
+                results = await useUsageStore
+                  .getState()
+                  .refreshAllForProvider(provider, excludeAccountIds)
               } catch {
                 sweepFailed = true
               }
