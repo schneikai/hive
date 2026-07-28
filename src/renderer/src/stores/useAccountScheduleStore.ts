@@ -8,7 +8,11 @@ import type {
   UsageProvider
 } from '@shared/types/usage'
 import { toast } from '@/lib/toast'
-import { getMaxUsagePercent, scoreAccountHeadroom } from '@/lib/auto-switch-score'
+import {
+  getMaxUsagePercent,
+  isProvablyAtOrAbove,
+  scoreAccountHeadroom
+} from '@/lib/auto-switch-score'
 import { useUsageStore, normalizeUsage } from './useUsageStore'
 import { useAccountStore } from './useAccountStore'
 
@@ -249,13 +253,14 @@ export const useAccountScheduleStore = create<AccountScheduleState>()(
 
               // Refresh saved accounts so the pick is based on live numbers —
               // but only the ones with a chance of being viable. A usage
-              // window that hasn't reset yet only ever accrues, so an account
-              // whose cached utilization is already at/over the threshold
-              // provably stays there: refreshing it is a wasted request.
-              // Unknown or reset-expired usage stays in (it could be viable),
-              // and the active account is skipped (it is never a candidate).
-              // Before the first successful account-list load there is nothing
-              // to prove non-viability from — fall back to the full sweep.
+              // window only accrues until its (known, future) reset time, so
+              // an account whose cached utilization is already at/over the
+              // threshold provably stays there: refreshing it is a wasted
+              // request. Anything short of that proof — unknown usage, a
+              // passed or missing reset time — stays in the sweep, and the
+              // active account is skipped (it is never a candidate). Before
+              // the first successful account-list load there is nothing to
+              // prove non-viability from — fall back to the full sweep.
               const usageState = useUsageStore.getState()
               let excludeAccountIds: string[] | undefined
               if (usageState.savedAccountsLoaded[provider]) {
@@ -266,8 +271,7 @@ export const useAccountScheduleStore = create<AccountScheduleState>()(
                     if (a.email === activeEmail) return true
                     const usage = savedAccountUsage(provider, a)
                     if (!usage) return false
-                    const maxPercent = getMaxUsagePercent(usage, nowMs)
-                    return maxPercent !== null && maxPercent >= auto.thresholdPercent
+                    return isProvablyAtOrAbove(usage, auto.thresholdPercent, nowMs)
                   })
                   .map((a) => a.id)
 

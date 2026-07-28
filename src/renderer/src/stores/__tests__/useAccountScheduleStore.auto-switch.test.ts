@@ -252,6 +252,15 @@ describe('useAccountScheduleStore auto-switch', () => {
           five_hour: { utilization: 100, resets_at: pastReset },
           seven_day: { utilization: 10, resets_at: futureReset }
         }
+      },
+      // Over the threshold but with no known reset horizon: there is no
+      // guarantee the number still holds, so it must still be refreshed.
+      {
+        ...makeAccount('acc-6', 'nohorizon@x.com', null),
+        last_usage: {
+          five_hour: { utilization: 95, resets_at: null },
+          seven_day: { utilization: 10, resets_at: futureReset }
+        }
       }
     ]
     useUsageStore.setState({ savedAccounts: { anthropic: refreshedAccounts, openai: [] } })
