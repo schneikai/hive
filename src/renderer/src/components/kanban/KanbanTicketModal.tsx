@@ -2227,10 +2227,13 @@ function PlanReviewModeContent({
       useWorktreeStatusStore.getState().clearSessionStatus(sessionId)
       await useSessionStore.getState().setSessionMode(sessionId, 'build')
       lastSendMode.set(sessionId, 'build')
-      useWorktreeStatusStore.getState().setSessionStatus(sessionId, 'working')
+      // Send bookkeeping must precede setSessionStatus so the working
+      // transition it causes consumes the explicit-send stamp — a stamp left
+      // unconsumed would mark a later status replay as an explicit send.
       messageSendTimes.set(sessionId, Date.now())
       userExplicitSendTimes.set(sessionId, Date.now())
       snapshotTokenBaseline(sessionId)
+      useWorktreeStatusStore.getState().setSessionStatus(sessionId, 'working')
 
       // Clear plan_ready badge — ticket is back to working
       await useKanbanStore

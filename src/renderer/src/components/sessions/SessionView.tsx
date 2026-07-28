@@ -4948,11 +4948,14 @@ function LegacySessionView({ sessionId }: SessionViewProps): React.JSX.Element {
 
         // The SDK resumes within the same prompt cycle after plan approval —
         // it won't emit a new session.status:busy event. Set status explicitly.
+        // The send stamp must precede setSessionStatus so its working
+        // transition consumes it (an unconsumed stamp would mark a later
+        // status replay as an explicit send).
+        userExplicitSendTimes.set(sessionId, Date.now())
+        snapshotTokenBaseline(sessionId)
         useWorktreeStatusStore.getState().setSessionStatus(sessionId, 'working')
         setIsStreaming(true)
         setIsSending(true)
-        userExplicitSendTimes.set(sessionId, Date.now())
-        snapshotTokenBaseline(sessionId)
 
         // Transition the ExitPlanMode tool card to "accepted" state
         updateStreamingPartsRef((parts) =>
