@@ -553,6 +553,57 @@ describe('reconcileFinishedSessions — recovers explicit reopens missed while u
     expect(kanbanApi.ticket.move).not.toHaveBeenCalled()
   })
 
+  it('a finished run clears the pending reopen before a later auto-resume', async () => {
+    const sessionId = 'sess-run-ended'
+    // Explicit send with the board unloaded, then the run finishes before
+    // any reconcile happened.
+    useKanbanStore
+      .getState()
+      .syncTicketWithSession(sessionId, { type: 'session_working', explicitSend: true })
+    useKanbanStore.getState().syncTicketWithSession(sessionId, { type: 'session_completed' })
+    await flush()
+
+    // A later unrelated run (background auto-resume) is working at load time —
+    // the stale marker must not reopen the terminal ticket.
+    seed(makeTicket({ column: 'done', current_session_id: sessionId }))
+    setSessionStatus(sessionId, 'working')
+    useKanbanStore.getState().reconcileFinishedSessions(PROJECT_ID)
+    await flush()
+
+    expect(columnOf('ticket-1')).toBe('done')
+    expect(kanbanApi.ticket.move).not.toHaveBeenCalled()
+  })
+
+  it('recovers the reopen for a second linked project loaded after the send', async () => {
+    const sessionId = 'sess-multi-project'
+    const otherProject = 'proj-2'
+    // Project 1 is loaded and handles the send live; project 2 is not loaded.
+    seed(makeTicket({ column: 'done', current_session_id: sessionId }))
+    useKanbanStore
+      .getState()
+      .syncTicketWithSession(sessionId, { type: 'session_working', explicitSend: true })
+    await flush()
+    expect(columnOf('ticket-1')).toBe('in_progress')
+
+    // Project 2's tickets load later while the session still runs.
+    useKanbanStore.setState((state) => {
+      const next = new Map(state.tickets)
+      next.set(otherProject, [
+        makeTicket({ id: 'ticket-2', project_id: otherProject, column: 'merged', current_session_id: sessionId })
+      ])
+      return { tickets: next }
+    })
+    setSessionStatus(sessionId, 'working')
+    useKanbanStore.getState().reconcileFinishedSessions(otherProject)
+    await flush()
+
+    const ticket2 = useKanbanStore
+      .getState()
+      .tickets.get(otherProject)
+      ?.find((t) => t.id === 'ticket-2')
+    expect(ticket2?.column).toBe('in_progress')
+  })
+
   it('clears the pending reopen once a loaded ticket handles the explicit send', async () => {
     const sessionId = 'sess-live-handled'
     useKanbanStore

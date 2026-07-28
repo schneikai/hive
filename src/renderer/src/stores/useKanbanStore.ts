@@ -327,12 +327,16 @@ interface KanbanState {
   setHoveredBlockedTicketRef: (ref: TicketRef | null) => void
 }
 
-// Explicit follow-up sends whose session_working matched no loaded ticket —
-// the board hadn't been opened, so the one-shot explicit marker was consumed
-// against an empty map. reconcileFinishedSessions attributes these once the
-// project's tickets load, so the reopen isn't silently lost. In-memory per
-// app run, cleared as soon as a matching ticket handles the send.
-const pendingExplicitReopens = new Set<string>()
+// Explicit follow-up sends that some project's tickets may not have seen —
+// the board (or one of several linked projects) hadn't been loaded, so the
+// one-shot explicit marker was consumed against an incomplete map.
+// sessionId → project IDs whose tickets were loaded when the send fired
+// (those already handled it live). reconcileFinishedSessions recovers the
+// reopen for projects loaded later. In-memory per app run; entries drop as
+// soon as the originating run stops being active (completed / plan_ready /
+// error), so a stale marker can never attribute a future unrelated working
+// status (e.g. a background auto-resume) to the old send.
+const pendingExplicitReopens = new Map<string, Set<string>>()
 
 // ── Store ──────────────────────────────────────────────────────────────
 export const useKanbanStore = create<KanbanState>()(
@@ -450,9 +454,21 @@ export const useKanbanStore = create<KanbanState>()(
       reconcileFinishedSessions: (projectId: string) => {
         const tickets = get().tickets.get(projectId) ?? []
         const statuses = useWorktreeStatusStore.getState().sessionStatuses
+        // Sessions whose pending explicit send is being attributed to this
+        // project in this pass — lets several linked tickets all recover,
+        // while the handled-mark stops later reloads from re-attributing.
+        const recoveredThisPass = new Set<string>()
         for (const ticket of tickets) {
           if (!ticket.current_session_id) continue
           const status = statuses[ticket.current_session_id]?.status ?? null
+          // Attribute a pending explicit send to this project on any linked
+          // ticket visit (whatever its column) — a re-done ticket must not be
+          // reopened by the same send on a future reload.
+          const pendingHandled = pendingExplicitReopens.get(ticket.current_session_id)
+          if (pendingHandled && !pendingHandled.has(projectId)) {
+            pendingHandled.add(projectId)
+            recoveredThisPass.add(ticket.current_session_id)
+          }
           if (ticket.column === 'in_progress') {
             // Only act on positive "finished" evidence — never on progressing/
             // asking/no-status, so we don't yank not-yet-started or actively-
@@ -463,13 +479,12 @@ export const useKanbanStore = create<KanbanState>()(
             }
             get().moveTicket(ticket.id, projectId, 'review', ticket.sort_order).catch(() => {})
           } else if (ticket.column === 'done' || ticket.column === 'merged') {
-            // Recover an explicit follow-up reopen that fired before these
-            // tickets were loaded. Only while the session is still actively
-            // running — a session that already finished (or never started)
-            // gives no license to leave the terminal column.
-            if (!pendingExplicitReopens.has(ticket.current_session_id)) continue
+            // Recover an explicit follow-up reopen this project missed while
+            // unloaded. Only while the session is still actively running — a
+            // session that already finished (or never started) gives no
+            // license to leave the terminal column.
+            if (!recoveredThisPass.has(ticket.current_session_id)) continue
             if (status !== 'working' && status !== 'planning') continue
-            pendingExplicitReopens.delete(ticket.current_session_id)
             get()
               .moveTicket(ticket.id, projectId, 'in_progress', ticket.sort_order)
               .catch(() => {})
@@ -1008,11 +1023,9 @@ export const useKanbanStore = create<KanbanState>()(
       syncTicketWithSession: (sessionId: string, event: KanbanSessionEvent) => {
         // Find all tickets across all projects referencing this session
         const allTickets = get().tickets
-        let matchedTicket = false
         for (const [projectId, tickets] of allTickets.entries()) {
           for (const ticket of tickets) {
             if (ticket.current_session_id !== sessionId) continue
-            matchedTicket = true
 
             // 'done' and 'merged' are terminal columns: once a user moves a
             // ticket there, no session event may auto-move it back. This
@@ -1206,11 +1219,20 @@ export const useKanbanStore = create<KanbanState>()(
             }
           }
         }
-        // Remember explicit sends that found no loaded ticket so the reopen
-        // can be recovered when the project's tickets load (reconcile below).
+        // Remember explicit sends so projects whose tickets weren't loaded
+        // yet can recover the reopen on load (reconcileFinishedSessions).
+        // The currently-loaded projects have already handled the send live.
         if (event.type === 'session_working' && event.explicitSend === true) {
-          if (matchedTicket) pendingExplicitReopens.delete(sessionId)
-          else pendingExplicitReopens.add(sessionId)
+          pendingExplicitReopens.set(sessionId, new Set(allTickets.keys()))
+        }
+        // The send's run ended — any not-yet-recovered reopen is moot, and a
+        // stale marker must not reopen a ticket on a future unrelated run.
+        if (
+          event.type === 'session_completed' ||
+          event.type === 'plan_ready' ||
+          event.type === 'session_error'
+        ) {
+          pendingExplicitReopens.delete(sessionId)
         }
       },
 
