@@ -2226,6 +2226,14 @@ function PlanReviewModeContent({
     const columnBeforeImplement = ticket.column
     const restoreTerminalColumn = (): void => {
       if (columnBeforeImplement !== 'done' && columnBeforeImplement !== 'merged') return
+      // Only undo our own optimistic reopen. The failure can land seconds
+      // later — if the user or a session event moved the ticket again in the
+      // meantime, that newer transition wins.
+      const current = useKanbanStore
+        .getState()
+        .tickets.get(ticket.project_id)
+        ?.find((t) => t.id === ticket.id)
+      if (current?.column !== 'in_progress') return
       useKanbanStore
         .getState()
         .moveTicket(ticket.id, ticket.project_id, columnBeforeImplement, ticket.sort_order)
