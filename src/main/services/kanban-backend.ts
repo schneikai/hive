@@ -132,6 +132,8 @@ interface MarkdownRuntimeState {
   model_variant: string | null
   variant_group_id: string | null
   column_changed_at: string | null
+  /** Column as of the last index scan — lets the rescan detect out-of-app moves. */
+  last_known_column: string | null
   updated_at: string | null
 }
 
@@ -162,6 +164,7 @@ function emptyRuntimeState(): MarkdownRuntimeState {
     model_variant: null,
     variant_group_id: null,
     column_changed_at: null,
+    last_known_column: null,
     updated_at: null
   }
 }
@@ -572,7 +575,9 @@ class MarkdownKanbanBackend implements KanbanBackend {
         model_provider_id: data.model_provider_id ?? null,
         model_id: data.model_id ?? null,
         model_variant: data.model_variant ?? null,
-        variant_group_id: data.variant_group_id ?? null
+        variant_group_id: data.variant_group_id ?? null,
+        column_changed_at: now,
+        last_known_column: column
       },
       false
     )
@@ -673,7 +678,9 @@ class MarkdownKanbanBackend implements KanbanBackend {
           model_provider_id: draft.model_provider_id ?? null,
           model_id: draft.model_id ?? null,
           model_variant: draft.model_variant ?? null,
-          variant_group_id: draft.variant_group_id ?? null
+          variant_group_id: draft.variant_group_id ?? null,
+          column_changed_at: now,
+          last_known_column: column
         }
       })
     }
@@ -751,6 +758,7 @@ class MarkdownKanbanBackend implements KanbanBackend {
       if (data.column !== card.ticket.column) {
         runtimeUpdates.column_changed_at = new Date().toISOString()
       }
+      runtimeUpdates.last_known_column = data.column
     }
     if (data.sort_order !== undefined) publicUpdates.sort_order = data.sort_order
     if (data.mode !== undefined) publicUpdates.mode = data.mode
@@ -817,14 +825,14 @@ class MarkdownKanbanBackend implements KanbanBackend {
       sort_order: sortOrder
     })
     suppressMarkdownWrites(projectId, touchedPaths)
-    if (column !== card.ticket.column) {
-      await this.writeRuntime(
-        projectId,
-        ticketId,
-        { column_changed_at: new Date().toISOString() },
-        false
-      )
-    }
+    await this.writeRuntime(
+      projectId,
+      ticketId,
+      column !== card.ticket.column
+        ? { column_changed_at: new Date().toISOString(), last_known_column: column }
+        : { last_known_column: column },
+      false
+    )
     this.invalidate(projectId)
     return this.get(projectId, ticketId)
   }
@@ -1590,7 +1598,17 @@ class MarkdownKanbanBackend implements KanbanBackend {
   }
 
   private hydrateRuntime(projectId: string, card: ParsedMarkdownCard): ParsedMarkdownCard {
-    const runtime = this.readRuntime(projectId, card.ticket.id)
+    let runtime = this.readRuntime(projectId, card.ticket.id)
+    // Column changes made outside the app (frontmatter edits, file moves) are
+    // only visible at scan time: stamp the transition when the parsed column
+    // differs from the last one we saw. First sight (null) just records the
+    // column so adoption doesn't fake a transition.
+    if (runtime.last_known_column !== card.ticket.column) {
+      const columnChangedAt =
+        runtime.last_known_column === null ? runtime.column_changed_at : new Date().toISOString()
+      this.recordSeenColumn(projectId, card.ticket.id, card.ticket.column, columnChangedAt)
+      runtime = { ...runtime, column_changed_at: columnChangedAt }
+    }
     const ticket: KanbanTicket = {
       ...card.ticket,
       attachments: runtime.attachments,
@@ -1707,6 +1725,7 @@ class MarkdownKanbanBackend implements KanbanBackend {
           model_variant: string | null
           variant_group_id: string | null
           column_changed_at: string | null
+          last_known_column: string | null
           updated_at: string | null
         }
       | undefined
@@ -1727,6 +1746,7 @@ class MarkdownKanbanBackend implements KanbanBackend {
       model_variant: row.model_variant,
       variant_group_id: row.variant_group_id,
       column_changed_at: row.column_changed_at,
+      last_known_column: row.last_known_column,
       updated_at: row.updated_at
     }
   }
@@ -1800,6 +1820,10 @@ class MarkdownKanbanBackend implements KanbanBackend {
       updates.push('column_changed_at = ?')
       values.push(data.column_changed_at)
     }
+    if (data.last_known_column !== undefined) {
+      updates.push('last_known_column = ?')
+      values.push(data.last_known_column)
+    }
     if (!preserveUpdatedAt) {
       updates.push('updated_at = ?')
       values.push(new Date().toISOString())
@@ -1812,6 +1836,21 @@ class MarkdownKanbanBackend implements KanbanBackend {
         `UPDATE markdown_kanban_card_state SET ${updates.join(', ')} WHERE project_id = ? AND card_id = ?`
       )
       .run(...values)
+  }
+
+  private recordSeenColumn(
+    projectId: string,
+    cardId: string,
+    column: string,
+    columnChangedAt: string | null
+  ): void {
+    this.ensureRuntime(projectId, cardId)
+    getDatabase()
+      .getRawDb()
+      .prepare(
+        'UPDATE markdown_kanban_card_state SET last_known_column = ?, column_changed_at = ? WHERE project_id = ? AND card_id = ?'
+      )
+      .run(column, columnChangedAt, projectId, cardId)
   }
 
   private markRuntimeSeen(projectId: string, cardId: string, filePath: string): void {

@@ -807,6 +807,7 @@ export class DatabaseService {
     this.safeAddColumn('markdown_kanban_card_state', 'model_variant', 'TEXT DEFAULT NULL')
     this.safeAddColumn('markdown_kanban_card_state', 'variant_group_id', 'TEXT DEFAULT NULL')
     this.safeAddColumn('markdown_kanban_card_state', 'column_changed_at', 'TEXT DEFAULT NULL')
+    this.safeAddColumn('markdown_kanban_card_state', 'last_known_column', 'TEXT DEFAULT NULL')
 
     db.exec(`
       CREATE TABLE IF NOT EXISTS session_usage_state (
