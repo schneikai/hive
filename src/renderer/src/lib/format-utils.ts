@@ -13,6 +13,23 @@ export function formatRelativeTime(timestamp: number): string {
   return `${diffWeek}w`
 }
 
+// Compact "time since last column transition" label for kanban cards:
+// Now / 1m / 1h / 1d / 3w / 2mo / 2yr
+export function formatTransitionAge(timestamp: number): string {
+  const diffMs = Date.now() - timestamp
+  const diffMin = Math.floor(diffMs / 60000)
+
+  if (diffMin < 1) return 'Now'
+  if (diffMin < 60) return `${diffMin}m`
+  const diffHr = Math.floor(diffMin / 60)
+  if (diffHr < 24) return `${diffHr}h`
+  const diffDay = Math.floor(diffHr / 24)
+  if (diffDay < 7) return `${diffDay}d`
+  if (diffDay < 30) return `${Math.floor(diffDay / 7)}w`
+  if (diffDay < 365) return `${Math.floor(diffDay / 30)}mo`
+  return `${Math.floor(diffDay / 365)}yr`
+}
+
 export function formatCompletionDuration(ms: number): string {
   const seconds = Math.round(ms / 1000)
   if (seconds < 60) return `${seconds}s`

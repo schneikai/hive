@@ -47,6 +47,7 @@ function makeTicket(overrides: Partial<KanbanTicket> = {}): KanbanTicket {
     plan_ready: false,
     created_at: now,
     updated_at: now,
+    column_changed_at: null,
     archived_at: null,
     external_provider: null,
     external_id: null,

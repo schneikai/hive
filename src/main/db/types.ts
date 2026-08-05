@@ -510,6 +510,8 @@ export interface KanbanTicket {
   plan_ready: boolean // Mapped from INTEGER 0/1 in DB
   created_at: string
   updated_at: string
+  /** When the ticket last moved between columns (set to created_at on creation). */
+  column_changed_at: string | null
   archived_at: string | null
   external_provider: string | null
   external_id: string | null

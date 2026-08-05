@@ -22,6 +22,7 @@ const baseTicket: KanbanTicket = {
   plan_ready: false,
   created_at: now,
   updated_at: now,
+  column_changed_at: null,
   archived_at: null,
   external_provider: null,
   external_id: null,
@@ -107,6 +108,30 @@ describe('KanbanTicketCard model badge', () => {
 
     expect(screen.queryByRole('img', { name: 'Claude' })).toBeNull()
     expect(screen.queryByRole('img', { name: 'OpenAI' })).toBeNull()
+  })
+})
+
+describe('KanbanTicketCard transition age', () => {
+  afterEach(() => {
+    cleanup()
+  })
+
+  it('renders the time since the last column transition', () => {
+    const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString()
+    render(<KanbanTicketCard ticket={{ ...baseTicket, column_changed_at: twoHoursAgo }} />)
+
+    expect(screen.getByTestId('ticket-transition-age')).toHaveTextContent('2h')
+  })
+
+  it('falls back to updated_at for tickets without a transition date', () => {
+    const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString()
+    render(
+      <KanbanTicketCard
+        ticket={{ ...baseTicket, column_changed_at: null, updated_at: fiveMinutesAgo }}
+      />
+    )
+
+    expect(screen.getByTestId('ticket-transition-age')).toHaveTextContent('5m')
   })
 })
 

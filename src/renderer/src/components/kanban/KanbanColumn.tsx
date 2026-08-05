@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef, useLayoutEffect } from 'react'
 import { motion } from 'motion/react'
-import { AlertTriangle, ChevronRight, ChevronDown, FileText, Plus, Zap, Archive } from 'lucide-react'
+import { AlertTriangle, ArrowDownWideNarrow, ChevronRight, ChevronDown, FileText, Plus, Zap, Archive } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { toast } from '@/lib/toast'
 import { lastSendMode } from '@/lib/message-send-times'
@@ -32,7 +32,8 @@ import {
   suppressLayoutAnimation,
   isLayoutAnimationSuppressed,
   parseTicketKey,
-  ticketKey
+  ticketKey,
+  transitionSortKey
 } from '@/stores/useKanbanStore'
 import type { MarkdownCardPlaceholder } from '@/stores/useKanbanStore'
 import { useWorktreeStatusStore } from '@/stores/useWorktreeStatusStore'
@@ -207,8 +208,17 @@ export function KanbanColumn({
   const isMergedColumn = column === 'merged'
   const isTodoColumn = column === 'todo'
   const isInProgressColumn = column === 'in_progress'
-  // Done and Merged share date-sorted behavior (no manual reordering)
-  const isDateSortedColumn = isDoneColumn || isMergedColumn
+  // Done and Merged are always date-sorted; other columns opt in via the
+  // per-column transition-sort toggle (persisted, '' key on multi-project boards)
+  const isForcedDateSorted = isDoneColumn || isMergedColumn
+  const transitionSortOn = useKanbanStore(
+    useCallback(
+      (state) => state.transitionSortByColumn[transitionSortKey(projectId, column)] ?? false,
+      [projectId, column]
+    )
+  )
+  // Date-sorted behavior: newest transition first, no manual reordering
+  const isDateSortedColumn = isForcedDateSorted || transitionSortOn
   const isMultiProjectMode = !!connectionId || !!isPinnedMode
 
   // ── Multi-project helpers ─────────────────────────────────────────
@@ -372,6 +382,39 @@ export function KanbanColumn({
       useKanbanStore.getState().setShowArchived(projectId, checked)
     },
     [projectId]
+  )
+
+  // ── Transition-sort toggle (every column; forced on for Done/Merged) ──
+  const handleTransitionSortToggle = useCallback(() => {
+    useKanbanStore.getState().setTransitionSort(projectId, column, !transitionSortOn)
+  }, [projectId, column, transitionSortOn])
+
+  const transitionSortButton = (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <button
+          data-testid={`transition-sort-toggle-${column}`}
+          onClick={handleTransitionSortToggle}
+          disabled={isForcedDateSorted}
+          className={cn(
+            'flex h-5 w-5 items-center justify-center rounded transition-colors',
+            isDateSortedColumn
+              ? 'text-primary hover:bg-muted/40'
+              : 'text-muted-foreground/50 hover:text-muted-foreground hover:bg-muted/40',
+            isForcedDateSorted && 'cursor-default opacity-60 hover:bg-transparent'
+          )}
+        >
+          <ArrowDownWideNarrow className="h-3.5 w-3.5" />
+        </button>
+      </TooltipTrigger>
+      <TooltipContent side="top" sideOffset={8}>
+        {isForcedDateSorted
+          ? 'Always sorted by latest transition'
+          : isDateSortedColumn
+            ? 'Sorted by latest transition — click for manual order'
+            : 'Sort by latest transition'}
+      </TooltipContent>
+    </Tooltip>
   )
 
   const handleArchiveAll = useCallback(async () => {
@@ -841,6 +884,7 @@ export function KanbanColumn({
               <Tooltip>
                 <TooltipTrigger asChild>
                   <div ref={toggleRef} className="ml-2 flex shrink-0 items-center gap-1.5">
+                    {transitionSortButton}
                     <Zap
                       className={cn(
                         'h-3 w-3',
@@ -864,6 +908,7 @@ export function KanbanColumn({
             {/* Archive toggle — right of title, vertically centered */}
             {isDoneColumn && (
               <div className="ml-2 flex shrink-0 items-center gap-1.5">
+                {transitionSortButton}
                 <Archive
                   className={cn(
                     'h-3 w-3',
@@ -877,6 +922,11 @@ export function KanbanColumn({
                   onCheckedChange={handleToggleShowArchived}
                 />
               </div>
+            )}
+
+            {/* Transition-sort toggle for columns without other right-side controls */}
+            {!isInProgressColumn && !isDoneColumn && (
+              <div className="ml-2 flex shrink-0 items-center">{transitionSortButton}</div>
             )}
 
             {/* Hidden measurement spans — inherit font styles via cascade; used

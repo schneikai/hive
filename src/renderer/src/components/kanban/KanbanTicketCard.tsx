@@ -91,7 +91,7 @@ import { IndeterminateProgressBar } from '@/components/sessions/IndeterminatePro
 import { PulseAnimation } from '@/components/worktrees/PulseAnimation'
 import { useSessionStore } from '@/stores/useSessionStore'
 import { useWorktreeStore } from '@/stores/useWorktreeStore'
-import { parseTicketKey, setKanbanDragData, ticketKey, useKanbanStore } from '@/stores/useKanbanStore'
+import { parseTicketKey, setKanbanDragData, ticketKey, ticketTransitionTime, useKanbanStore } from '@/stores/useKanbanStore'
 import type { TicketKey } from '@/stores/useKanbanStore'
 import { useSettingsStore } from '@/stores/useSettingsStore'
 import { isBlockerSatisfied } from '@/lib/blocker-utils'
@@ -107,7 +107,8 @@ import { useSessionTimer } from '@/hooks/useSessionTimer'
 import { useSessionTokenDelta } from '@/hooks/useSessionTokenDelta'
 import { useConflictFixFlow } from '@/hooks/useConflictFixFlow'
 import { useTicketRemoteLaunch } from '@/hooks/useTicketRemoteLaunch'
-import { formatTokenCount } from '@/lib/format-utils'
+import { formatTokenCount, formatTransitionAge } from '@/lib/format-utils'
+import { useTimerTickStore } from '@/stores/useTimerTickStore'
 import { canToggleAutoApprovePlan } from '@/lib/plan-auto-approve'
 import { isClaudeCli } from '@shared/types/agent-sdk'
 import { terminalApi } from '@/api/terminal-api'
@@ -568,6 +569,13 @@ export const KanbanTicketCard = memo(function KanbanTicketCard({
 
   // Done column shows accumulated total; everything else shows per-turn delta
   const tokenText = doneTokenText ?? turnTokenText
+
+  // Time since the last column transition (created_at counts as the first one).
+  // Selector derives the label from the global 1s tick — re-renders only when
+  // the label itself changes (Now → 1m → 2m …).
+  const transitionAgeText = useTimerTickStore(
+    useCallback(() => formatTransitionAge(Date.parse(ticketTransitionTime(ticket))), [ticket])
+  )
 
   // ── Detect if the linked worktree has a live run process ──────
   const isRunProcessAlive = useScriptStore(
@@ -1066,6 +1074,13 @@ export const KanbanTicketCard = memo(function KanbanTicketCard({
                 <HighlightedText text={ticket.title} normQuery={normQuery} />
               </p>
               <div className="flex items-center gap-1.5 shrink-0">
+                <span
+                  data-testid="ticket-transition-age"
+                  title="Time since last column change"
+                  className="text-[10px] tabular-nums text-muted-foreground/60"
+                >
+                  {transitionAgeText}
+                </span>
                 {tokenText && (
                   <span className="text-[11px] tabular-nums text-muted-foreground">
                     {tokenText}
