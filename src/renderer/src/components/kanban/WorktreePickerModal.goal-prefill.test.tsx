@@ -106,6 +106,7 @@ function makeTicket(overrides: Partial<KanbanTicket> = {}): KanbanTicket {
     variant_group_id: null,
     created_at: '2026-01-01T00:00:00.000Z',
     updated_at: '2026-01-01T00:00:00.000Z',
+    column_changed_at: null,
     ...overrides
   }
 }

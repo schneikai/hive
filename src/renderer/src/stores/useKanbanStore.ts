@@ -126,13 +126,23 @@ const COLUMN_ORDER: Record<KanbanTicketColumn, number> = {
   done: 4
 }
 
-// Done and Merged ignore manual sort_order — always newest first (updated_at ≈
-// when the ticket entered the column, since moving a ticket bumps updated_at)
-const byUpdatedAtDesc = (a: KanbanTicket, b: KanbanTicket): number =>
-  b.updated_at.localeCompare(a.updated_at)
+// When the ticket last moved between columns. Falls back to updated_at for
+// tickets created before column_changed_at existed (moves used to bump it).
+export const ticketTransitionTime = (t: KanbanTicket): string =>
+  t.column_changed_at ?? t.updated_at
+
+// Latest transition first — used by Done/Merged (always) and by any column
+// whose per-column transition-sort toggle is on
+export const byTransitionDesc = (a: KanbanTicket, b: KanbanTicket): number =>
+  ticketTransitionTime(b).localeCompare(ticketTransitionTime(a))
 
 export const isDateSortedColumn = (column: KanbanTicketColumn): boolean =>
   column === 'done' || column === 'merged'
+
+// Key for the persisted per-board, per-column transition-sort toggle
+// (projectId is '' on pinned/connection boards, mirroring showArchivedByProject)
+export const transitionSortKey = (projectId: string, column: KanbanTicketColumn): string =>
+  `${projectId}:${column}`
 
 function findTicketByRef(
   ticketsByProject: Map<string, KanbanTicket[]>,
@@ -200,6 +210,8 @@ interface KanbanState {
   isBoardViewActive: boolean
   /** Per-project simple mode toggle — persisted to localStorage */
   simpleModeByProject: Record<string, boolean>
+  /** Per-board+column "sort by latest transition" toggle (transitionSortKey) — persisted */
+  transitionSortByColumn: Record<string, boolean>
   /** Currently selected ticket ID for the detail modal (null = closed) */
   selectedTicketId: string | null
   selectedTicketRef: TicketRef | null
@@ -261,6 +273,7 @@ interface KanbanState {
   reorderTicket: (ticketId: string, projectId: string, newSortOrder: number) => Promise<void>
   toggleBoardView: () => void
   setSimpleMode: (projectId: string, enabled: boolean) => Promise<void>
+  setTransitionSort: (projectId: string, column: KanbanTicketColumn, enabled: boolean) => void
   archiveTicket: (ticketId: string, projectId: string) => Promise<void>
   archiveAllDone: (projectId: string, includeMerged?: boolean) => Promise<number>
   unarchiveTicket: (ticketId: string, projectId: string) => Promise<void>
@@ -362,6 +375,7 @@ export const useKanbanStore = create<KanbanState>()(
       isBoardViewActive: false,
       isPinnedBoardActive: false,
       simpleModeByProject: {} as Record<string, boolean>,
+      transitionSortByColumn: {} as Record<string, boolean>,
       selectedTicketId: null,
       selectedTicketRef: null,
       isDragging: false,
@@ -616,11 +630,22 @@ export const useKanbanStore = create<KanbanState>()(
         const prev = get().tickets.get(projectId) ?? []
         const snapshot = prev.map((t) => ({ ...t }))
 
-        // Optimistic local update
+        // Optimistic local update (column_changed_at mirrors the backend bump on
+        // column changes so transition-sorted columns place the ticket right away)
+        const updatedAt = new Date().toISOString()
         set((state) => {
           const next = new Map(state.tickets)
           const tickets = (next.get(projectId) ?? []).map((t) =>
-            t.id === ticketId ? { ...t, ...data } : t
+            t.id === ticketId
+              ? {
+                  ...t,
+                  ...data,
+                  column_changed_at:
+                    data.column !== undefined && data.column !== t.column
+                      ? updatedAt
+                      : t.column_changed_at
+                }
+              : t
           )
           next.set(projectId, tickets)
           return { tickets: next }
@@ -944,13 +969,21 @@ export const useKanbanStore = create<KanbanState>()(
         const prev = get().tickets.get(projectId) ?? []
         const snapshot = prev.map((t) => ({ ...t }))
 
-        // Optimistic local update (updated_at mirrors the backend bump so the
-        // date-sorted Done column places the ticket correctly right away)
+        // Optimistic local update (updated_at/column_changed_at mirror the backend
+        // bumps so transition-sorted columns place the ticket correctly right away)
         const movedAt = new Date().toISOString()
         set((state) => {
           const next = new Map(state.tickets)
           const tickets = (next.get(projectId) ?? []).map((t) =>
-            t.id === ticketId ? { ...t, column, sort_order: sortOrder, updated_at: movedAt } : t
+            t.id === ticketId
+              ? {
+                  ...t,
+                  column,
+                  sort_order: sortOrder,
+                  updated_at: movedAt,
+                  column_changed_at: t.column === column ? t.column_changed_at : movedAt
+                }
+              : t
           )
           next.set(projectId, tickets)
           return { tickets: next }
@@ -1047,6 +1080,16 @@ export const useKanbanStore = create<KanbanState>()(
       // ── toggleBoardView ──────────────────────────────────────────
       toggleBoardView: () => {
         set((state) => ({ isBoardViewActive: !state.isBoardViewActive }))
+      },
+
+      // ── setTransitionSort ────────────────────────────────────────
+      setTransitionSort: (projectId: string, column: KanbanTicketColumn, enabled: boolean) => {
+        set((state) => ({
+          transitionSortByColumn: {
+            ...state.transitionSortByColumn,
+            [transitionSortKey(projectId, column)]: enabled
+          }
+        }))
       },
 
       // ── setSimpleMode ────────────────────────────────────────────
@@ -1400,9 +1443,12 @@ export const useKanbanStore = create<KanbanState>()(
       // ── getTicketsByColumn ───────────────────────────────────────
       getTicketsByColumn: (projectId: string, column: KanbanTicketColumn): KanbanTicket[] => {
         const tickets = get().tickets.get(projectId) ?? []
+        const sortByTransition =
+          isDateSortedColumn(column) ||
+          (get().transitionSortByColumn[transitionSortKey(projectId, column)] ?? false)
         return tickets
           .filter((t) => t.column === column && !t.archived_at)
-          .sort(isDateSortedColumn(column) ? byUpdatedAtDesc : (a, b) => a.sort_order - b.sort_order)
+          .sort(sortByTransition ? byTransitionDesc : (a, b) => a.sort_order - b.sort_order)
       },
 
       // ── getArchivedTicketsByColumn ─────────────────────────────────
@@ -1506,7 +1552,10 @@ export const useKanbanStore = create<KanbanState>()(
       ): KanbanTicket[] => {
         const projectIds = get().getConnectionProjectIds(connectionId)
         const merged = projectIds.flatMap((pid) => get().getTicketsByColumn(pid, column))
-        merged.sort(isDateSortedColumn(column) ? byUpdatedAtDesc : (a, b) => a.sort_order - b.sort_order)
+        const sortByTransition =
+          isDateSortedColumn(column) ||
+          (get().transitionSortByColumn[transitionSortKey('', column)] ?? false)
+        merged.sort(sortByTransition ? byTransitionDesc : (a, b) => a.sort_order - b.sort_order)
         return merged
       },
 
@@ -1588,7 +1637,10 @@ export const useKanbanStore = create<KanbanState>()(
       getTicketsByColumnForPinned: (column: KanbanTicketColumn): KanbanTicket[] => {
         const projectIds = [...usePinnedStore.getState().pinnedProjectIds]
         const merged = projectIds.flatMap((pid) => get().getTicketsByColumn(pid, column))
-        merged.sort(isDateSortedColumn(column) ? byUpdatedAtDesc : (a, b) => a.sort_order - b.sort_order)
+        const sortByTransition =
+          isDateSortedColumn(column) ||
+          (get().transitionSortByColumn[transitionSortKey('', column)] ?? false)
+        merged.sort(sortByTransition ? byTransitionDesc : (a, b) => a.sort_order - b.sort_order)
         return merged
       },
 
@@ -1786,7 +1838,8 @@ export const useKanbanStore = create<KanbanState>()(
       partialize: (state) => ({
         isBoardViewActive: state.isBoardViewActive,
         isPinnedBoardActive: state.isPinnedBoardActive,
-        simpleModeByProject: state.simpleModeByProject
+        simpleModeByProject: state.simpleModeByProject,
+        transitionSortByColumn: state.transitionSortByColumn
       })
     }
   )

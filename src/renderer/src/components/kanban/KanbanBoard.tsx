@@ -1,7 +1,7 @@
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
 import { LayoutGroup, motion } from 'motion/react'
 import { Pin } from 'lucide-react'
-import { parseTicketKey, ticketKey, useKanbanStore } from '@/stores/useKanbanStore'
+import { byTransitionDesc, parseTicketKey, ticketKey, useKanbanStore } from '@/stores/useKanbanStore'
 import { useSettingsStore } from '@/stores/useSettingsStore'
 import { usePinnedStore } from '@/stores/usePinnedStore'
 import { useBoardChatStore } from '@/stores/useBoardChatStore'
@@ -19,9 +19,6 @@ import type { KanbanTicket, KanbanTicketColumn } from '../../../../main/db/types
 
 const COLUMNS: KanbanTicketColumn[] = ['todo', 'in_progress', 'review', 'done']
 const COLUMNS_WITH_MERGED: KanbanTicketColumn[] = ['todo', 'in_progress', 'review', 'merged', 'done']
-
-const byUpdatedAtDesc = (a: { updated_at: string }, b: { updated_at: string }): number =>
-  b.updated_at.localeCompare(a.updated_at)
 
 interface KanbanBoardProps {
   projectId?: string
@@ -112,6 +109,8 @@ export function KanbanBoard({ projectId, connectionId, isPinnedMode }: KanbanBoa
   const [svgSize, setSvgSize] = useState({ width: 0, height: 0 })
 
   useKanbanStore((state) => state.tickets)
+  // Re-render (and re-run the column getters) when a per-column sort toggle flips
+  useKanbanStore((state) => state.transitionSortByColumn)
 
   const isConnectionMode = !!connectionId
   const connectionProjectIds = isConnectionMode && connectionId ? getConnectionProjectIds(connectionId) : []
@@ -469,7 +468,7 @@ export function KanbanBoard({ projectId, connectionId, isPinnedMode }: KanbanBoa
                 if (column === 'done' && !showMergedColumn) {
                   const mergedTickets = ticketsFor('merged')
                   if (mergedTickets.length > 0) {
-                    tickets = [...tickets, ...mergedTickets].sort(byUpdatedAtDesc)
+                    tickets = [...tickets, ...mergedTickets].sort(byTransitionDesc)
                   }
                 }
 

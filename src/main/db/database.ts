@@ -351,6 +351,7 @@ export class DatabaseService {
       plan_ready: !!(row.plan_ready as number),
       created_at: row.created_at as string,
       updated_at: row.updated_at as string,
+      column_changed_at: (row.column_changed_at as string) ?? null,
       archived_at: (row.archived_at as string) ?? null,
       external_provider: (row.external_provider as string) ?? null,
       external_id: (row.external_id as string) ?? null,
@@ -690,6 +691,7 @@ export class DatabaseService {
     this.safeAddColumn('kanban_tickets', 'model_id', 'TEXT DEFAULT NULL')
     this.safeAddColumn('kanban_tickets', 'model_variant', 'TEXT DEFAULT NULL')
     this.safeAddColumn('kanban_tickets', 'variant_group_id', 'TEXT DEFAULT NULL')
+    this.safeAddColumn('kanban_tickets', 'column_changed_at', 'TEXT DEFAULT NULL')
     this.safeAddColumn('sessions', 'session_type', "TEXT NOT NULL DEFAULT 'default'")
     this.safeAddColumn('sessions', 'remote_launch', 'TEXT DEFAULT NULL')
     this.safeAddColumn('sessions', 'custom_provider_id', 'TEXT DEFAULT NULL')
@@ -804,6 +806,7 @@ export class DatabaseService {
     this.safeAddColumn('markdown_kanban_card_state', 'model_id', 'TEXT DEFAULT NULL')
     this.safeAddColumn('markdown_kanban_card_state', 'model_variant', 'TEXT DEFAULT NULL')
     this.safeAddColumn('markdown_kanban_card_state', 'variant_group_id', 'TEXT DEFAULT NULL')
+    this.safeAddColumn('markdown_kanban_card_state', 'column_changed_at', 'TEXT DEFAULT NULL')
 
     db.exec(`
       CREATE TABLE IF NOT EXISTS session_usage_state (
@@ -2690,8 +2693,8 @@ export class DatabaseService {
     const variantGroupId = data.variant_group_id ?? null
 
     db.prepare(
-      `INSERT INTO kanban_tickets (id, project_id, title, description, attachments, "column", sort_order, current_session_id, worktree_id, mode, plan_ready, external_provider, external_id, external_url, github_pr_number, github_pr_url, mark, created_from_session, note, model_provider_id, model_id, model_variant, variant_group_id, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      `INSERT INTO kanban_tickets (id, project_id, title, description, attachments, "column", sort_order, current_session_id, worktree_id, mode, plan_ready, external_provider, external_id, external_url, github_pr_number, github_pr_url, mark, created_from_session, note, model_provider_id, model_id, model_variant, variant_group_id, created_at, updated_at, column_changed_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     ).run(
       id,
       data.project_id,
@@ -2716,6 +2719,7 @@ export class DatabaseService {
       modelId,
       modelVariant,
       variantGroupId,
+      now,
       now,
       now
     )
@@ -2746,7 +2750,8 @@ export class DatabaseService {
       variant_group_id: variantGroupId,
       total_tokens: 0,
       created_at: now,
-      updated_at: now
+      updated_at: now,
+      column_changed_at: now
     })
   }
 
@@ -2867,6 +2872,10 @@ export class DatabaseService {
     if (data.column !== undefined) {
       updates.push('"column" = ?')
       values.push(data.column)
+      if (data.column !== existing.column) {
+        updates.push('column_changed_at = ?')
+        values.push(values[0]) // same timestamp as updated_at
+      }
     }
     if (data.sort_order !== undefined) {
       updates.push('sort_order = ?')
@@ -3017,9 +3026,15 @@ export class DatabaseService {
     if (!existing) return null
 
     const now = new Date().toISOString()
-    db.prepare(
-      'UPDATE kanban_tickets SET "column" = ?, sort_order = ?, updated_at = ? WHERE id = ?'
-    ).run(column, sortOrder, now, id)
+    if (column !== existing.column) {
+      db.prepare(
+        'UPDATE kanban_tickets SET "column" = ?, sort_order = ?, updated_at = ?, column_changed_at = ? WHERE id = ?'
+      ).run(column, sortOrder, now, now, id)
+    } else {
+      db.prepare(
+        'UPDATE kanban_tickets SET "column" = ?, sort_order = ?, updated_at = ? WHERE id = ?'
+      ).run(column, sortOrder, now, id)
+    }
 
     return this.getKanbanTicket(id)
   }

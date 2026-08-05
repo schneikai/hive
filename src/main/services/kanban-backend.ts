@@ -131,6 +131,7 @@ interface MarkdownRuntimeState {
   model_id: string | null
   model_variant: string | null
   variant_group_id: string | null
+  column_changed_at: string | null
   updated_at: string | null
 }
 
@@ -160,6 +161,7 @@ function emptyRuntimeState(): MarkdownRuntimeState {
     model_id: null,
     model_variant: null,
     variant_group_id: null,
+    column_changed_at: null,
     updated_at: null
   }
 }
@@ -744,7 +746,12 @@ class MarkdownKanbanBackend implements KanbanBackend {
       publicUpdates.title = data.title
     }
     if (data.description !== undefined) body = data.description ?? ''
-    if (data.column !== undefined) publicUpdates.column = data.column
+    if (data.column !== undefined) {
+      publicUpdates.column = data.column
+      if (data.column !== card.ticket.column) {
+        runtimeUpdates.column_changed_at = new Date().toISOString()
+      }
+    }
     if (data.sort_order !== undefined) publicUpdates.sort_order = data.sort_order
     if (data.mode !== undefined) publicUpdates.mode = data.mode
     if (data.github_pr_number !== undefined) publicUpdates.github_pr_number = data.github_pr_number
@@ -810,6 +817,14 @@ class MarkdownKanbanBackend implements KanbanBackend {
       sort_order: sortOrder
     })
     suppressMarkdownWrites(projectId, touchedPaths)
+    if (column !== card.ticket.column) {
+      await this.writeRuntime(
+        projectId,
+        ticketId,
+        { column_changed_at: new Date().toISOString() },
+        false
+      )
+    }
     this.invalidate(projectId)
     return this.get(projectId, ticketId)
   }
@@ -1551,6 +1566,7 @@ class MarkdownKanbanBackend implements KanbanBackend {
       plan_ready: runtime.plan_ready,
       created_at: createdAt,
       updated_at: updatedAt,
+      column_changed_at: runtime.column_changed_at,
       archived_at: nullableString(frontmatter.archived_at),
       external_provider: nullableString(frontmatter.external_provider),
       external_id: nullableString(frontmatter.external_id),
@@ -1589,6 +1605,7 @@ class MarkdownKanbanBackend implements KanbanBackend {
       model_id: runtime.model_id,
       model_variant: runtime.model_variant,
       variant_group_id: runtime.variant_group_id,
+      column_changed_at: runtime.column_changed_at,
       updated_at: laterIso(card.ticket.updated_at, runtime.updated_at ?? card.ticket.created_at)
     }
     this.markRuntimeSeen(projectId, card.ticket.id, card.filePath)
@@ -1689,6 +1706,7 @@ class MarkdownKanbanBackend implements KanbanBackend {
           model_id: string | null
           model_variant: string | null
           variant_group_id: string | null
+          column_changed_at: string | null
           updated_at: string | null
         }
       | undefined
@@ -1708,6 +1726,7 @@ class MarkdownKanbanBackend implements KanbanBackend {
       model_id: row.model_id,
       model_variant: row.model_variant,
       variant_group_id: row.variant_group_id,
+      column_changed_at: row.column_changed_at,
       updated_at: row.updated_at
     }
   }
@@ -1776,6 +1795,10 @@ class MarkdownKanbanBackend implements KanbanBackend {
     if (data.variant_group_id !== undefined) {
       updates.push('variant_group_id = ?')
       values.push(data.variant_group_id)
+    }
+    if (data.column_changed_at !== undefined) {
+      updates.push('column_changed_at = ?')
+      values.push(data.column_changed_at)
     }
     if (!preserveUpdatedAt) {
       updates.push('updated_at = ?')

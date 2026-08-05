@@ -1,4 +1,4 @@
-export const CURRENT_SCHEMA_VERSION = 41
+export const CURRENT_SCHEMA_VERSION = 42
 
 export const SCHEMA_SQL = `
 -- Projects table
@@ -694,5 +694,13 @@ DROP TABLE IF EXISTS diff_comments;`
       );
     `,
     down: `DROP TABLE IF EXISTS session_usage_state;`
+  },
+  {
+    version: 42,
+    name: 'add_ticket_column_changed_at',
+    up: `-- NOTE: ALTER TABLE for kanban_tickets.column_changed_at and
+         -- markdown_kanban_card_state.column_changed_at is handled idempotently by
+         -- safeAddColumn() in database.ts to avoid "duplicate column" errors.`,
+    down: `-- SQLite cannot drop columns; this is a no-op for safety`
   }
 ]
