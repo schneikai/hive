@@ -1,75 +1,46 @@
-import { useEffect, useRef, createElement } from 'react'
-import { toast as sonnerToast } from 'sonner'
+import { useEffect } from 'react'
 import { toast } from '@/lib/toast'
-import { UpdateProgressToast } from '@/components/toasts/UpdateProgressToast'
-import { UpdateAvailableToast } from '@/components/toasts/UpdateAvailableToast'
 import { useSettingsStore } from '@/stores/useSettingsStore'
+import { useUpdateStore } from '@/stores/useUpdateStore'
 import { updaterApi } from '@/api/updater-api'
 
 export function useAutoUpdate(): void {
-  const progressToastId = useRef<string | number | null>(null)
-  const promptToastId = useRef<string | number | null>(null)
-  const versionRef = useRef<string>('')
-  const dismissedForSessionRef = useRef<string | null>(null)
-
   useEffect(() => {
     const cleanups: (() => void)[] = []
 
-    // Update available — show prompt toast with Later/Skip/Download options
+    // Update available — surface the sidebar update pill
     cleanups.push(
       updaterApi.onUpdateAvailable((data) => {
-        const { skippedUpdateVersion, updateSetting } = useSettingsStore.getState()
+        const { skippedUpdateVersion } = useSettingsStore.getState()
         const isManual = data.isManualCheck ?? false
 
-        // Suppress for "Later" dismissal (in-memory, resets on restart)
-        if (dismissedForSessionRef.current === data.version && !isManual) return
-
-        // Suppress for "Skip this version" (persisted)
+        // Suppress for "Skip this version" — a legacy setting written by the
+        // removed toast UI; still respected, but nothing sets it anymore
         if (skippedUpdateVersion === data.version && !isManual) return
 
-        versionRef.current = data.version
-
-        // Dismiss existing prompt toast if present
-        if (promptToastId.current != null) {
-          sonnerToast.dismiss(promptToastId.current)
-        }
-
-        promptToastId.current = sonnerToast.custom(
-          () =>
-            createElement(UpdateAvailableToast, {
-              version: data.version,
-              onDownload: () => {
-                if (promptToastId.current != null) {
-                  sonnerToast.dismiss(promptToastId.current)
-                  promptToastId.current = null
-                }
-                updaterApi.downloadUpdate().catch(() => {})
-                progressToastId.current = sonnerToast.custom(
-                  () =>
-                    createElement(UpdateProgressToast, {
-                      version: data.version,
-                      percent: 0
-                    }),
-                  { duration: Infinity }
-                )
-              },
-              onLater: () => {
-                dismissedForSessionRef.current = data.version
-                if (promptToastId.current != null) {
-                  sonnerToast.dismiss(promptToastId.current)
-                  promptToastId.current = null
-                }
-              },
-              onSkip: () => {
-                updateSetting('skippedUpdateVersion', data.version)
-                if (promptToastId.current != null) {
-                  sonnerToast.dismiss(promptToastId.current)
-                  promptToastId.current = null
-                }
+        useUpdateStore.getState().setAvailable(data.version, { revealDismissed: isManual })
+        if (isManual) {
+          // The store holds an in-flight/completed download of another version,
+          // so report what is actually happening rather than the announcement
+          const { status, version } = useUpdateStore.getState()
+          if (status === 'downloaded') {
+            toast.info(`Update v${version} is ready to install`, {
+              description: 'Restart Hive from the button at the bottom of the sidebar'
+            })
+          } else if (status === 'downloading') {
+            toast.info(`Update v${version} is downloading`, {
+              description: 'Progress is shown at the bottom of the sidebar'
+            })
+          } else {
+            toast.info(`Update v${data.version} available`, {
+              description: 'Download it from the button at the bottom of the sidebar',
+              action: {
+                label: 'Download',
+                onClick: () => useUpdateStore.getState().startDownload()
               }
-            }),
-          { duration: Infinity }
-        )
+            })
+          }
+        }
       })
     )
 
@@ -77,70 +48,49 @@ export function useAutoUpdate(): void {
     cleanups.push(
       updaterApi.onUpdateNotAvailable((data) => {
         if (data.isManualCheck) {
-          toast.info('You\u2019re up to date', {
+          toast.info('You’re up to date', {
             description: `Hive v${data.version} is the latest version`
           })
         }
       })
     )
 
-    // Download progress — update toast in-place
+    // Download progress — reflect inside the pill
     cleanups.push(
       updaterApi.onProgress((data) => {
-        if (progressToastId.current == null) return
-        sonnerToast.custom(
-          () =>
-            createElement(UpdateProgressToast, {
-              version: versionRef.current,
-              percent: data.percent
-            }),
-          { id: progressToastId.current, duration: Infinity }
-        )
+        useUpdateStore.getState().setProgress(data.percent)
       })
     )
 
-    // Update downloaded — dismiss progress toast, show restart prompt
+    // Update downloaded — pill switches to "Restart to update"
     cleanups.push(
       updaterApi.onUpdateDownloaded((data) => {
-        if (progressToastId.current != null) {
-          sonnerToast.dismiss(progressToastId.current)
-          progressToastId.current = null
-        }
-        toast.success(`Update v${data.version} ready to install`, {
-          duration: Infinity,
-          action: {
-            label: 'Restart to Update',
-            onClick: () => {
-              updaterApi.installUpdate().catch(() => {})
-            }
-          }
-        })
+        useUpdateStore.getState().setDownloaded(data.version)
       })
     )
 
-    // Error — dismiss toasts if active, show error
+    // Error — a download failure flips the pill to its retry state; check
+    // failures never disturb an in-flight download and stay silent unless
+    // the user asked for the check
     cleanups.push(
       updaterApi.onError((data) => {
-        if (progressToastId.current != null) {
-          sonnerToast.dismiss(progressToastId.current)
-          progressToastId.current = null
+        const wasDownloading = useUpdateStore.getState().status === 'downloading'
+        const isDownloadError = data.source ? data.source === 'download' : wasDownloading
+        if (isDownloadError) {
+          useUpdateStore.getState().setDownloadError()
+          toast.error('Update download failed', {
+            description: data.message
+          })
+        } else if (data.isManualCheck) {
+          toast.error('Update check failed', {
+            description: data.message
+          })
         }
-        toast.error('Update check failed', {
-          description: data.message
-        })
       })
     )
 
     return () => {
       cleanups.forEach((cleanup) => cleanup())
-      if (progressToastId.current != null) {
-        sonnerToast.dismiss(progressToastId.current)
-        progressToastId.current = null
-      }
-      if (promptToastId.current != null) {
-        sonnerToast.dismiss(promptToastId.current)
-        promptToastId.current = null
-      }
     }
   }, [])
 }

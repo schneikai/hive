@@ -16,6 +16,7 @@ import { ConnectionList, ConnectionsButton } from '@/components/connections'
 import { SpacesTabBar } from '@/components/spaces'
 import { ProjectFilter } from '@/components/projects/ProjectFilter'
 import { UsageIndicator } from './UsageIndicator'
+import { UpdatePill } from './UpdatePill'
 import { PinnedList } from './PinnedList'
 import { RecentList } from './RecentList'
 
@@ -182,6 +183,7 @@ export function LeftSidebar(): React.JSX.Element {
             activeLanguages={activeLanguages}
           />
         </div>
+        {!connectionModeActive && <UpdatePill />}
         {!connectionModeActive && (shouldShowUsageIndicator ? <UsageIndicator /> : <SpacesTabBar />)}
       </aside>
       <ResizeHandle onResize={handleResize} direction="left" />

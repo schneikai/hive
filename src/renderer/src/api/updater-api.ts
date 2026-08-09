@@ -60,7 +60,11 @@ const isUpdaterErrorPayload = (value: unknown): value is UpdaterErrorPayload =>
   typeof value.message === 'string' &&
   (!('isManualCheck' in value) ||
     value.isManualCheck === undefined ||
-    typeof value.isManualCheck === 'boolean')
+    typeof value.isManualCheck === 'boolean') &&
+  (!('source' in value) ||
+    value.source === undefined ||
+    value.source === 'check' ||
+    value.source === 'download')
 
 export const updaterApi = {
   getVersion: async (): Promise<string> => {
