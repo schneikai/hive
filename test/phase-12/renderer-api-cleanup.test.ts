@@ -9081,29 +9081,28 @@ describe('renderer API cleanup', () => {
     expect(subscriptionStart).toBeGreaterThan(-1)
     expect(subscriptionEnd).toBeGreaterThan(subscriptionStart)
     expect(source).toContain("import { updaterApi } from '@/api/updater-api'")
-    expect(subscriptionSource).toContain('const { skippedUpdateVersion, updateSetting }')
-    expect(subscriptionSource).toContain('versionRef.current = data.version')
-    expect(subscriptionSource).toContain('createElement(UpdateAvailableToast, {')
-    expect(subscriptionSource).toContain('onDownload: () => {')
-    expect(subscriptionSource).toContain('updaterApi.downloadUpdate().catch(() => {})')
+    expect(subscriptionSource).toContain('const { skippedUpdateVersion }')
+    expect(subscriptionSource).toContain(
+      'useUpdateStore.getState().setAvailable(data.version, { revealDismissed: isManual })'
+    )
     expect(subscriptionSource).not.toContain('window.updaterOps.onUpdateAvailable')
+    expect(subscriptionSource).not.toContain('sonnerToast')
+    expect(subscriptionSource).not.toContain('duration: Infinity')
   })
 
   it('routes auto-update download action through updaterApi', () => {
     const source = fs.readFileSync(
-      path.resolve(__dirname, '../../src/renderer/src/hooks/useAutoUpdate.ts'),
+      path.resolve(__dirname, '../../src/renderer/src/stores/useUpdateStore.ts'),
       'utf-8'
     )
-    const downloadStart = source.indexOf('onDownload: () => {')
-    const laterStart = source.indexOf('onLater: () => {', downloadStart)
-    const downloadSource = source.slice(downloadStart, laterStart)
+    const downloadStart = source.indexOf('startDownload: () => {')
+    const downloadEnd = source.indexOf('installUpdate: () => {', downloadStart)
+    const downloadSource = source.slice(downloadStart, downloadEnd)
 
     expect(downloadStart).toBeGreaterThan(-1)
-    expect(laterStart).toBeGreaterThan(downloadStart)
+    expect(downloadEnd).toBeGreaterThan(downloadStart)
     expect(source).toContain("import { updaterApi } from '@/api/updater-api'")
-    expect(downloadSource).toContain('updaterApi.downloadUpdate().catch(() => {})')
-    expect(downloadSource).toContain('progressToastId.current = sonnerToast.custom(')
-    expect(downloadSource).toContain('createElement(UpdateProgressToast, {')
+    expect(downloadSource).toContain('updaterApi.downloadUpdate().catch(')
     expect(downloadSource).not.toContain('window.updaterOps.downloadUpdate')
     expect(downloadSource).not.toContain('.then(unwrapEnvelope)')
   })
@@ -9122,7 +9121,7 @@ describe('renderer API cleanup', () => {
     expect(source).toContain("import { updaterApi } from '@/api/updater-api'")
     expect(subscriptionSource).toContain('updaterApi.onUpdateNotAvailable((data) => {')
     expect(subscriptionSource).toContain('if (data.isManualCheck) {')
-    expect(subscriptionSource).toContain("toast.info('You\\u2019re up to date', {")
+    expect(subscriptionSource).toContain('toast.info(')
     expect(subscriptionSource).toContain(
       'description: `Hive v${data.version} is the latest version`'
     )
@@ -9142,11 +9141,8 @@ describe('renderer API cleanup', () => {
     expect(subscriptionEnd).toBeGreaterThan(subscriptionStart)
     expect(source).toContain("import { updaterApi } from '@/api/updater-api'")
     expect(subscriptionSource).toContain('updaterApi.onProgress((data) => {')
-    expect(subscriptionSource).toContain('if (progressToastId.current == null) return')
-    expect(subscriptionSource).toContain('createElement(UpdateProgressToast, {')
-    expect(subscriptionSource).toContain('version: versionRef.current')
-    expect(subscriptionSource).toContain('percent: data.percent')
-    expect(subscriptionSource).toContain('{ id: progressToastId.current, duration: Infinity }')
+    expect(subscriptionSource).toContain('useUpdateStore.getState().setProgress(data.percent)')
+    expect(subscriptionSource).not.toContain('duration: Infinity')
     expect(subscriptionSource).not.toContain('window.updaterOps.onProgress')
   })
 
@@ -9163,29 +9159,23 @@ describe('renderer API cleanup', () => {
     expect(subscriptionEnd).toBeGreaterThan(subscriptionStart)
     expect(source).toContain("import { updaterApi } from '@/api/updater-api'")
     expect(subscriptionSource).toContain('updaterApi.onUpdateDownloaded((data) => {')
-    expect(subscriptionSource).toContain('sonnerToast.dismiss(progressToastId.current)')
-    expect(subscriptionSource).toContain('progressToastId.current = null')
-    expect(subscriptionSource).toContain(
-      'toast.success(`Update v${data.version} ready to install`, {'
-    )
-    expect(subscriptionSource).toContain("label: 'Restart to Update'")
+    expect(subscriptionSource).toContain('useUpdateStore.getState().setDownloaded(data.version)')
+    expect(subscriptionSource).not.toContain('toast.success')
+    expect(subscriptionSource).not.toContain('duration: Infinity')
     expect(subscriptionSource).not.toContain('window.updaterOps.onUpdateDownloaded')
   })
 
   it('routes auto-update restart action through updaterApi', () => {
     const source = fs.readFileSync(
-      path.resolve(__dirname, '../../src/renderer/src/hooks/useAutoUpdate.ts'),
+      path.resolve(__dirname, '../../src/renderer/src/stores/useUpdateStore.ts'),
       'utf-8'
     )
-    const actionStart = source.indexOf("label: 'Restart to Update'")
-    const actionEnd = source.indexOf('// Error', actionStart)
-    const actionSource = source.slice(actionStart, actionEnd)
+    const actionStart = source.indexOf('installUpdate: () => {')
+    const actionSource = source.slice(actionStart)
 
     expect(actionStart).toBeGreaterThan(-1)
-    expect(actionEnd).toBeGreaterThan(actionStart)
     expect(source).toContain("import { updaterApi } from '@/api/updater-api'")
     expect(source).not.toContain("import { unwrapEnvelope } from '@/lib/ipc-envelope'")
-    expect(actionSource).toContain('onClick: () => {')
     expect(actionSource).toContain('updaterApi.installUpdate().catch(() => {})')
     expect(actionSource).not.toContain('window.updaterOps.installUpdate')
     expect(actionSource).not.toContain('.then(unwrapEnvelope)')
@@ -9204,8 +9194,7 @@ describe('renderer API cleanup', () => {
     expect(subscriptionEnd).toBeGreaterThan(subscriptionStart)
     expect(source).toContain("import { updaterApi } from '@/api/updater-api'")
     expect(subscriptionSource).toContain('updaterApi.onError((data) => {')
-    expect(subscriptionSource).toContain('sonnerToast.dismiss(progressToastId.current)')
-    expect(subscriptionSource).toContain('progressToastId.current = null')
+    expect(subscriptionSource).toContain('useUpdateStore.getState().setDownloadError()')
     expect(subscriptionSource).toContain("toast.error('Update check failed', {")
     expect(subscriptionSource).toContain('description: data.message')
     expect(subscriptionSource).not.toContain('window.updaterOps.onError')

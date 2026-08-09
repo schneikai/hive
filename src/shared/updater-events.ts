@@ -32,4 +32,5 @@ export interface UpdaterDownloadedPayload {
 export interface UpdaterErrorPayload {
   readonly message: string
   readonly isManualCheck?: boolean
+  readonly source?: 'check' | 'download'
 }

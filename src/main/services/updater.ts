@@ -96,12 +96,9 @@ export const updaterService = {
     })
 
     autoUpdater.on('error', (error) => {
+      // Errors also reject the checkForUpdates()/downloadUpdate() promises,
+      // which emit with a source tag — log only to avoid double-reporting
       log.error('Update error', error)
-      emitUpdaterError({
-        message: error?.message ?? String(error),
-        isManualCheck
-      })
-      isManualCheck = false
     })
 
     initialTimeout = setTimeout(() => {
@@ -122,6 +119,12 @@ export const updaterService = {
         'Failed to check for updates',
         error instanceof Error ? error : new Error(String(error))
       )
+      emitUpdaterError({
+        message: error instanceof Error ? error.message : String(error),
+        isManualCheck: options?.manual ?? false,
+        source: 'check'
+      })
+      isManualCheck = false
     }
   },
 
@@ -133,6 +136,10 @@ export const updaterService = {
         'Failed to download update',
         error instanceof Error ? error : new Error(String(error))
       )
+      emitUpdaterError({
+        message: error instanceof Error ? error.message : String(error),
+        source: 'download'
+      })
     }
   },
 
