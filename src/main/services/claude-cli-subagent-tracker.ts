@@ -163,7 +163,19 @@ function onTimerFire(sessionId: string): void {
 function runningSubagentIds(backgroundTasks: ClaudeCliBackgroundTask[] | undefined): Set<string> {
   const ids = new Set<string>()
   for (const task of backgroundTasks ?? []) {
-    if (task.type === 'subagent' && task.status === 'running' && task.id) ids.add(task.id)
+    // Workflows count as running subagent work: a Workflow-tool run appears in
+    // the snapshot as one {type:'workflow'} task (its spawned agents are never
+    // listed individually), keeps running across main-agent Stops exactly like
+    // a background subagent, and delivers its result via the same
+    // task-notification resume. Without this, a Stop mid-workflow flips the
+    // session to completed while agents are still working.
+    if (
+      (task.type === 'subagent' || task.type === 'workflow') &&
+      task.status === 'running' &&
+      task.id
+    ) {
+      ids.add(task.id)
+    }
   }
   return ids
 }

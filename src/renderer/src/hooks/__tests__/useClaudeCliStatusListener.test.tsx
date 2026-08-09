@@ -775,6 +775,7 @@ describe('useClaudeCliStatusListener — background work counts', () => {
       sessionId: string
       runningShells: number
       runningMonitors: number
+      runningSubagents: number
     }) => void) | null = null
     mocks.onClaudeCliBackgroundWork.mockImplementation((callback) => {
       subscribed = callback
@@ -783,11 +784,17 @@ describe('useClaudeCliStatusListener — background work counts', () => {
 
     renderHook(() => useClaudeCliStatusListener())
 
-    subscribed?.({ sessionId: 'hive-session-1', runningShells: 2, runningMonitors: 1 })
+    subscribed?.({
+      sessionId: 'hive-session-1',
+      runningShells: 2,
+      runningMonitors: 1,
+      runningSubagents: 3
+    })
 
     expect(mocks.setSessionBackgroundWork).toHaveBeenCalledWith('hive-session-1', {
       runningShells: 2,
-      runningMonitors: 1
+      runningMonitors: 1,
+      runningSubagents: 3
     })
   })
 

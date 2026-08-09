@@ -144,6 +144,66 @@ describe('queued-notification gap', () => {
   })
 })
 
+describe('deferring a Stop with a running workflow', () => {
+  it('defers while a workflow task is running even with no subagent entries', () => {
+    // Real trace (claude v2.1.226): a Workflow-tool run appears as a single
+    // {type:'workflow'} background task; its spawned agents are never listed
+    // individually, so without workflow awareness this Stop would pass and
+    // flip the session to completed mid-workflow.
+    expect(
+      process(
+        { event: 'Stop', backgroundTasks: [{ id: 'w1', type: 'workflow', status: 'running' }] },
+        buildMapped(SESSION, 'completed')
+      )
+    ).toEqual({ kind: 'defer_stop' })
+    expect(isClaudeCliCompletionDeferred(SESSION)).toBe(true)
+    expect(hasPendingClaudeCliSubagentWork(SESSION)).toBe(true)
+
+    // Workflow completes → its notification resume consumes the deferral →
+    // the resume turn's own clean Stop passes.
+    expect(
+      process(
+        { event: 'UserPromptSubmit', prompt: notificationPrompt('w1') },
+        buildMapped(SESSION, 'working')
+      )
+    ).toEqual({ kind: 'pass' })
+    expect(process({ event: 'Stop', backgroundTasks: [] })).toEqual({ kind: 'pass' })
+    expect(isClaudeCliCompletionDeferred(SESSION)).toBe(false)
+    expect(hasPendingClaudeCliSubagentWork(SESSION)).toBe(false)
+  })
+
+  it('a completed workflow task does not defer', () => {
+    expect(
+      process({
+        event: 'Stop',
+        backgroundTasks: [{ id: 'w1', type: 'workflow', status: 'completed' }]
+      })
+    ).toEqual({ kind: 'pass' })
+    expect(isClaudeCliCompletionDeferred(SESSION)).toBe(false)
+  })
+
+  it('running shells alone never defer', () => {
+    expect(
+      process({
+        event: 'Stop',
+        backgroundTasks: [{ id: 'bshell', type: 'shell', status: 'running' }]
+      })
+    ).toEqual({ kind: 'pass' })
+    expect(isClaudeCliCompletionDeferred(SESSION)).toBe(false)
+  })
+
+  it("a workflow-spawned agent's SubagentStop (not self-listed) adds no pending notification", () => {
+    expect(
+      process({
+        event: 'SubagentStop',
+        agentId: 'wf-inner-agent',
+        backgroundTasks: [{ id: 'w1', type: 'workflow', status: 'running' }]
+      })
+    ).toEqual({ kind: 'pass' })
+    expect(hasPendingClaudeCliSubagentWork(SESSION)).toBe(false)
+  })
+})
+
 describe('foreground subagents', () => {
   it('a SubagentStop not self-listed in background_tasks leaves nothing pending', () => {
     expect(

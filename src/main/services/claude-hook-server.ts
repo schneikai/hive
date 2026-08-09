@@ -61,7 +61,7 @@ export interface ParsedClaudeHook {
   /** Final assistant message of the turn (Stop hook). Read both spellings: */
   assistant_message?: string
   last_assistant_message?: string
-  /** Present on subagent-scoped hooks (SubagentStop, subagent-scoped Stop). */
+  /** Present on subagent-scoped hooks (SubagentStart/SubagentStop, subagent-scoped Stop). */
   agent_id?: string
   agent_type?: string
   /** Snapshot of in-flight background work at Stop/SubagentStop time. */
@@ -121,6 +121,11 @@ export function buildClaudeCliHookSettings(port: number, hiveSessionId: string):
           hooks: [{ type: 'http', url: hookUrl(port, hiveSessionId, 'stop') }]
         }
       ],
+      SubagentStart: [
+        {
+          hooks: [{ type: 'http', url: hookUrl(port, hiveSessionId, 'subagent') }]
+        }
+      ],
       SubagentStop: [
         {
           hooks: [{ type: 'http', url: hookUrl(port, hiveSessionId, 'subagent') }]
@@ -178,6 +183,7 @@ export function mapHookEventToStatus(hook: ParsedClaudeHook): SessionStatusType 
       if (hook.tool_name === 'ExitPlanMode') return 'plan_ready'
       if (hook.tool_name === 'AskUserQuestion') return 'answering'
       return 'permission'
+    case 'SubagentStart':
     case 'SubagentStop':
       return null
     default:
@@ -252,7 +258,12 @@ function publishClaudeCliBackgroundWork(payload: ClaudeCliBackgroundWorkPayload)
  */
 export function resetClaudeCliBackgroundWork(sessionId: string): void {
   if (clearClaudeCliBackgroundWork(sessionId)) {
-    publishClaudeCliBackgroundWork({ sessionId, runningShells: 0, runningMonitors: 0 })
+    publishClaudeCliBackgroundWork({
+      sessionId,
+      runningShells: 0,
+      runningMonitors: 0,
+      runningSubagents: 0
+    })
   }
 }
 

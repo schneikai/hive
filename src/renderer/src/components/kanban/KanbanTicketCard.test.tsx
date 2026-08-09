@@ -143,9 +143,11 @@ describe('KanbanTicketCard background work badges', () => {
 
   const linkedTicket: KanbanTicket = { ...baseTicket, current_session_id: 'session-1' }
 
-  it('renders shell and monitor count badges for the linked session', () => {
+  it('renders shell, monitor, and subagent count badges for the linked session', () => {
     useWorktreeStatusStore.setState({
-      backgroundWorkBySession: { 'session-1': { runningShells: 2, runningMonitors: 1 } }
+      backgroundWorkBySession: {
+        'session-1': { runningShells: 2, runningMonitors: 1, runningSubagents: 3 }
+      }
     })
 
     render(
@@ -156,11 +158,14 @@ describe('KanbanTicketCard background work badges', () => {
 
     expect(screen.getByTestId('kanban-ticket-running-shells')).toHaveTextContent('2')
     expect(screen.getByTestId('kanban-ticket-running-monitors')).toHaveTextContent('1')
+    expect(screen.getByTestId('kanban-ticket-running-subagents')).toHaveTextContent('3')
   })
 
   it('renders only the badge whose count is non-zero', () => {
     useWorktreeStatusStore.setState({
-      backgroundWorkBySession: { 'session-1': { runningShells: 1, runningMonitors: 0 } }
+      backgroundWorkBySession: {
+        'session-1': { runningShells: 1, runningMonitors: 0, runningSubagents: 0 }
+      }
     })
 
     render(
@@ -171,11 +176,32 @@ describe('KanbanTicketCard background work badges', () => {
 
     expect(screen.getByTestId('kanban-ticket-running-shells')).toHaveTextContent('1')
     expect(screen.queryByTestId('kanban-ticket-running-monitors')).toBeNull()
+    expect(screen.queryByTestId('kanban-ticket-running-subagents')).toBeNull()
+  })
+
+  it('renders the subagent badge alone while a workflow runs its agents', () => {
+    useWorktreeStatusStore.setState({
+      backgroundWorkBySession: {
+        'session-1': { runningShells: 0, runningMonitors: 0, runningSubagents: 2 }
+      }
+    })
+
+    render(
+      <TooltipProvider>
+        <KanbanTicketCard ticket={linkedTicket} />
+      </TooltipProvider>
+    )
+
+    expect(screen.getByTestId('kanban-ticket-running-subagents')).toHaveTextContent('2')
+    expect(screen.queryByTestId('kanban-ticket-running-shells')).toBeNull()
+    expect(screen.queryByTestId('kanban-ticket-running-monitors')).toBeNull()
   })
 
   it('renders no badges without counts or for other sessions', () => {
     useWorktreeStatusStore.setState({
-      backgroundWorkBySession: { 'other-session': { runningShells: 3, runningMonitors: 3 } }
+      backgroundWorkBySession: {
+        'other-session': { runningShells: 3, runningMonitors: 3, runningSubagents: 3 }
+      }
     })
 
     render(
@@ -186,5 +212,6 @@ describe('KanbanTicketCard background work badges', () => {
 
     expect(screen.queryByTestId('kanban-ticket-running-shells')).toBeNull()
     expect(screen.queryByTestId('kanban-ticket-running-monitors')).toBeNull()
+    expect(screen.queryByTestId('kanban-ticket-running-subagents')).toBeNull()
   })
 })

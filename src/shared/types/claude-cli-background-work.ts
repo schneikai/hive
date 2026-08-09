@@ -1,9 +1,9 @@
 /**
  * Live background-work counts for a Claude CLI session: how many background
- * shells (Bash with run_in_background) and monitors (Monitor tool) are running
- * right now. Published by the main-process hook server on the dedicated
- * channel below (the status channel dedups by status string, which would
- * swallow count-only changes).
+ * shells (Bash with run_in_background), monitors (Monitor tool), and subagents
+ * (Task/Agent tool + workflow-spawned agents) are running right now. Published
+ * by the main-process hook server on the dedicated channel below (the status
+ * channel dedups by status string, which would swallow count-only changes).
  */
 export const CLAUDE_CLI_BACKGROUND_WORK_CHANNEL = 'claude-cli:background-work'
 
@@ -11,6 +11,7 @@ export interface ClaudeCliBackgroundWorkPayload {
   sessionId: string
   runningShells: number
   runningMonitors: number
+  runningSubagents: number
 }
 
 export function isClaudeCliBackgroundWorkPayload(
@@ -21,6 +22,7 @@ export function isClaudeCliBackgroundWorkPayload(
   return (
     typeof payload.sessionId === 'string' &&
     typeof payload.runningShells === 'number' &&
-    typeof payload.runningMonitors === 'number'
+    typeof payload.runningMonitors === 'number' &&
+    typeof payload.runningSubagents === 'number'
   )
 }
