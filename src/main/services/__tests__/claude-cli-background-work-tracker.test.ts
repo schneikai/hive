@@ -13,7 +13,9 @@ import type { ParsedClaudeHook } from '../claude-hook-server'
 
 const SESSION = 'hive-session-1'
 
-// Fixtures mirror real hook payloads captured from claude v2.1.218.
+// Fixtures mirror real hook payloads captured from claude v2.1.218 (shells/
+// monitors) and v2.1.226 (subagents/workflows, via the claude-playground
+// prototype).
 
 function backgroundBashStart(taskId: string): ParsedClaudeHook {
   return {
@@ -39,6 +41,26 @@ function monitorStart(taskId: string): ParsedClaudeHook {
   }
 }
 
+function subagentStart(agentId: string): ParsedClaudeHook {
+  return {
+    hook_event_name: 'SubagentStart',
+    agent_id: agentId,
+    agent_type: 'general-purpose'
+  }
+}
+
+function subagentStop(
+  agentId: string,
+  backgroundTasks: ParsedClaudeHook['background_tasks'] = []
+): ParsedClaudeHook {
+  return {
+    hook_event_name: 'SubagentStop',
+    agent_id: agentId,
+    agent_type: 'general-purpose',
+    background_tasks: backgroundTasks
+  }
+}
+
 function notificationPrompt(blocks: string[]): ParsedClaudeHook {
   return { hook_event_name: 'UserPromptSubmit', prompt: blocks.join('\n') }
 }
@@ -55,7 +77,8 @@ describe('processClaudeCliBackgroundWorkHook', () => {
   it('counts a background Bash start from PostToolUse', () => {
     expect(processClaudeCliBackgroundWorkHook(SESSION, backgroundBashStart('bshell1'))).toEqual({
       runningShells: 1,
-      runningMonitors: 0
+      runningMonitors: 0,
+      runningSubagents: 0
     })
   })
 
@@ -86,7 +109,8 @@ describe('processClaudeCliBackgroundWorkHook', () => {
 
     expect(processClaudeCliBackgroundWorkHook(SESSION, monitorStart('bmon1'))).toEqual({
       runningShells: 0,
-      runningMonitors: 1
+      runningMonitors: 1,
+      runningSubagents: 0
     })
     expect(processClaudeCliBackgroundWorkHook(SESSION, failed)).toBeNull()
   })
@@ -104,7 +128,8 @@ describe('processClaudeCliBackgroundWorkHook', () => {
 
     expect(processClaudeCliBackgroundWorkHook(SESSION, stop)).toEqual({
       runningShells: 0,
-      runningMonitors: 1
+      runningMonitors: 1,
+      runningSubagents: 0
     })
   })
 
@@ -113,7 +138,7 @@ describe('processClaudeCliBackgroundWorkHook', () => {
       processClaudeCliBackgroundWorkHook(SESSION, backgroundBashStart('btask'))
       expect(
         processClaudeCliBackgroundWorkHook(SESSION, notificationPrompt([terminalBlock('btask', status)]))
-      ).toEqual({ runningShells: 0, runningMonitors: 0 })
+      ).toEqual({ runningShells: 0, runningMonitors: 0, runningSubagents: 0 })
     }
   })
 
@@ -127,7 +152,8 @@ describe('processClaudeCliBackgroundWorkHook', () => {
     expect(processClaudeCliBackgroundWorkHook(SESSION, routineEvent)).toBeNull()
     expect(getClaudeCliBackgroundWorkCounts(SESSION)).toEqual({
       runningShells: 0,
-      runningMonitors: 1
+      runningMonitors: 1,
+      runningSubagents: 0
     })
   })
 
@@ -142,11 +168,13 @@ describe('processClaudeCliBackgroundWorkHook', () => {
 
     expect(processClaudeCliBackgroundWorkHook(SESSION, streamEnded)).toEqual({
       runningShells: 0,
-      runningMonitors: 1
+      runningMonitors: 1,
+      runningSubagents: 0
     })
     expect(processClaudeCliBackgroundWorkHook(SESSION, timedOut)).toEqual({
       runningShells: 0,
-      runningMonitors: 0
+      runningMonitors: 0,
+      runningSubagents: 0
     })
   })
 
@@ -164,9 +192,11 @@ describe('processClaudeCliBackgroundWorkHook', () => {
       ]
     }
 
+    // The running subagent in the snapshot is adopted, not ignored.
     expect(processClaudeCliBackgroundWorkHook(SESSION, stop)).toEqual({
       runningShells: 1,
-      runningMonitors: 1
+      runningMonitors: 1,
+      runningSubagents: 1
     })
   })
 
@@ -176,12 +206,13 @@ describe('processClaudeCliBackgroundWorkHook', () => {
     expect(processClaudeCliBackgroundWorkHook(SESSION, { hook_event_name: 'Stop' })).toBeNull()
     expect(getClaudeCliBackgroundWorkCounts(SESSION)).toEqual({
       runningShells: 1,
-      runningMonitors: 0
+      runningMonitors: 0,
+      runningSubagents: 0
     })
 
     expect(
       processClaudeCliBackgroundWorkHook(SESSION, { hook_event_name: 'Stop', background_tasks: [] })
-    ).toEqual({ runningShells: 0, runningMonitors: 0 })
+    ).toEqual({ runningShells: 0, runningMonitors: 0, runningSubagents: 0 })
   })
 
   it('clears everything on session boundaries', () => {
@@ -191,7 +222,8 @@ describe('processClaudeCliBackgroundWorkHook', () => {
 
       expect(processClaudeCliBackgroundWorkHook(SESSION, { hook_event_name: event })).toEqual({
         runningShells: 0,
-        runningMonitors: 0
+        runningMonitors: 0,
+        runningSubagents: 0
       })
     }
   })
@@ -206,11 +238,128 @@ describe('processClaudeCliBackgroundWorkHook', () => {
 
     expect(getClaudeCliBackgroundWorkCounts('session-a')).toEqual({
       runningShells: 1,
-      runningMonitors: 0
+      runningMonitors: 0,
+      runningSubagents: 0
     })
     expect(getClaudeCliBackgroundWorkCounts('session-b')).toEqual({
       runningShells: 0,
-      runningMonitors: 1
+      runningMonitors: 1,
+      runningSubagents: 0
+    })
+  })
+})
+
+describe('subagent counting', () => {
+  it('counts SubagentStart and retires on SubagentStop', () => {
+    expect(processClaudeCliBackgroundWorkHook(SESSION, subagentStart('a1'))).toEqual({
+      runningShells: 0,
+      runningMonitors: 0,
+      runningSubagents: 1
+    })
+    expect(processClaudeCliBackgroundWorkHook(SESSION, subagentStart('a2'))).toEqual({
+      runningShells: 0,
+      runningMonitors: 0,
+      runningSubagents: 2
+    })
+    expect(processClaudeCliBackgroundWorkHook(SESSION, subagentStop('a1'))).toEqual({
+      runningShells: 0,
+      runningMonitors: 0,
+      runningSubagents: 1
+    })
+    expect(processClaudeCliBackgroundWorkHook(SESSION, subagentStop('a2'))).toEqual({
+      runningShells: 0,
+      runningMonitors: 0,
+      runningSubagents: 0
+    })
+  })
+
+  it('ignores a SubagentStart without an agent id', () => {
+    expect(
+      processClaudeCliBackgroundWorkHook(SESSION, { hook_event_name: 'SubagentStart' })
+    ).toBeNull()
+  })
+
+  it("never prunes siblings on a SubagentStop's empty snapshot (foreground agents are invisible there)", () => {
+    // Two foreground subagents; the first one's SubagentStop carries
+    // background_tasks: [] (captured from claude v2.1.226) — the second must
+    // survive it.
+    processClaudeCliBackgroundWorkHook(SESSION, subagentStart('a1'))
+    processClaudeCliBackgroundWorkHook(SESSION, subagentStart('a2'))
+
+    expect(processClaudeCliBackgroundWorkHook(SESSION, subagentStop('a1', []))).toEqual({
+      runningShells: 0,
+      runningMonitors: 0,
+      runningSubagents: 1
+    })
+  })
+
+  it("retires a background subagent on its own SubagentStop even though it self-lists as running", () => {
+    // A background subagent's SubagentStop still lists it as 'running' in the
+    // snapshot (its result has not been consumed yet) — the stop edge wins.
+    processClaudeCliBackgroundWorkHook(SESSION, subagentStart('a1'))
+
+    expect(
+      processClaudeCliBackgroundWorkHook(
+        SESSION,
+        subagentStop('a1', [{ id: 'a1', type: 'subagent', status: 'running' }])
+      )
+    ).toEqual({ runningShells: 0, runningMonitors: 0, runningSubagents: 0 })
+  })
+
+  it('adopts running background subagents from a snapshot when their start was missed', () => {
+    expect(
+      processClaudeCliBackgroundWorkHook(SESSION, {
+        hook_event_name: 'Stop',
+        background_tasks: [{ id: 'a9', type: 'subagent', status: 'running' }]
+      })
+    ).toEqual({ runningShells: 0, runningMonitors: 0, runningSubagents: 1 })
+  })
+
+  it('keeps workflow-spawned agents through a main Stop whose snapshot only lists the workflow', () => {
+    // Workflow inner agents never appear in background_tasks — only the parent
+    // {type:'workflow'} task does (captured from claude v2.1.226).
+    processClaudeCliBackgroundWorkHook(SESSION, subagentStart('wf-agent-1'))
+
+    expect(
+      processClaudeCliBackgroundWorkHook(SESSION, {
+        hook_event_name: 'Stop',
+        background_tasks: [{ id: 'w1', type: 'workflow', status: 'running' }]
+      })
+    ).toBeNull()
+    expect(getClaudeCliBackgroundWorkCounts(SESSION)).toEqual({
+      runningShells: 0,
+      runningMonitors: 0,
+      runningSubagents: 1
+    })
+  })
+
+  it('prunes stale subagent ids at a main Stop with no workflow running', () => {
+    processClaudeCliBackgroundWorkHook(SESSION, subagentStart('leaked'))
+
+    expect(
+      processClaudeCliBackgroundWorkHook(SESSION, { hook_event_name: 'Stop', background_tasks: [] })
+    ).toEqual({ runningShells: 0, runningMonitors: 0, runningSubagents: 0 })
+  })
+
+  it('retires a subagent via a terminal task notification when its SubagentStop was missed', () => {
+    processClaudeCliBackgroundWorkHook(SESSION, subagentStart('a1'))
+
+    expect(
+      processClaudeCliBackgroundWorkHook(SESSION, notificationPrompt([terminalBlock('a1', 'completed')]))
+    ).toEqual({ runningShells: 0, runningMonitors: 0, runningSubagents: 0 })
+  })
+
+  it('does not count a running workflow task itself as a subagent', () => {
+    expect(
+      processClaudeCliBackgroundWorkHook(SESSION, {
+        hook_event_name: 'Stop',
+        background_tasks: [{ id: 'w1', type: 'workflow', status: 'running' }]
+      })
+    ).toBeNull()
+    expect(getClaudeCliBackgroundWorkCounts(SESSION)).toEqual({
+      runningShells: 0,
+      runningMonitors: 0,
+      runningSubagents: 0
     })
   })
 })
@@ -223,8 +372,14 @@ describe('clearClaudeCliBackgroundWork', () => {
     expect(clearClaudeCliBackgroundWork(SESSION)).toBe(true)
     expect(getClaudeCliBackgroundWorkCounts(SESSION)).toEqual({
       runningShells: 0,
-      runningMonitors: 0
+      runningMonitors: 0,
+      runningSubagents: 0
     })
+  })
+
+  it('reports live counts for a session tracking only subagents', () => {
+    processClaudeCliBackgroundWorkHook(SESSION, subagentStart('a1'))
+    expect(clearClaudeCliBackgroundWork(SESSION)).toBe(true)
   })
 })
 

@@ -54,6 +54,7 @@ export type MergeConflictFlow =
 export interface SessionBackgroundWork {
   runningShells: number
   runningMonitors: number
+  runningSubagents: number
 }
 
 interface WorktreeStatusState {
@@ -213,7 +214,7 @@ export const useWorktreeStatusStore = create<WorktreeStatusState>((set, get) => 
 
   setSessionBackgroundWork: (sessionId: string, work: SessionBackgroundWork) => {
     set((state) => {
-      if (work.runningShells === 0 && work.runningMonitors === 0) {
+      if (work.runningShells === 0 && work.runningMonitors === 0 && work.runningSubagents === 0) {
         if (!(sessionId in state.backgroundWorkBySession)) return {}
         const { [sessionId]: _, ...rest } = state.backgroundWorkBySession
         return { backgroundWorkBySession: rest }

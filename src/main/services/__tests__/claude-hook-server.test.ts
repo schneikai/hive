@@ -203,6 +203,16 @@ describe('buildClaudeCliHookSettings', () => {
             ]
           }
         ],
+        SubagentStart: [
+          {
+            hooks: [
+              {
+                type: 'http',
+                url: 'http://127.0.0.1:34819/hook/hive-session-1/subagent'
+              }
+            ]
+          }
+        ],
         SubagentStop: [
           {
             hooks: [
@@ -247,8 +257,6 @@ describe('buildClaudeCliHookSettings', () => {
             ]
           }
         ],
-        // SubagentStart is intentionally not registered: only completion of a
-        // background subagent (SubagentStop) is needed by the tracker.
         PermissionRequest: [
           {
             matcher: '*',
@@ -262,7 +270,6 @@ describe('buildClaudeCliHookSettings', () => {
         ]
       }
     })
-    expect(settings.hooks).not.toHaveProperty('SubagentStart')
   })
 })
 
@@ -1102,7 +1109,7 @@ describe('background shell/monitor counts (HTTP round-trip)', () => {
     await vi.waitFor(() => {
       expect(backendManagerMocks.publishDesktopBackendEvent).toHaveBeenCalledWith(
         'claude-cli:background-work',
-        { sessionId: SESSION, runningShells: 1, runningMonitors: 0 }
+        { sessionId: SESSION, runningShells: 1, runningMonitors: 0, runningSubagents: 0 }
       )
     })
 
@@ -1114,7 +1121,7 @@ describe('background shell/monitor counts (HTTP round-trip)', () => {
     await vi.waitFor(() => {
       expect(backendManagerMocks.publishDesktopBackendEvent).toHaveBeenCalledWith(
         'claude-cli:background-work',
-        { sessionId: SESSION, runningShells: 1, runningMonitors: 1 }
+        { sessionId: SESSION, runningShells: 1, runningMonitors: 1, runningSubagents: 0 }
       )
     })
 
@@ -1127,7 +1134,7 @@ describe('background shell/monitor counts (HTTP round-trip)', () => {
     await vi.waitFor(() => {
       expect(backendManagerMocks.publishDesktopBackendEvent).toHaveBeenCalledWith(
         'claude-cli:background-work',
-        { sessionId: SESSION, runningShells: 0, runningMonitors: 1 }
+        { sessionId: SESSION, runningShells: 0, runningMonitors: 1, runningSubagents: 0 }
       )
     })
   })
@@ -1169,7 +1176,7 @@ describe('background shell/monitor counts (HTTP round-trip)', () => {
     await vi.waitFor(() => {
       expect(backendManagerMocks.publishDesktopBackendEvent).toHaveBeenCalledWith(
         'claude-cli:background-work',
-        { sessionId: SESSION, runningShells: 1, runningMonitors: 0 }
+        { sessionId: SESSION, runningShells: 1, runningMonitors: 0, runningSubagents: 0 }
       )
     })
 
@@ -1182,7 +1189,7 @@ describe('background shell/monitor counts (HTTP round-trip)', () => {
     await vi.waitFor(() => {
       expect(backendManagerMocks.publishDesktopBackendEvent).toHaveBeenCalledWith(
         'claude-cli:background-work',
-        { sessionId: SESSION, runningShells: 0, runningMonitors: 0 }
+        { sessionId: SESSION, runningShells: 0, runningMonitors: 0, runningSubagents: 0 }
       )
     })
   })
@@ -1197,7 +1204,38 @@ describe('background shell/monitor counts (HTTP round-trip)', () => {
     await vi.waitFor(() => {
       expect(backendManagerMocks.publishDesktopBackendEvent).toHaveBeenCalledWith(
         'claude-cli:background-work',
-        { sessionId: SESSION, runningShells: 0, runningMonitors: 0 }
+        { sessionId: SESSION, runningShells: 0, runningMonitors: 0, runningSubagents: 0 }
+      )
+    })
+  })
+
+  it('publishes subagent count changes for SubagentStart/SubagentStop round-trips', async () => {
+    const { port } = await getClaudeHookServer()
+    backendManagerMocks.publishDesktopBackendEvent.mockResolvedValue(true)
+
+    // Payload shapes captured from claude v2.1.226 (workflow-spawned agents).
+    await postHook(port, SESSION, 'subagent', {
+      hook_event_name: 'SubagentStart',
+      agent_id: 'a01d7c67fdfa59db2',
+      agent_type: 'workflow-subagent'
+    })
+    await vi.waitFor(() => {
+      expect(backendManagerMocks.publishDesktopBackendEvent).toHaveBeenCalledWith(
+        'claude-cli:background-work',
+        { sessionId: SESSION, runningShells: 0, runningMonitors: 0, runningSubagents: 1 }
+      )
+    })
+
+    await postHook(port, SESSION, 'subagent', {
+      hook_event_name: 'SubagentStop',
+      agent_id: 'a01d7c67fdfa59db2',
+      agent_type: 'workflow-subagent',
+      background_tasks: [{ id: 'w7op2i0my', type: 'workflow', status: 'running' }]
+    })
+    await vi.waitFor(() => {
+      expect(backendManagerMocks.publishDesktopBackendEvent).toHaveBeenCalledWith(
+        'claude-cli:background-work',
+        { sessionId: SESSION, runningShells: 0, runningMonitors: 0, runningSubagents: 0 }
       )
     })
   })

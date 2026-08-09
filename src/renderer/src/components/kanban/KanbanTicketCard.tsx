@@ -35,7 +35,8 @@ import {
   RadioTower,
   Unplug,
   SquareTerminal,
-  Radar
+  Radar,
+  Bot
 } from 'lucide-react'
 import { CheckeredFlagIcon } from './CheckeredFlagIcon'
 import { HighlightedText } from './HighlightedText'
@@ -1181,6 +1182,25 @@ export const KanbanTicketCard = memo(function KanbanTicketCard({
                     <GitBranch className="h-3 w-3" />
                     {queuedBranchLabel}
                   </span>
+                )}
+                {/* Running subagents in the linked claude-cli session */}
+                {backgroundWork && backgroundWork.runningSubagents > 0 && (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span
+                        data-testid="kanban-ticket-running-subagents"
+                        className="inline-flex items-center gap-1 rounded-full bg-violet-500/10 border border-violet-500/30 px-2 py-0.5 text-[11px] font-medium text-violet-500 cursor-help"
+                      >
+                        <Bot className="h-3 w-3" />
+                        {backgroundWork.runningSubagents}
+                      </span>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      {backgroundWork.runningSubagents === 1
+                        ? '1 subagent running'
+                        : `${backgroundWork.runningSubagents} subagents running`}
+                    </TooltipContent>
+                  </Tooltip>
                 )}
                 {/* Running background shells in the linked claude-cli session */}
                 {backgroundWork && backgroundWork.runningShells > 0 && (

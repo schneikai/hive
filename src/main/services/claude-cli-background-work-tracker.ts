@@ -25,6 +25,16 @@ import { isTaskNotificationPrompt } from './claude-cli-subagent-tracker'
  *   authoritative reconciliation that self-heals such gaps at each turn
  *   boundary (both shells and monitors appear there as type 'shell', so it
  *   can prune but never classify — classification only happens at start).
+ * - Subagents (validated against claude v2.1.226): every subagent —
+ *   foreground Task, background Task, and workflow-spawned — fires
+ *   `SubagentStart` with an `agent_id` and `SubagentStop` with the same id,
+ *   so the live count comes from those edges. Snapshot reconciliation differs
+ *   from shells: background Task subagents DO appear as classified
+ *   `{type:'subagent'}` entries (adoptable), but workflow-spawned agents
+ *   never appear — only their parent `{type:'workflow'}` task does — so
+ *   pruning the whole set is only safe when the snapshot shows no running
+ *   subagent-or-workflow work at a main-agent Stop (nothing agent-ish can be
+ *   alive then; foreground subagents cannot outlive their turn).
  * - SessionStart/SessionEnd clear everything; background tasks never survive
  *   the CLI process, and orphans are reported to the *next* session.
  */
@@ -32,11 +42,13 @@ import { isTaskNotificationPrompt } from './claude-cli-subagent-tracker'
 export interface ClaudeCliBackgroundWorkCounts {
   runningShells: number
   runningMonitors: number
+  runningSubagents: number
 }
 
 interface SessionWork {
   shells: Set<string>
   monitors: Set<string>
+  subagents: Set<string>
 }
 
 // sessionId -> live background-task ids. Same accepted race as the subagent
@@ -53,14 +65,14 @@ const NOTIFICATION_BLOCK_PATTERN = /<task-notification>([\s\S]*?)<\/task-notific
 function getOrCreateWork(sessionId: string): SessionWork {
   let work = sessions.get(sessionId)
   if (!work) {
-    work = { shells: new Set(), monitors: new Set() }
+    work = { shells: new Set(), monitors: new Set(), subagents: new Set() }
     sessions.set(sessionId, work)
   }
   return work
 }
 
 function pruneIfEmpty(sessionId: string, work: SessionWork): void {
-  if (work.shells.size === 0 && work.monitors.size === 0) {
+  if (work.shells.size === 0 && work.monitors.size === 0 && work.subagents.size === 0) {
     sessions.delete(sessionId)
   }
 }
@@ -68,7 +80,8 @@ function pruneIfEmpty(sessionId: string, work: SessionWork): void {
 function counts(work: SessionWork | undefined): ClaudeCliBackgroundWorkCounts {
   return {
     runningShells: work?.shells.size ?? 0,
-    runningMonitors: work?.monitors.size ?? 0
+    runningMonitors: work?.monitors.size ?? 0,
+    runningSubagents: work?.subagents.size ?? 0
   }
 }
 
@@ -111,6 +124,17 @@ function responseId(hook: ParsedClaudeHook, field: string): string | null {
 }
 
 function canStartBackgroundWork(hook: ParsedClaudeHook): boolean {
+  if (hook.hook_event_name === 'SubagentStart') return true
+  // Stop/SubagentStop snapshots can adopt background subagents this process
+  // never saw start (e.g. hooks lost mid-flight).
+  if (
+    (hook.hook_event_name === 'Stop' || hook.hook_event_name === 'SubagentStop') &&
+    (hook.background_tasks ?? []).some(
+      (task) => task.type === 'subagent' && task.status === 'running'
+    )
+  ) {
+    return true
+  }
   return (
     hook.hook_event_name === 'PostToolUse' &&
     (hook.tool_name === 'Bash' || hook.tool_name === 'Monitor')
@@ -150,14 +174,37 @@ function reconcileWithSnapshot(work: SessionWork, hook: ParsedClaudeHook): void 
   if (!Array.isArray(tasks)) return
 
   const running = new Set<string>()
+  const runningSubagents = new Set<string>()
+  let runningWorkflow = false
   for (const task of tasks) {
-    if (task.status === 'running' && task.id) running.add(task.id)
+    if (task.status !== 'running') continue
+    if (task.id) running.add(task.id)
+    if (task.type === 'subagent' && task.id) runningSubagents.add(task.id)
+    if (task.type === 'workflow') runningWorkflow = true
   }
   for (const id of work.shells) {
     if (!running.has(id)) work.shells.delete(id)
   }
   for (const id of work.monitors) {
     if (!running.has(id)) work.monitors.delete(id)
+  }
+  // Adoption: unlike shells/monitors, snapshot entries classify subagents, so
+  // a background subagent whose SubagentStart this process missed can still
+  // be counted.
+  for (const id of runningSubagents) {
+    work.subagents.add(id)
+  }
+  // Subagent pruning is only safe at a main-agent Stop with no workflow
+  // running: foreground subagents cannot outlive their turn, so everything
+  // still alive must be in the snapshot then. A running workflow blocks
+  // pruning because its spawned agents never appear in snapshots (only the
+  // parent workflow task does) yet outlive main-agent turns. A SubagentStop's
+  // snapshot proves nothing about sibling foreground agents, so it never
+  // prunes.
+  if (hook.hook_event_name === 'Stop' && !hook.agent_id && !runningWorkflow) {
+    for (const id of work.subagents) {
+      if (!runningSubagents.has(id)) work.subagents.delete(id)
+    }
   }
 }
 
@@ -187,19 +234,34 @@ export function processClaudeCliBackgroundWorkHook(
 
   if (event === 'PostToolUse') {
     observePostToolUse(work, hook)
+  } else if (event === 'SubagentStart') {
+    if (typeof hook.agent_id === 'string' && hook.agent_id.length > 0) {
+      work.subagents.add(hook.agent_id)
+    }
   } else if (event === 'UserPromptSubmit') {
     for (const id of parseEndedTaskNotificationIds(hook.prompt)) {
       work.shells.delete(id)
       work.monitors.delete(id)
+      // A background subagent stays 'running' in snapshots until its result
+      // is consumed by this resume — retire it here in case a snapshot
+      // re-adopted it after its SubagentStop.
+      work.subagents.delete(id)
     }
   } else if (event === 'Stop' || event === 'SubagentStop') {
     reconcileWithSnapshot(work, hook)
+    // Delete after reconciling: a background subagent's own SubagentStop
+    // still self-lists it as 'running' (result not yet consumed), and the
+    // stop edge must win over that snapshot adoption.
+    if (event === 'SubagentStop' && typeof hook.agent_id === 'string') {
+      work.subagents.delete(hook.agent_id)
+    }
   }
 
   const after = counts(work)
   pruneIfEmpty(sessionId, work)
   return after.runningShells !== before.runningShells ||
-    after.runningMonitors !== before.runningMonitors
+    after.runningMonitors !== before.runningMonitors ||
+    after.runningSubagents !== before.runningSubagents
     ? after
     : null
 }
@@ -214,7 +276,7 @@ export function clearClaudeCliBackgroundWork(sessionId: string): boolean {
   const work = sessions.get(sessionId)
   if (!work) return false
   sessions.delete(sessionId)
-  return work.shells.size > 0 || work.monitors.size > 0
+  return work.shells.size > 0 || work.monitors.size > 0 || work.subagents.size > 0
 }
 
 export function clearAllClaudeCliBackgroundWork(): void {
