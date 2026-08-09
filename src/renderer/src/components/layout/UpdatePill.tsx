@@ -22,14 +22,16 @@ export function UpdatePill(): React.JSX.Element | null {
         : downloadFailed
           ? 'Retry download'
           : 'Update available'
+  // An adopted mid-download state may not know its version yet
+  const versionSuffix = version ? ` v${version}` : ''
   const title =
     status === 'downloaded'
-      ? `Restart Hive to finish installing v${version}`
+      ? `Restart Hive to finish installing${versionSuffix}`
       : downloading
-        ? `Downloading update v${version}`
+        ? `Downloading update${versionSuffix}`
         : downloadFailed
-          ? `Download failed for v${version} — click to retry`
-          : `Update v${version} available — click to download`
+          ? `Download failed${versionSuffix ? ` for${versionSuffix}` : ''} — click to retry`
+          : `Update${versionSuffix} available — click to download`
   const Icon = status === 'downloaded' ? RotateCw : Download
 
   return (

@@ -98,10 +98,7 @@ describe('useUpdateStore', () => {
     expect(useUpdateStore.getState().downloadFailed).toBe(false)
   })
 
-  it('tracks download progress and ignores stray progress events', () => {
-    useUpdateStore.getState().setProgress(10)
-    expect(useUpdateStore.getState().status).toBe('idle')
-
+  it('tracks download progress and ignores it only once downloaded', () => {
     useUpdateStore.getState().setAvailable('1.3.0')
     useUpdateStore.getState().startDownload()
     useUpdateStore.getState().setProgress(42.5)
@@ -113,6 +110,20 @@ describe('useUpdateStore', () => {
     useUpdateStore.getState().setProgress(99)
     expect(useUpdateStore.getState().status).toBe('downloaded')
     expect(useUpdateStore.getState().percent).toBe(100)
+  })
+
+  it('adopts an in-flight download when the renderer mounts mid-download', () => {
+    // A fresh window's store starts idle while main keeps downloading
+    useUpdateStore.getState().setProgress(10)
+
+    expect(useUpdateStore.getState().status).toBe('downloading')
+    expect(useUpdateStore.getState().version).toBeNull()
+    expect(selectUpdatePillVisible(useUpdateStore.getState())).toBe(true)
+
+    // A failure of that adopted download is still actionable as a retry
+    useUpdateStore.getState().setDownloadError()
+    expect(useUpdateStore.getState().status).toBe('available')
+    expect(useUpdateStore.getState().downloadFailed).toBe(true)
   })
 
   it('adopts a download started elsewhere when progress arrives while available', () => {
