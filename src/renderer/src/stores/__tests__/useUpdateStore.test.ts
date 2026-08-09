@@ -123,6 +123,18 @@ describe('useUpdateStore', () => {
     expect(useUpdateStore.getState().percent).toBe(10)
   })
 
+  it('clears a stale failure flag when progress shows the download is running', () => {
+    useUpdateStore.getState().setAvailable('1.3.0')
+    useUpdateStore.getState().startDownload()
+    useUpdateStore.getState().setDownloadError()
+    expect(useUpdateStore.getState().downloadFailed).toBe(true)
+
+    useUpdateStore.getState().setProgress(12)
+
+    expect(useUpdateStore.getState().status).toBe('downloading')
+    expect(useUpdateStore.getState().downloadFailed).toBe(false)
+  })
+
   it('clamps out-of-range progress percentages', () => {
     useUpdateStore.getState().setAvailable('1.3.0')
     useUpdateStore.getState().startDownload()

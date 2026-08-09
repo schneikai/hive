@@ -53,7 +53,13 @@ export const useUpdateStore = create<UpdateStoreState>()((set, get) => ({
     // A progress event means a download is running even if we didn't start it
     // (e.g. triggered from another window); ignore it only with no known update
     if (status === 'idle' || status === 'downloaded') return
-    set({ status: 'downloading', percent: Math.min(100, Math.max(0, percent)) })
+    // Running progress also invalidates any stale failure flag, so a revived
+    // download can't strand the pill in a disabled retry mixture
+    set({
+      status: 'downloading',
+      percent: Math.min(100, Math.max(0, percent)),
+      downloadFailed: false
+    })
   },
 
   setDownloaded: (version) => {
