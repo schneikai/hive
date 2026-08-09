@@ -65,7 +65,7 @@ export function UpdatePill(): React.JSX.Element | null {
             aria-label="Dismiss until next launch"
             title="Dismiss until next launch"
             onClick={dismiss}
-            className="relative mr-1 flex h-5 w-5 shrink-0 cursor-pointer items-center justify-center rounded-sm text-primary/60 opacity-0 transition-opacity hover:bg-primary/15 hover:text-primary group-hover:opacity-100"
+            className="relative mr-1 flex h-5 w-5 shrink-0 cursor-pointer items-center justify-center rounded-sm text-primary/60 opacity-0 transition-opacity hover:bg-primary/15 hover:text-primary group-hover:opacity-100 focus-visible:opacity-100"
           >
             <X className="h-3 w-3" />
           </button>

@@ -96,6 +96,11 @@ describe('UpdatePill', () => {
       useUpdateStore.getState().setAvailable('1.3.0')
     })
 
+    // Hover-revealed control must also become visible on keyboard focus
+    expect(screen.getByTestId('update-pill-dismiss').className).toContain(
+      'focus-visible:opacity-100'
+    )
+
     await userEvent.click(screen.getByTestId('update-pill-dismiss'))
 
     expect(screen.queryByTestId('update-pill')).not.toBeInTheDocument()
