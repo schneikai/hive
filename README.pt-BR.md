@@ -74,7 +74,7 @@ Hive é um orquestrador de agentes IA. Veja todos os seus agentes em execução 
 ## Funcionalidades
 
 ### 🌳 **Workflow orientado a Worktrees**
-Trabalhe em múltiplos branches simultaneamente sem stash ou troca. Crie, arquive e organize worktrees com um clique. Cada worktree recebe um nome único baseado em cidades para fácil identificação.
+Trabalhe em múltiplos branches simultaneamente sem stash ou troca. Crie, arquive e organize worktrees com um clique. Cada worktree recebe um nome único baseado em raças de cães e gatos para fácil identificação.
 
 ### 🤖 **Sessões de codificação IA integradas**
 Execute agentes de codificação IA diretamente dentro do Hive com suporte para **OpenCode**, **Claude Code** e **Codex**. Transmita respostas em tempo real, observe a execução de chamadas de ferramentas e aprove permissões conforme necessário. Suporte completo de desfazer/refazer mantém você no controle.

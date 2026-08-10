@@ -74,7 +74,7 @@ Hive bir AI ajan orkestratörüdür. Çalışan tüm ajanlarınızı tek bir ken
 ## Özellikler
 
 ### 🌳 **Worktree Öncelikli İş Akışı**
-Stash yapmadan veya dal değiştirmeden aynı anda birden fazla dalda çalışın. Tek tıkla worktree oluşturun, arşivleyin ve düzenleyin. Her worktree kolay tanımlama için şehir tabanlı benzersiz bir ad alır.
+Stash yapmadan veya dal değiştirmeden aynı anda birden fazla dalda çalışın. Tek tıkla worktree oluşturun, arşivleyin ve düzenleyin. Her worktree kolay tanımlama için köpek veya kedi ırkı tabanlı benzersiz bir ad alır.
 
 ### 🤖 **Yerleşik AI Kodlama Oturumları**
 **OpenCode**, **Claude Code** ve **Codex** desteğiyle AI kodlama ajanlarını doğrudan Hive içinde çalıştırın. Yanıtları gerçek zamanlı aktarın, araç çağrılarının yürütülmesini izleyin ve gerektiğinde izinleri onaylayın. Tam geri al/yinele desteği sizi kontrol altında tutar.

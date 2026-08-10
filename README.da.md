@@ -74,7 +74,7 @@ Hive er en AI-agent orkestrator. Se alle dine kørende agenter i én sidebar, kl
 ## Funktioner
 
 ### 🌳 **Worktree-First Arbejdsgang**
-Arbejd på flere branches samtidigt uden stashing eller switching. Opret, arkivér og organisér worktrees med ét klik. Hver worktree får et unikt bybaseret navn for nem identifikation.
+Arbejd på flere branches samtidigt uden stashing eller switching. Opret, arkivér og organisér worktrees med ét klik. Hver worktree får et unikt navn baseret på hunde- og katteracer for nem identifikation.
 
 ### 🤖 **Indbyggede AI-kodningssessioner**
 Kør AI-kodningsagenter direkte i Hive med **OpenCode**, **Claude Code** og **Codex** support. Stream svar i realtid, se tool calls blive udført, og godkend tilladelser efter behov. Fuld undo/redo support holder dig i kontrol.

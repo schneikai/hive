@@ -74,7 +74,7 @@ Hive to orkiestrator agentów AI. Zobacz wszystkich działających agentów w je
 ## Funkcje
 
 ### 🌳 **Workflow oparty na Worktree**
-Pracuj jednocześnie na wielu gałęziach bez stashowania i przełączania. Twórz, archiwizuj i organizuj worktree jednym kliknięciem. Każdy worktree otrzymuje unikatową nazwę opartą na mieście dla łatwej identyfikacji.
+Pracuj jednocześnie na wielu gałęziach bez stashowania i przełączania. Twórz, archiwizuj i organizuj worktree jednym kliknięciem. Każdy worktree otrzymuje unikatową nazwę opartą na rasach psów i kotów dla łatwej identyfikacji.
 
 ### 🤖 **Wbudowane sesje kodowania AI**
 Uruchamiaj agentów AI do kodowania bezpośrednio w Hive ze wsparciem **OpenCode**, **Claude Code** i **Codex**. Streamuj odpowiedzi w czasie rzeczywistym, obserwuj wykonywanie wywołań narzędzi i zatwierdzaj uprawnienia w razie potrzeby. Pełna obsługa cofnij/ponów utrzymuje kontrolę.

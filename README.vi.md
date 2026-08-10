@@ -74,7 +74,7 @@ Hive là bộ điều phối AI agent. Xem tất cả agent đang chạy trong m
 ## Tính năng
 
 ### 🌳 **Quy trình làm việc Worktree-First**
-Làm việc trên nhiều nhánh đồng thời mà không cần stash hay switch. Tạo, lưu trữ và tổ chức worktree chỉ bằng một click. Mỗi worktree được đặt tên thành phố duy nhất để dễ nhận biết.
+Làm việc trên nhiều nhánh đồng thời mà không cần stash hay switch. Tạo, lưu trữ và tổ chức worktree chỉ bằng một click. Mỗi worktree được đặt tên giống chó hoặc mèo duy nhất để dễ nhận biết.
 
 ### 🤖 **Phiên lập trình AI tích hợp**
 Chạy AI coding agent trực tiếp trong Hive với hỗ trợ **OpenCode**, **Claude Code** và **Codex**. Xem phản hồi theo thời gian thực, theo dõi tool call thực thi, và phê duyệt quyền khi cần. Hỗ trợ undo/redo đầy đủ giúp bạn luôn kiểm soát.

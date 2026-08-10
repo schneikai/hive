@@ -70,11 +70,11 @@ Archiving a worktree:
 ### Can I delete branches through Hive?
 Yes, use the "Unbranch" option to remove both the worktree and its associated branch.
 
-### Why do worktrees have city names?
-Hive uses city names (Tokyo, Paris, London, etc.) to make worktrees memorable and fun. It's easier to remember "the Tokyo worktree" than "feature/user-auth-refactor-v2".
+### Why do worktrees have breed names?
+Hive uses dog and cat breed names (labrador, beagle, ragdoll, etc.) to make worktrees memorable and fun. It's easier to remember "the labrador worktree" than "feature/user-auth-refactor-v2". You can switch between dog and cat names in Settings > General > Branch Naming.
 
-### What if I run out of city names?
-Hive has 200+ city names. If all are used, it adds version suffixes (tokyo-v1, tokyo-v2). You can also rename worktrees.
+### What if I run out of breed names?
+Hive has over 50 dog breeds and 50 cat breeds. If all are used, it adds numeric suffixes (labrador-2, labrador-3). You can also rename worktrees.
 
 ## Connections
 
