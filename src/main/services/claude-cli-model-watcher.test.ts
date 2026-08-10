@@ -133,6 +133,74 @@ describe('handleClaudeCliModelChangeHook', () => {
     )
   })
 
+  it('detects an opening-turn safety fallback (empty transcript baseline, first line differs)', () => {
+    // The ticket case: a session launched on fable whose very first prompt
+    // triggers a safety degrade to opus 4.8. SessionStart baselines the still
+    // model-less transcript, then the first committed assistant line is already
+    // opus — with no prior fable line in the file, this must still register as
+    // a fable→opus switch and update the row.
+    const db = makeDb(makeSession())
+    writeFileSync(transcriptPath, userLine())
+    handleClaudeCliModelChangeHook(
+      SESSION_ID,
+      { hook_event_name: 'SessionStart', transcript_path: transcriptPath },
+      { db }
+    )
+    expect(db.updateSession).not.toHaveBeenCalled()
+
+    appendFileSync(transcriptPath, assistantLine('claude-opus-4-8'))
+    handleClaudeCliModelChangeHook(SESSION_ID, stopHook(), { db })
+    expect(db.updateSession).toHaveBeenCalledWith(SESSION_ID, { model_id: 'opus' })
+    expect(publishDesktopBackendEvent).toHaveBeenCalledWith(
+      'opencode:stream',
+      expect.objectContaining({
+        type: 'session.model_changed',
+        data: expect.objectContaining({ modelId: 'opus', previousModelId: 'fable' })
+      })
+    )
+  })
+
+  it('fires on an opening-turn fallback even without a prior SessionStart hook', () => {
+    // Same degrade observed for the first time on the Stop hook, before any
+    // assistant line existed at attach: the launch model (row) seeds the
+    // baseline so the opus line is a transition, not a silent baseline.
+    const db = makeDb(makeSession())
+    writeFileSync(transcriptPath, userLine())
+    handleClaudeCliModelChangeHook(SESSION_ID, stopHook(), { db })
+    expect(db.updateSession).not.toHaveBeenCalled()
+
+    appendFileSync(transcriptPath, assistantLine('claude-opus-4-8'))
+    handleClaudeCliModelChangeHook(SESSION_ID, stopHook(), { db })
+    expect(db.updateSession).toHaveBeenCalledWith(SESSION_ID, { model_id: 'opus' })
+  })
+
+  it('carries the running model across a /clear so a pending UI choice is not reverted', () => {
+    // The CLI runs fable; the user picks sonnet in Hive (row=sonnet) without
+    // respawning, so the CLI keeps answering fable. A /clear then yields a
+    // fresh empty transcript. The baseline must seed the running fable (carried
+    // from the prior tracker), not the ahead-of-CLI row, so the first fable
+    // line is no transition and the pending sonnet choice survives.
+    const db = makeDb(makeSession())
+    writeFileSync(transcriptPath, assistantLine('claude-fable-5'))
+    handleClaudeCliModelChangeHook(SESSION_ID, stopHook(), { db })
+
+    db.getSession = vi.fn(() => makeSession({ model_id: 'sonnet' }))
+    const clearedPath = path.join(dir, 'session-cleared.jsonl')
+    writeFileSync(clearedPath, userLine())
+    handleClaudeCliModelChangeHook(
+      SESSION_ID,
+      { hook_event_name: 'SessionStart', transcript_path: clearedPath },
+      { db }
+    )
+    appendFileSync(clearedPath, assistantLine('claude-fable-5'))
+    handleClaudeCliModelChangeHook(
+      SESSION_ID,
+      { hook_event_name: 'Stop', transcript_path: clearedPath },
+      { db }
+    )
+    expect(db.updateSession).not.toHaveBeenCalled()
+  })
+
   it('consumes pre-existing backlog silently — historical transitions never fire', () => {
     // The exact respawn scenario: a fable→sonnet degrade already sits in the
     // transcript from a previous run, but the user has since explicitly picked
