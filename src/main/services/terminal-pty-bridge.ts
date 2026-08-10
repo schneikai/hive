@@ -18,6 +18,10 @@ import {
   clearClaudeCliSubagentTracking
 } from './claude-cli-subagent-tracker'
 import { clearAllClaudeCliBackgroundWork } from './claude-cli-background-work-tracker'
+import {
+  resetAllClaudeCliModelWatchers,
+  resetClaudeCliModelWatcher
+} from './claude-cli-model-watcher'
 import { setClaudeCliPlanAutoApprove } from './claude-cli-plan-auto-approve'
 import { logClaudeBinaryVersion, resolveClaudeBinaryPath } from './claude-binary-resolver'
 import { buildClaudeCliPtySpawn } from './claude-cli-spawner'
@@ -162,6 +166,7 @@ export function destroyNodePtyTerminal(terminalId: string): void {
   claudeCliTranscriptSources.delete(terminalId)
   claudeCliLastStatus.delete(terminalId)
   resetClaudeCliTitleState(terminalId)
+  resetClaudeCliModelWatcher(terminalId)
   ptyService.destroy(terminalId)
 }
 
@@ -239,6 +244,7 @@ function attachNodePtyListeners(terminalId: string): void {
     claudeCliTranscriptSources.delete(terminalId)
     claudeCliLastStatus.delete(terminalId)
     resetClaudeCliTitleState(terminalId)
+    resetClaudeCliModelWatcher(terminalId)
   })
 
   listenerCleanups.set(terminalId, { removeData, removeExit })
@@ -466,6 +472,7 @@ export function cleanupTerminals(): void {
   clearAllClaudeCliInteractions()
   clearAllClaudeCliSubagentTracking()
   clearAllClaudeCliBackgroundWork()
+  resetAllClaudeCliModelWatchers()
   unsubscribeClaudeCliStatus?.()
   unsubscribeClaudeCliStatus = null
   resetAllClaudeCliTitleState()

@@ -382,6 +382,21 @@ export function useOpenCodeGlobalListener(): void {
         return
       }
 
+      // Mid-session model change detected from the claude-cli transcript
+      // (e.g. the CLI degraded Fable→Sonnet on usage limits). Main already
+      // persisted the session row; patch the in-memory session and sync the
+      // linked kanban ticket's model badge.
+      if (event.type === 'session.model_changed') {
+        const data = event.data as { modelId?: unknown; modelVariant?: unknown } | undefined
+        if (typeof data?.modelId === 'string' && data.modelId) {
+          useSessionStore.getState().applyDetectedSessionModel(sessionId, {
+            modelId: data.modelId,
+            ...(typeof data.modelVariant === 'string' ? { modelVariant: data.modelVariant } : {})
+          })
+        }
+        return
+      }
+
       // session.updated — sync title for both background and active sessions.
       // ClaudeCliSessionView has no stream listener of its own, so active
       // claude-cli renames need to flow through the global listener.

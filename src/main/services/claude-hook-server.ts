@@ -4,6 +4,10 @@ import { OPENCODE_STREAM_CHANNEL } from '@shared/opencode-events'
 import { createLogger } from './logger'
 import { cliHookTransportRouter } from './cli-hook-transport-router'
 import { handleClaudeCliHiveTelemetryHook } from './hive-enterprise-claude-cli-telemetry'
+import {
+  handleClaudeCliModelChangeHook,
+  resetAllClaudeCliModelWatchers
+} from './claude-cli-model-watcher'
 import { scheduleSessionUsageReport } from './usage/session-usage-service'
 import { publishDesktopBackendEvent } from '../desktop/backend-event-publisher'
 import {
@@ -380,6 +384,11 @@ async function handleHook(req: http.IncomingMessage, res: http.ServerResponse): 
           publishClaudeCliStatus(payload)
         }
         void handleClaudeCliHiveTelemetryHook(route.sessionId, body)
+        // Mid-session model change (usage-limit/safety degrade, /model): the
+        // transcript is the only surface that records it for PTY sessions.
+        // Main-session hooks only — a subagent-scoped hook's transcript_path
+        // points at the subagent's own file.
+        handleClaudeCliModelChangeHook(route.sessionId, body)
       }
       // First user prompt of this CLI session → tell the renderer so it can
       // auto-create a kanban ticket (if the setting is on). Fires for prompts
@@ -562,6 +571,7 @@ export async function closeClaudeHookServer(): Promise<void> {
     clearAllClaudeCliSubagentTracking()
     clearAllClaudeCliBackgroundWork()
     clearAllClaudeCliPlanAutoApprove()
+    resetAllClaudeCliModelWatchers()
     setClaudeCliDeferredCompletionHandler(null)
     return
   }
@@ -585,5 +595,6 @@ export async function closeClaudeHookServer(): Promise<void> {
   clearAllClaudeCliSubagentTracking()
   clearAllClaudeCliBackgroundWork()
   clearAllClaudeCliPlanAutoApprove()
+  resetAllClaudeCliModelWatchers()
   setClaudeCliDeferredCompletionHandler(null)
 }

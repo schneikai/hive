@@ -124,3 +124,25 @@ export function registerKanbanRenameSync(fn: KanbanRenameSyncFn): void {
 export function notifyKanbanRenameSync(sessionId: string, name: string): void {
   _kanbanRenameSync?.(sessionId, name)
 }
+
+// ── Kanban ↔ Session: mid-session model change detected in the CLI ─────────
+// Fired after a model change detected from the claude-cli transcript (usage
+// limit / safety degradation, /model) is applied to the session store. The
+// kanban store syncs the model badge of the ticket linked to this session.
+export interface KanbanModelSyncModel {
+  modelId: string
+  /** Present only when main clamped the effort variant for the new model. */
+  modelVariant?: string
+}
+
+type KanbanModelSyncFn = (sessionId: string, model: KanbanModelSyncModel) => void
+
+let _kanbanModelSync: KanbanModelSyncFn | null = null
+
+export function registerKanbanModelSync(fn: KanbanModelSyncFn): void {
+  _kanbanModelSync = fn
+}
+
+export function notifyKanbanModelSync(sessionId: string, model: KanbanModelSyncModel): void {
+  _kanbanModelSync?.(sessionId, model)
+}
