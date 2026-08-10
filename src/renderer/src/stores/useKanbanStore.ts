@@ -1078,6 +1078,24 @@ export const useKanbanStore = create<KanbanState>()(
                       `Ticket is done, but its session could not be closed: ${result.error ?? 'unknown error'}`
                     )
                   }
+                  if (result.success) {
+                    // A drag back out of Done during the close (which does not
+                    // mark the session reactivating) means the newer intent is
+                    // to keep working — undo: restore active status and tab.
+                    // Only when the ticket still references this session; the
+                    // backward-drag-to-todo flow completes and unlinks it on
+                    // purpose and must not be undone.
+                    const ticketAfter = get()
+                      .tickets.get(projectId)
+                      ?.find((t) => t.id === ticketId)
+                    if (
+                      ticketAfter &&
+                      ticketAfter.column !== 'done' &&
+                      ticketAfter.current_session_id === sessionIdToClose
+                    ) {
+                      await useSessionStore.getState().reactivateSession(sessionIdToClose)
+                    }
+                  }
                 })().catch((err) => {
                   console.error(
                     'Failed to close session for completed ticket:',

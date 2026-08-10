@@ -301,6 +301,9 @@ describe('closeSession DB fallback', () => {
 describe('closeSession stopRemote', () => {
   it('stops a remote-launched client session inside the close', async () => {
     seedWorktreeSession({ remote_launch: REMOTE_LAUNCH_CLIENT })
+    sessionGet.mockResolvedValue(
+      makeDbSession({ status: 'active', completed_at: null, remote_launch: REMOTE_LAUNCH_CLIENT })
+    )
 
     const result = await useSessionStore
       .getState()
@@ -314,8 +317,27 @@ describe('closeSession stopRemote', () => {
     )
   })
 
+  it('reads the authoritative remote_launch from the DB when the store copy is stale', async () => {
+    // Teleport-style flows write remote_launch to the DB row only — the
+    // in-store copy still says local. The stop must still fire.
+    seedWorktreeSession({ remote_launch: null })
+    sessionGet.mockResolvedValue(
+      makeDbSession({ status: 'active', completed_at: null, remote_launch: REMOTE_LAUNCH_CLIENT })
+    )
+
+    const result = await useSessionStore
+      .getState()
+      .closeSession(SESSION_ID, { stopRemote: true })
+
+    expect(remoteStop).toHaveBeenCalledWith({ sessionId: SESSION_ID })
+    expect(result.success).toBe(true)
+  })
+
   it('keeps the session open when the remote stop fails', async () => {
     seedWorktreeSession({ remote_launch: REMOTE_LAUNCH_CLIENT })
+    sessionGet.mockResolvedValue(
+      makeDbSession({ status: 'active', completed_at: null, remote_launch: REMOTE_LAUNCH_CLIENT })
+    )
     remoteStop.mockRejectedValueOnce(new Error('host unreachable'))
 
     const result = await useSessionStore
@@ -332,14 +354,16 @@ describe('closeSession stopRemote', () => {
   })
 
   it('does not stop remotes that were already stopped', async () => {
-    seedWorktreeSession({
-      remote_launch: JSON.stringify({
-        role: 'client',
-        host: 'devbox',
-        tmuxSession: 't1',
-        stoppedAt: '2026-01-02T00:00:00.000Z'
-      })
+    const stopped = JSON.stringify({
+      role: 'client',
+      host: 'devbox',
+      tmuxSession: 't1',
+      stoppedAt: '2026-01-02T00:00:00.000Z'
     })
+    seedWorktreeSession({ remote_launch: stopped })
+    sessionGet.mockResolvedValue(
+      makeDbSession({ status: 'active', completed_at: null, remote_launch: stopped })
+    )
 
     const result = await useSessionStore
       .getState()

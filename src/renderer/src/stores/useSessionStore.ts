@@ -813,6 +813,17 @@ export const useSessionStore = create<SessionState>()(
           // lose its remote process to a stale stop. On failure the session
           // stays linked (and alive) — the caller surfaces the error.
           if (opts?.stopRemote) {
+            // The store copy can predate a later remote launch (teleport
+            // writes remote_launch to the DB row only) — the DB is the
+            // authority on whether a remote agent exists.
+            if (foundInStore) {
+              try {
+                const freshRow = await dbApi.session.get<Session>(sessionId)
+                if (freshRow) remoteLaunchRaw = freshRow.remote_launch ?? null
+              } catch {
+                // Fall back to the store copy
+              }
+            }
             const remoteInfo = parseRemoteLaunch(remoteLaunchRaw)
             if (remoteInfo?.role === 'client' && !remoteInfo.stoppedAt) {
               try {

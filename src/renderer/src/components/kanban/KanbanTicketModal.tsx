@@ -468,6 +468,13 @@ async function sendFollowupToSession(opts: {
   const model = resolveSessionModel(opts.sessionId, result.session)
 
   if (session.agent_sdk === 'claude-code-cli') {
+    // The follow-up may target a session closed when its ticket entered Done.
+    // Reactivate BEFORE delivering: this serializes behind any in-flight
+    // close via the lifecycle lock (delivering first could hand the prompt to
+    // a PTY the close is about to destroy), flips the row back to active, and
+    // restores the tab so the working process has a restore entry and is not
+    // culled by the modal-release cleanup.
+    await useSessionStore.getState().reactivateSession(opts.sessionId)
     const delivery = unwrapEnvelope(
       await terminalApi.sendClaudeCliPrompt(opts.sessionId, fullPrompt)
     )
@@ -479,13 +486,6 @@ async function sendFollowupToSession(opts: {
         throw new Error(createResult.error ?? 'Failed to start Claude CLI session')
       }
     }
-    // The follow-up may target a session closed when its ticket entered Done
-    // (delivered into a modal-resumed PTY or freshly respawned above either
-    // way). Flip it back to active and restore its tab so the working process
-    // has a restore entry and is not culled by the modal-release cleanup — a
-    // completed session with a live PTY would be a stranded process with no
-    // UI affordance to close it.
-    await useSessionStore.getState().reactivateSession(opts.sessionId)
     recordSuccessfulFollowupSideEffects(
       session,
       opts.sessionId,
@@ -518,6 +518,9 @@ async function sendFollowupToSession(opts: {
     ? buildMessageParts(opts.attachments, fullPrompt)
     : [{ type: 'text' as const, text: fullPrompt }]
 
+  // Same as the claude-code-cli branch: reactivate before prompting so the
+  // revival serializes behind any in-flight close of this session.
+  await useSessionStore.getState().reactivateSession(opts.sessionId)
   const promptResult = unwrapEnvelope(
     await opencodeApi.prompt(workingPath, session.opencode_session_id, messageParts, model)
   )
@@ -528,9 +531,6 @@ async function sendFollowupToSession(opts: {
     )
     throw new Error(promptResult.error || 'Failed to send prompt to session')
   }
-  // Same as the claude-code-cli branch: a follow-up to a done-closed session
-  // resumes real work — restore its active status and tab.
-  await useSessionStore.getState().reactivateSession(opts.sessionId)
   recordSuccessfulFollowupSideEffects(session, opts.sessionId, fullPrompt, opts.followUpMode, model)
 }
 

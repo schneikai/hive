@@ -1,8 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { KanbanTicket, KanbanTicketColumn } from '../../../main/db/types'
 
-const { closeSession, isSessionReactivating, toastError } = vi.hoisted(() => ({
+const { closeSession, reactivateSession, isSessionReactivating, toastError } = vi.hoisted(() => ({
   closeSession: vi.fn().mockResolvedValue({ success: true }),
+  reactivateSession: vi.fn().mockResolvedValue(undefined),
   isSessionReactivating: vi.fn(() => false),
   toastError: vi.fn()
 }))
@@ -28,7 +29,7 @@ vi.mock('./useSettingsStore', () => ({
 // moveTicket dynamically imports useSessionStore to close the attached
 // session when a ticket enters the done column.
 vi.mock('./useSessionStore', () => ({
-  useSessionStore: { getState: () => ({ closeSession }) },
+  useSessionStore: { getState: () => ({ closeSession, reactivateSession }) },
   isSessionReactivating
 }))
 
@@ -288,6 +289,50 @@ describe('moveTicket — close attached session on the done column', () => {
 
 
 
+
+  it('reactivates the session when the ticket was dragged back out of done mid-close', async () => {
+    seed(makeTicket())
+    closeSession.mockImplementationOnce(async () => {
+      // Backward drag lands while closeSession's own awaits are in flight
+      useKanbanStore.setState({
+        tickets: new Map([[PROJECT_ID, [makeTicket({ column: 'in_progress' })]]])
+      })
+      return { success: true }
+    })
+
+    await useKanbanStore.getState().moveTicket('ticket-1', PROJECT_ID, 'done', 0)
+    await flush()
+
+    expect(reactivateSession).toHaveBeenCalledWith(SESSION_ID)
+  })
+
+  it('does not undo a backward-drag flow that unlinked the session on purpose', async () => {
+    seed(makeTicket())
+    closeSession.mockImplementationOnce(async () => {
+      // Drag-to-todo completes AND unlinks the session itself
+      useKanbanStore.setState({
+        tickets: new Map([
+          [PROJECT_ID, [makeTicket({ column: 'todo', current_session_id: null })]]
+        ])
+      })
+      return { success: true }
+    })
+
+    await useKanbanStore.getState().moveTicket('ticket-1', PROJECT_ID, 'done', 0)
+    await flush()
+
+    expect(reactivateSession).not.toHaveBeenCalled()
+  })
+
+  it('leaves settled done tickets alone after a successful close', async () => {
+    seed(makeTicket())
+
+    await useKanbanStore.getState().moveTicket('ticket-1', PROJECT_ID, 'done', 0)
+    await flush()
+
+    expect(closeSession).toHaveBeenCalledTimes(1)
+    expect(reactivateSession).not.toHaveBeenCalled()
+  })
 
   it('surfaces a non-aborted close failure via toast', async () => {
     seed(makeTicket())
