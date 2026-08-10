@@ -1063,12 +1063,26 @@ export const useKanbanStore = create<KanbanState>()(
                 !isSessionReactivating(sessionIdToClose)
               ) {
                 void (async () => {
+                  // Every await in this detached task races newer intents —
+                  // a backward drag out of Done (which never marks the
+                  // session as reactivating) or a revival. Re-validate on
+                  // fresh state immediately before each irreversible step.
+                  const stillEligible = (): boolean => {
+                    const ticketFresh = get()
+                      .tickets.get(projectId)
+                      ?.find((t) => t.id === ticketId)
+                    return (
+                      ticketFresh?.column === 'done' &&
+                      !isSessionReactivating(sessionIdToClose)
+                    )
+                  }
                   // Remote-launched agents run in a tmux on the remote host —
                   // a local close would leave that agent running forever.
                   // Stop it first (mirroring the backward-drag flow) and keep
                   // the session linked when the remote cannot be reached.
                   const dbSession = await dbApi.session.get<Session>(sessionIdToClose)
                   const remoteInfo = parseRemoteLaunch(dbSession?.remote_launch)
+                  if (!stillEligible()) return
                   if (remoteInfo?.role === 'client' && !remoteInfo.stoppedAt) {
                     try {
                       await remoteLaunchApi.stop({ sessionId: sessionIdToClose })
@@ -1081,6 +1095,7 @@ export const useKanbanStore = create<KanbanState>()(
                       return
                     }
                   }
+                  if (!stillEligible()) return
                   // abortIfRevived re-checks inside the lifecycle lock, making
                   // the revival guard and the close transition atomic.
                   // closeSession reports failures via its result, not by

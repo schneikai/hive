@@ -3964,17 +3964,20 @@ function JumpToSessionButton({
     // it back to active so the modal-release cleanup doesn't kill the very
     // terminal being navigated to. closeSession drops the session from the
     // store maps, so the in-memory lookup can miss — fall back to the DB row.
-    if (ticket.worktree_id) {
-      try {
-        const record =
-          sessionStore.getSessionById(sessionId) ??
-          (await dbApi.session.get<Session>(sessionId))
-        if (record?.status === 'completed') {
+    // Connection-backed sessions (ticket.worktree_id null) reopen via their
+    // connection, or the jump would target an id MainPane cannot resolve.
+    try {
+      const record =
+        sessionStore.getSessionById(sessionId) ?? (await dbApi.session.get<Session>(sessionId))
+      if (record?.status === 'completed') {
+        if (ticket.worktree_id) {
           await sessionStore.reopenSession(sessionId, ticket.worktree_id)
+        } else if (record.connection_id) {
+          await sessionStore.reopenConnectionSession(sessionId, record.connection_id)
         }
-      } catch {
-        // Best-effort — worst case the jump lands on a tab-less session
       }
+    } catch {
+      // Best-effort — worst case the jump lands on a tab-less session
     }
 
     onClose()

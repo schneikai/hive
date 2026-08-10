@@ -104,7 +104,14 @@ function columnOf(ticketId: string): KanbanTicketColumn | undefined {
     ?.find((t) => t.id === ticketId)?.column
 }
 
-const flush = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 0))
+// Drain the detached close task fully — it spans several awaits (DB read,
+// remote stop, lifecycle-locked close); a partial drain would leak a pending
+// block into the next test where it consumes that test's mocks.
+const flush = async (): Promise<void> => {
+  for (let i = 0; i < 6; i++) {
+    await new Promise((resolve) => setTimeout(resolve, 0))
+  }
+}
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -340,6 +347,46 @@ describe('moveTicket — close attached session on the done column', () => {
 
     expect(remoteStop).not.toHaveBeenCalled()
     expect(closeSession).toHaveBeenCalledWith(SESSION_ID, { abortIfRevived: true })
+  })
+
+  it('bails before the remote stop when the ticket left done during the DB read', async () => {
+    seed(makeTicket())
+    sessionGet.mockImplementationOnce(async () => {
+      // Backward drag lands while the detached task reads the session row
+      useKanbanStore.setState({
+        tickets: new Map([[PROJECT_ID, [makeTicket({ column: 'in_progress' })]]])
+      })
+      return {
+        id: SESSION_ID,
+        remote_launch: JSON.stringify({ role: 'client', host: 'devbox', tmuxSession: 't1' })
+      }
+    })
+
+    await useKanbanStore.getState().moveTicket('ticket-1', PROJECT_ID, 'done', 0)
+    await flush()
+    await flush()
+
+    expect(remoteStop).not.toHaveBeenCalled()
+    expect(closeSession).not.toHaveBeenCalled()
+  })
+
+  it('bails before the close when a revival marks itself during the remote stop', async () => {
+    seed(makeTicket())
+    sessionGet.mockResolvedValue({
+      id: SESSION_ID,
+      remote_launch: JSON.stringify({ role: 'client', host: 'devbox', tmuxSession: 't1' })
+    })
+    remoteStop.mockImplementationOnce(async () => {
+      isSessionReactivating.mockReturnValue(true)
+      return { ok: true }
+    })
+
+    await useKanbanStore.getState().moveTicket('ticket-1', PROJECT_ID, 'done', 0)
+    await flush()
+    await flush()
+
+    expect(remoteStop).toHaveBeenCalled()
+    expect(closeSession).not.toHaveBeenCalled()
   })
 
   it('surfaces a non-aborted close failure via toast', async () => {
