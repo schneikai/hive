@@ -17,6 +17,8 @@ import { systemApi } from '@/api/system-api'
 import { dbApi } from '@/api/db-api'
 import { connectionApi } from '@/api/connection-api'
 import { terminalApi } from '@/api/terminal-api'
+import { remoteLaunchApi } from '@/api/remote-launch-api'
+import { parseRemoteLaunch } from '@shared/types/remote-launch'
 import { opencodeApi } from '@/api/opencode-api'
 import { type AgentSdk, isTerminalBacked } from '@shared/types/agent-sdk'
 import { CUSTOM_MODEL_PROVIDER_ID } from '@shared/types/custom-provider'
@@ -31,6 +33,53 @@ import { CUSTOM_MODEL_PROVIDER_ID } from '@shared/types/custom-provider'
  */
 const pushQueuedState = (sessionId: string, hasQueued: boolean): void => {
   systemApi.setSessionQueuedState(sessionId, hasQueued).catch(() => {})
+}
+
+// Per-session promise chain serializing lifecycle transitions (close,
+// reopen, reactivate, completed-terminal destroy). These flows all
+// read-then-write the session row and the process state; interleaving them
+// produces lost updates — e.g. a revival reading the still-active row while
+// a close's completed-write is in flight would no-op and then lose its
+// process to the close. The lock makes each transition see the previous
+// one's final state.
+const sessionLifecycleLocks = new Map<string, Promise<void>>()
+
+async function withSessionLifecycleLock<T>(sessionId: string, fn: () => Promise<T>): Promise<T> {
+  const prev = sessionLifecycleLocks.get(sessionId) ?? Promise.resolve()
+  const run = prev.then(fn)
+  const tail = run.then(
+    () => undefined,
+    () => undefined
+  )
+  sessionLifecycleLocks.set(sessionId, tail)
+  try {
+    return await run
+  } finally {
+    if (sessionLifecycleLocks.get(sessionId) === tail) {
+      sessionLifecycleLocks.delete(sessionId)
+    }
+  }
+}
+
+// Refcount of in-flight revivals per session (reactivateSession /
+// reopenSession / reopenConnectionSession, which nest). Consulted
+// (synchronously) by destroyCompletedSessionTerminal and the kanban
+// done-close as a fast pre-check; the lifecycle lock above provides the
+// actual serialization.
+const reactivatingSessionIds = new Map<string, number>()
+
+export function isSessionReactivating(sessionId: string): boolean {
+  return (reactivatingSessionIds.get(sessionId) ?? 0) > 0
+}
+
+function markReactivating(sessionId: string): void {
+  reactivatingSessionIds.set(sessionId, (reactivatingSessionIds.get(sessionId) ?? 0) + 1)
+}
+
+function unmarkReactivating(sessionId: string): void {
+  const next = (reactivatingSessionIds.get(sessionId) ?? 0) - 1
+  if (next > 0) reactivatingSessionIds.set(sessionId, next)
+  else reactivatingSessionIds.delete(sessionId)
 }
 
 export const BOARD_TAB_ID = '__board__'
@@ -84,6 +133,8 @@ interface Session {
   claude_session_id: string | null
   agent_sdk: AgentSdk
   custom_provider_id?: string | null
+  /** JSON RemoteLaunchInfo when this session was launched on a remote host. */
+  remote_launch?: string | null
   mode: SessionMode
   session_type: 'default' | 'board-assistant'
   model_provider_id: string | null
@@ -153,6 +204,7 @@ interface SessionState {
   acknowledgeClosedTerminals: (ids: Set<string>) => void
   requestSessionMount: (sessionId: string) => void
   releaseSessionMount: (sessionId: string) => void
+  destroyCompletedSessionTerminal: (sessionId: string) => Promise<void>
   openOrphanedSession: (session: Session) => void
   closeOrphanedSessions: () => void
   loadSessions: (worktreeId: string, projectId: string) => Promise<void>
@@ -168,15 +220,21 @@ interface SessionState {
       customProviderId?: string | null
     }
   ) => Promise<{ success: boolean; session?: Session; error?: string }>
-  closeSession: (sessionId: string) => Promise<{ success: boolean; error?: string }>
+  closeSession: (
+    sessionId: string,
+    opts?: { abortIfRevived?: boolean; stopRemote?: boolean }
+  ) => Promise<{ success: boolean; error?: string; aborted?: boolean }>
   reopenSession: (
     sessionId: string,
-    worktreeId: string
+    worktreeId: string,
+    opts?: { activate?: boolean; skipLifecycleLock?: boolean }
   ) => Promise<{ success: boolean; error?: string }>
   reopenConnectionSession: (
     sessionId: string,
-    connectionId: string
+    connectionId: string,
+    opts?: { activate?: boolean; skipLifecycleLock?: boolean }
   ) => Promise<{ success: boolean; error?: string }>
+  reactivateSession: (sessionId: string) => Promise<void>
   setActiveSession: (sessionId: string | null) => void
   setActiveWorktree: (worktreeId: string | null) => void
   updateSessionName: (sessionId: string, name: string) => Promise<boolean>
@@ -389,6 +447,52 @@ export const useSessionStore = create<SessionState>()(
           return { sessionMountRequests: requests }
         })
       },
+
+      // Kill the PTY of a completed (tab-less) session once the last mount
+      // request releases it. Ticket modals resume completed sessions of Done
+      // tickets on open; without this the respawned process would outlive the
+      // modal with no tab left to close it from. Guards: never kill a session
+      // that was re-engaged in the meantime — re-mounted by another modal,
+      // navigated to (active session), or actively working/awaiting input per
+      // its hook-driven status (a background follow-up may not have flipped
+      // the DB row back to active yet).
+      destroyCompletedSessionTerminal: async (sessionId: string) =>
+        withSessionLifecycleLock(sessionId, async () => {
+        const isReEngaged = async (): Promise<boolean> => {
+          if (isSessionReactivating(sessionId)) return true
+          if (get().sessionMountRequests.has(sessionId)) return true
+          if (get().activeSessionId === sessionId) return true
+          const { useWorktreeStatusStore } = await import('./useWorktreeStatusStore')
+          const status = useWorktreeStatusStore.getState().sessionStatuses[sessionId]?.status
+          return (
+            status === 'working' ||
+            status === 'planning' ||
+            status === 'answering' ||
+            status === 'permission' ||
+            status === 'command_approval'
+          )
+        }
+
+        if (await isReEngaged()) return
+        let dbSession: Session | null = null
+        try {
+          dbSession = await dbApi.session.get<Session>(sessionId)
+        } catch {
+          return
+        }
+        if (dbSession?.status !== 'completed' || !isTerminalBacked(dbSession.agent_sdk)) return
+        // Re-check after the async gap — the session may have been re-engaged
+        // while the DB read was in flight.
+        if (await isReEngaged()) return
+        try {
+          unwrapEnvelope(await terminalApi.destroy(sessionId))
+        } catch {
+          // Best-effort — PTY may already be gone
+        }
+        set((state) => ({
+          closedTerminalSessionIds: new Set([...state.closedTerminalSessionIds, sessionId])
+        }))
+        }),
 
       // Load sessions for a worktree from database (only active sessions for tabs)
       loadSessions: async (worktreeId: string, _projectId: string) => {
@@ -646,12 +750,26 @@ export const useSessionStore = create<SessionState>()(
 
       // Close a session tab (removes from tab view, keeps in database for history)
       // Scope-agnostic: works for both worktree and connection sessions
-      closeSession: async (sessionId: string) => {
+      closeSession: async (
+        sessionId: string,
+        opts?: { abortIfRevived?: boolean; stopRemote?: boolean }
+      ) =>
+        withSessionLifecycleLock(sessionId, async () => {
+        // Atomic guard for background closes (ticket entered Done): a revival
+        // that queued behind this lock marked itself synchronously before
+        // waiting, so checking here — inside the lock, before the
+        // completed-write — makes guard and transition atomic. Explicit user
+        // closes (tab X, archive) do not pass the flag and always proceed.
+        if (opts?.abortIfRevived && isSessionReactivating(sessionId)) {
+          return { success: false, aborted: true, error: 'Session was revived concurrently' }
+        }
         try {
           // Find the session to determine type and gather disconnect info
           let isTerminalSession = false
           let opencodeSessionId: string | null = null
           let sessionWorktreeId: string | null = null
+          let remoteLaunchRaw: string | null = null
+          let foundInStore = false
 
           for (const [worktreeId, sessions] of get().sessionsByWorktree.entries()) {
             const found = sessions.find((s) => s.id === sessionId)
@@ -659,6 +777,8 @@ export const useSessionStore = create<SessionState>()(
               isTerminalSession = isTerminalBacked(found.agent_sdk)
               opencodeSessionId = found.opencode_session_id
               sessionWorktreeId = worktreeId
+              remoteLaunchRaw = found.remote_launch ?? null
+              foundInStore = true
               break
             }
           }
@@ -668,7 +788,62 @@ export const useSessionStore = create<SessionState>()(
               if (found) {
                 isTerminalSession = isTerminalBacked(found.agent_sdk)
                 opencodeSessionId = found.opencode_session_id
+                remoteLaunchRaw = found.remote_launch ?? null
+                foundInStore = true
                 break
+              }
+            }
+          }
+          // Board-driven closes (ticket moved to done) can target sessions of
+          // worktrees never loaded into this store — fall back to the DB row so
+          // terminal-backed sessions still get their PTY destroyed.
+          if (!foundInStore) {
+            try {
+              const dbSession = await dbApi.session.get<Session>(sessionId)
+              if (dbSession) {
+                isTerminalSession = isTerminalBacked(dbSession.agent_sdk)
+                opencodeSessionId = dbSession.opencode_session_id
+                sessionWorktreeId = dbSession.worktree_id
+                remoteLaunchRaw = dbSession.remote_launch ?? null
+              }
+            } catch {
+              // Best-effort — proceed with the store-derived (empty) info
+            }
+          }
+
+          // Ticket-done closes stop remote-launched agents (a tmux on a
+          // remote host) before completing: a local-only close would leave
+          // that agent running forever. This runs INSIDE the lifecycle lock,
+          // after the abortIfRevived check, so a queued revival can never
+          // lose its remote process to a stale stop. On failure the session
+          // stays linked (and alive) — the caller surfaces the error.
+          if (opts?.stopRemote) {
+            // The store copy can predate a later remote launch (teleport
+            // writes remote_launch to the DB row only) — the DB is the
+            // authority on whether a remote agent exists.
+            if (foundInStore) {
+              try {
+                const freshRow = await dbApi.session.get<Session>(sessionId)
+                if (freshRow) remoteLaunchRaw = freshRow.remote_launch ?? null
+              } catch {
+                // Fall back to the store copy
+              }
+            }
+            const remoteInfo = parseRemoteLaunch(remoteLaunchRaw)
+            if (remoteInfo?.role === 'client' && !remoteInfo.stoppedAt) {
+              try {
+                await remoteLaunchApi.stop({ sessionId })
+              } catch (error) {
+                return {
+                  success: false,
+                  error: `remote stop failed: ${error instanceof Error ? error.message : String(error)}`
+                }
+              }
+              try {
+                const { useRemoteLaunchStore } = await import('./useRemoteLaunchStore')
+                useRemoteLaunchStore.getState().markStopped(sessionId)
+              } catch {
+                // Bookkeeping only — the remote agent is already stopped
               }
             }
           }
@@ -680,8 +855,14 @@ export const useSessionStore = create<SessionState>()(
             completed_at: new Date().toISOString()
           })
 
+          // A revival may have started while the completed-write above was in
+          // flight — re-check before tearing down the process. The revival
+          // flips the row back to active and keeps (or respawns into) the
+          // live PTY, so skipping the destroy here is the consistent outcome.
+          const revivedMidClose = isSessionReactivating(sessionId)
+
           // Destroy PTY for terminal sessions
-          if (isTerminalSession) {
+          if (isTerminalSession && !revivedMidClose) {
             try {
               unwrapEnvelope(await terminalApi.destroy(sessionId))
             } catch {
@@ -689,10 +870,24 @@ export const useSessionStore = create<SessionState>()(
             }
           }
 
+          // A closed session has no live status. The destroy path above
+          // removes exit listeners before killing, so no pty_exit status
+          // overwrites a pre-close 'working' — left in place, that stale
+          // entry would later veto the modal-release cleanup of a
+          // modal-resumed PTY (isReEngaged) and strand the process.
+          if (!revivedMidClose) {
+            try {
+              const { useWorktreeStatusStore } = await import('./useWorktreeStatusStore')
+              useWorktreeStatusStore.getState().clearSessionStatus(sessionId)
+            } catch {
+              // Best-effort — a stale badge is preferable to a failed close
+            }
+          }
+
           // Disconnect agent SDK session to free main-process resources
           // (session state, abort controllers, cached data).
           // Best-effort — session may already be disconnected.
-          if (!isTerminalSession && opencodeSessionId && sessionWorktreeId) {
+          if (!isTerminalSession && !revivedMidClose && opencodeSessionId && sessionWorktreeId) {
             try {
               // Resolve worktree filesystem path from worktree ID
               let worktreePath: string | null = null
@@ -702,6 +897,14 @@ export const useSessionStore = create<SessionState>()(
                   worktreePath = wt.path
                   break
                 }
+              }
+              if (!worktreePath) {
+                // Board-driven closes can target sessions of projects never
+                // loaded into the store — resolve from the DB so the SDK
+                // session still gets disconnected instead of leaking
+                // main-process implementer state.
+                worktreePath =
+                  (await dbApi.worktree.get<{ path: string }>(sessionWorktreeId))?.path ?? null
               }
               if (worktreePath) {
                 unwrapEnvelope(await opencodeApi.disconnect(worktreePath, opencodeSessionId))
@@ -848,10 +1051,22 @@ export const useSessionStore = create<SessionState>()(
             error: error instanceof Error ? error.message : 'Failed to close session'
           }
         }
-      },
+        }),
 
-      // Reopen a closed session (from history) - marks as active and adds to tabs
-      reopenSession: async (sessionId: string, worktreeId: string) => {
+      // Reopen a closed session (from history) - marks as active and adds to tabs.
+      // opts.activate=false restores the tab without stealing focus — used by
+      // background flows (follow-up sends, plan approvals) where the user
+      // should stay where they are.
+      reopenSession: async (
+        sessionId: string,
+        worktreeId: string,
+        opts?: { activate?: boolean; skipLifecycleLock?: boolean }
+      ) => {
+        const run = async (): Promise<{ success: boolean; error?: string }> => {
+        const activate = opts?.activate !== false
+        // Guard the revival window: a concurrent completed-session cleanup
+        // must not kill the PTY while the DB flip is in flight.
+        markReactivating(sessionId)
         try {
           // 1. Update database status first - this ensures persistence
           const updatedSession = await dbApi.session.update<Session>(sessionId, {
@@ -880,11 +1095,13 @@ export const useSessionStore = create<SessionState>()(
           useQuestionStore.getState().clearSession(sessionId)
           usePermissionStore.getState().clearSession(sessionId)
           useCommandApprovalStore.getState().clearSession(sessionId)
-          // Clear file viewer so session takes focus
-          useFileViewerStore.getState().setActiveFile(null)
-          useFileViewerStore.getState().clearActiveDiff()
+          if (activate) {
+            // Clear file viewer so session takes focus
+            useFileViewerStore.getState().setActiveFile(null)
+            useFileViewerStore.getState().clearActiveDiff()
+          }
 
-          // 3. Update state to add the session to tabs and make it active
+          // 3. Update state to add the session to tabs (and make it active)
           set((state) => {
             const newSessionsMap = new Map(state.sessionsByWorktree)
             const existingSessions = newSessionsMap.get(worktreeId) || []
@@ -913,8 +1130,7 @@ export const useSessionStore = create<SessionState>()(
             return {
               sessionsByWorktree: newSessionsMap,
               tabOrderByWorktree: newTabOrderMap,
-              activeSessionId: sessionId,
-              activeWorktreeId: worktreeId
+              ...(activate ? { activeSessionId: sessionId, activeWorktreeId: worktreeId } : {})
             }
           })
 
@@ -924,11 +1140,25 @@ export const useSessionStore = create<SessionState>()(
             success: false,
             error: error instanceof Error ? error.message : 'Failed to reopen session'
           }
+        } finally {
+          unmarkReactivating(sessionId)
         }
+        }
+        // reactivateSession already holds the lifecycle lock — a nested
+        // acquisition would deadlock, so it opts out here.
+        return opts?.skipLifecycleLock ? run() : withSessionLifecycleLock(sessionId, run)
       },
 
-      // Reopen a closed connection session (from history)
-      reopenConnectionSession: async (sessionId: string, connectionId: string) => {
+      // Reopen a closed connection session (from history).
+      // opts.activate=false restores the tab without stealing focus.
+      reopenConnectionSession: async (
+        sessionId: string,
+        connectionId: string,
+        opts?: { activate?: boolean; skipLifecycleLock?: boolean }
+      ) => {
+        const run = async (): Promise<{ success: boolean; error?: string }> => {
+        const activate = opts?.activate !== false
+        markReactivating(sessionId)
         try {
           // 1. Update database status first - this ensures persistence
           const updatedSession = await dbApi.session.update<Session>(sessionId, {
@@ -956,10 +1186,12 @@ export const useSessionStore = create<SessionState>()(
           useQuestionStore.getState().clearSession(sessionId)
           usePermissionStore.getState().clearSession(sessionId)
           useCommandApprovalStore.getState().clearSession(sessionId)
-          useFileViewerStore.getState().setActiveFile(null)
-          useFileViewerStore.getState().clearActiveDiff()
+          if (activate) {
+            useFileViewerStore.getState().setActiveFile(null)
+            useFileViewerStore.getState().clearActiveDiff()
+          }
 
-          // 3. Update state to add the session to tabs and make it active
+          // 3. Update state to add the session to tabs (and make it active)
           set((state) => {
             const newSessionsMap = new Map(state.sessionsByConnection)
             const existingSessions = newSessionsMap.get(connectionId) || []
@@ -988,9 +1220,13 @@ export const useSessionStore = create<SessionState>()(
             return {
               sessionsByConnection: newSessionsMap,
               tabOrderByConnection: newTabOrderMap,
-              activeSessionId: sessionId,
-              activeConnectionId: connectionId,
-              activeWorktreeId: null
+              ...(activate
+                ? {
+                    activeSessionId: sessionId,
+                    activeConnectionId: connectionId,
+                    activeWorktreeId: null
+                  }
+                : {})
             }
           })
 
@@ -1000,6 +1236,55 @@ export const useSessionStore = create<SessionState>()(
             success: false,
             error: error instanceof Error ? error.message : 'Failed to reopen connection session'
           }
+        } finally {
+          unmarkReactivating(sessionId)
+        }
+        }
+        return opts?.skipLifecycleLock ? run() : withSessionLifecycleLock(sessionId, run)
+      },
+
+      // Flip a completed session back to active and restore its tab WITHOUT
+      // changing the current selection. Used when background activity (a
+      // follow-up send, a plan approval) puts a done-closed session back to
+      // work: the session must regain a tab and a restore entry, or its
+      // respawned process would outlive every UI affordance to close it.
+      reactivateSession: async (sessionId: string) => {
+        // Marked synchronously (before any await) so concurrent flows get a
+        // fast signal that a revival is queued/running even while it waits
+        // for the lifecycle lock.
+        markReactivating(sessionId)
+        try {
+          await withSessionLifecycleLock(sessionId, async () => {
+          let dbSession: Session | null = null
+          try {
+            dbSession = await dbApi.session.get<Session>(sessionId)
+          } catch {
+            return
+          }
+          if (!dbSession || dbSession.status !== 'completed') return
+          if (dbSession.worktree_id) {
+            await get().reopenSession(sessionId, dbSession.worktree_id, {
+              activate: false,
+              skipLifecycleLock: true
+            })
+          } else if (dbSession.connection_id) {
+            await get().reopenConnectionSession(sessionId, dbSession.connection_id, {
+              activate: false,
+              skipLifecycleLock: true
+            })
+          } else {
+            try {
+              await dbApi.session.update<Session>(sessionId, {
+                status: 'active',
+                completed_at: null
+              })
+            } catch {
+              // Best-effort — the session stays completed
+            }
+          }
+          })
+        } finally {
+          unmarkReactivating(sessionId)
         }
       },
 

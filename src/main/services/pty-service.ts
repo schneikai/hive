@@ -1,4 +1,5 @@
 import * as pty from 'node-pty'
+import { execFile } from 'node:child_process'
 import { createLogger } from './logger'
 
 const log = createLogger({ component: 'PtyService' })
@@ -62,6 +63,26 @@ function buildEnvSnapshot(env: Record<string, string>): Record<string, string | 
     snapshot.claudeCodeKeys = claudeCodeKeys.join(',')
   }
   return snapshot
+}
+
+/** Grace period between the polite SIGHUP and the SIGKILL escalation probe. */
+const KILL_ESCALATION_GRACE_MS = 1500
+
+// Pids whose pty reported exit (child reaped — the numeric pid is reusable by
+// the OS from that moment). The escalation probe must not signal such a pid
+// directly: a probe hit would be a *different* process that inherited the
+// number. Group probes stay valid — pgid reuse additionally requires the new
+// owner to become a session/group leader. Entries are pruned after 60s.
+const EXITED_PID_RETENTION_MS = 60_000
+const exitedPtyPids = new Map<number, number>()
+
+function recordPtyExit(pid: number | undefined): void {
+  if (!pid) return
+  const now = Date.now()
+  exitedPtyPids.set(pid, now)
+  for (const [oldPid, at] of exitedPtyPids) {
+    if (now - at > EXITED_PID_RETENTION_MS) exitedPtyPids.delete(oldPid)
+  }
 }
 
 class PtyService {
@@ -129,6 +150,10 @@ class PtyService {
       env
     })
 
+    // A fresh child may have received a previously-exited pid — the ledger
+    // entry belongs to the old process, not this one.
+    if (ptyProcess.pid) exitedPtyPids.delete(ptyProcess.pid)
+
     const instance: PtyInstance = {
       pty: ptyProcess,
       cwd: opts.cwd,
@@ -157,6 +182,7 @@ class PtyService {
       const code = exitCode ?? -1
       const sig = signal ?? 0
       log.info('PTY exited', { id, exitCode: code, signal: sig })
+      recordPtyExit(ptyProcess.pid)
       for (const listener of instance.exitListeners) {
         try {
           listener(code, sig)
@@ -209,18 +235,179 @@ class PtyService {
       return
     }
     log.info('Destroying PTY', { id })
+    const pid = instance.pty.pid
+    // Snapshot the process group around HUP time (pgrep runs concurrently
+    // with the signal, so it observes the members that survive it) — the
+    // escalation uses it to prove the group still belongs to this PTY
+    // (see reapSurvivors).
+    const groupSnapshot =
+      pid && process.platform !== 'win32'
+        ? this.listGroupMembers(pid)
+        : Promise.resolve(new Set<number>())
     try {
       instance.pty.kill()
     } catch (err) {
       log.error('Error killing PTY', err instanceof Error ? err : new Error(String(err)), { id })
     }
     this.ptys.delete(id)
+    this.scheduleKillEscalation(id, pid, groupSnapshot)
+  }
+
+  /** Pids currently in the given process group (empty when none or on error). */
+  private listGroupMembers(pgid: number): Promise<Set<number>> {
+    return new Promise((resolve) => {
+      execFile('pgrep', ['-g', String(pgid)], { timeout: 2000 }, (err, stdout) => {
+        if (err) return resolve(new Set())
+        const pids = stdout
+          .split('\n')
+          .map((line) => Number(line.trim()))
+          .filter((n) => Number.isInteger(n) && n > 0)
+        resolve(new Set(pids))
+      })
+    })
+  }
+
+  /**
+   * node-pty's kill() sends a single SIGHUP to the direct child and never
+   * checks the outcome. HUP-ignoring processes — and custom-provider spawns,
+   * where the agent is a grandchild of a `$SHELL -ilc` wrapper — survive it
+   * and leak. After a grace period, probe liveness and escalate to a
+   * process-group SIGKILL (the pty child is a session leader, so pgid ===
+   * pid, which also reaps same-group grandchildren). The timer is unref'd
+   * and fire-and-forget so destroyAll() under the quit-cleanup deadline
+   * never blocks on it.
+   */
+  private scheduleKillEscalation(
+    id: string,
+    pid: number | undefined,
+    groupSnapshot: Promise<Set<number>>
+  ): void {
+    if (!pid || process.platform === 'win32') return
+    const timer = setTimeout(() => {
+      void groupSnapshot.then((members) => this.reapSurvivors(id, pid, members))
+    }, KILL_ESCALATION_GRACE_MS)
+    timer.unref?.()
+  }
+
+  /**
+   * Probe the direct child AND its process group before deciding everything
+   * is dead: a wrapper shell can die on SIGHUP while a HUP-ignoring agent in
+   * the same group survives — probing only the (reaped) wrapper pid would
+   * skip the group SIGKILL that reaps the survivor. Known gap: a shell whose
+   * interactive job control forked the agent into its OWN pgid is invisible
+   * to both probes; covering that would require a descendant walk.
+   */
+  /** True when the pid belongs to a pty currently registered with this service. */
+  private isCurrentPtyPid(pid: number): boolean {
+    for (const instance of this.ptys.values()) {
+      if (instance.pty.pid === pid) return true
+    }
+    return false
+  }
+
+  private async reapSurvivors(id: string, pid: number, groupSnapshot: Set<number>): Promise<void> {
+    // The pid may have been recycled into a CURRENTLY REGISTERED pty (a new
+    // spawn between the destroy and this escalation firing) — that process
+    // is alive on purpose; a stale timer must never touch it.
+    if (this.isCurrentPtyPid(pid)) return
+    // Once the pty reported exit, the numeric pid may already belong to an
+    // unrelated process — never probe or signal it directly; only the group
+    // remains a valid target (surviving wrapper-shell grandchildren).
+    // Entries expire at read time too: pruning on insert alone could leave a
+    // stale record vetoing a later PTY that legitimately reused the pid.
+    const exitedAt = exitedPtyPids.get(pid)
+    if (exitedAt !== undefined && Date.now() - exitedAt > EXITED_PID_RETENTION_MS) {
+      exitedPtyPids.delete(pid)
+    }
+    const directPidValid = !exitedPtyPids.has(pid)
+    let leaderAlive = false
+    if (directPidValid) {
+      try {
+        process.kill(pid, 0)
+        leaderAlive = true
+      } catch {
+        // direct child dead and reaped
+      }
+    }
+    let groupAlive = false
+    try {
+      process.kill(-pid, 0)
+      groupAlive = true
+    } catch {
+      // process group empty
+    }
+    if (!leaderAlive && !groupAlive) return
+    if (!leaderAlive && groupAlive) {
+      // The leader is gone, so the numeric pgid could in principle have been
+      // recycled by an unrelated new group leader. The destroy-time snapshot
+      // (taken concurrently with the HUP, so it observes the HUP survivors)
+      // lets us check continuity: the kernel keeps a pgid reserved while any
+      // original member lives, so overlap with a current member proves the
+      // group is still ours. With an EMPTY snapshot (pgrep produced no
+      // evidence) the default depends on what we know about the leader:
+      // - leader provably exited: an alive group with zero traced members is
+      //   more likely a recycled pgid than an untracked survivor — skip.
+      // - leader never reported exit: our processes are likely still there
+      //   and pgrep merely failed — fail open toward killing, because
+      //   disabling the escalation is the leak this change exists to fix.
+      if (groupSnapshot.size > 0) {
+        const current = await this.listGroupMembers(pid)
+        const stillOurs = [...current].some(
+          (member) => member !== pid && groupSnapshot.has(member)
+        )
+        if (!stillOurs) {
+          log.warn('Skipping group SIGKILL — group no longer traceable to the destroyed PTY', {
+            id,
+            pid
+          })
+          return
+        }
+      } else if (!directPidValid) {
+        log.warn('Skipping group SIGKILL — exited leader and no membership evidence', { id, pid })
+        return
+      }
+    }
+    log.warn('PTY process (or group member) survived SIGHUP, escalating to SIGKILL', { id, pid })
+    try {
+      process.kill(-pid, 'SIGKILL')
+    } catch {
+      if (leaderAlive) {
+        try {
+          process.kill(pid, 'SIGKILL')
+        } catch {
+          // Died between the probe and the kill — nothing left to do
+        }
+      }
+    }
   }
 
   destroyAll(): void {
     log.info('Destroying all PTYs', { count: this.ptys.size })
     for (const [id] of this.ptys) {
       this.destroy(id)
+    }
+  }
+
+  /**
+   * Quit-path variant of destroyAll: HUP everything, wait a short bounded
+   * grace (well inside the quit-cleanup deadline), then synchronously
+   * group-SIGKILL anything still alive. The per-destroy escalation timers
+   * never get to fire on quit — the process exits first — so without this
+   * sweep HUP-surviving agents would leak on every app quit.
+   */
+  async destroyAllAndReap(graceMs = 300): Promise<void> {
+    const targets: Array<{ id: string; pid: number; snapshot: Promise<Set<number>> }> = []
+    if (process.platform !== 'win32') {
+      for (const [id, instance] of this.ptys) {
+        const pid = instance.pty.pid
+        if (pid) targets.push({ id, pid, snapshot: this.listGroupMembers(pid) })
+      }
+    }
+    this.destroyAll()
+    if (targets.length === 0) return
+    await new Promise((resolve) => setTimeout(resolve, graceMs))
+    for (const { id, pid, snapshot } of targets) {
+      await this.reapSurvivors(id, pid, await snapshot)
     }
   }
 

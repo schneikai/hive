@@ -606,6 +606,30 @@ export const useWorktreeStore = create<WorktreeState>((set, get) => ({
     }))
 
     try {
+      // Close all sessions so terminal PTYs and agent child processes are
+      // released before delete (parity with archiveWorktree — otherwise their
+      // processes keep running against a deleted cwd). closeSession reports
+      // failures via its result rather than throwing — abort the unbranch on
+      // failure instead of deleting the worktree out from under a live agent.
+      const sessions = useSessionStore.getState().sessionsByWorktree.get(worktreeId) || []
+      for (const session of sessions) {
+        let closeResult: { success: boolean; error?: string }
+        try {
+          closeResult = await useSessionStore.getState().closeSession(session.id)
+        } catch (error) {
+          closeResult = {
+            success: false,
+            error: error instanceof Error ? error.message : String(error)
+          }
+        }
+        if (!closeResult.success) {
+          return {
+            success: false,
+            error: `Failed to close session before unbranch: ${closeResult.error ?? 'unknown error'}`
+          }
+        }
+      }
+
       const result = await worktreeApi.delete({
         worktreeId,
         worktreePath,

@@ -23,6 +23,7 @@ import { useConnectionStore } from './useConnectionStore'
 import { usePinnedStore } from './usePinnedStore'
 import { useWorktreeStatusStore } from './useWorktreeStatusStore'
 import { kanbanApi as kanban } from '@/api/kanban-api'
+import { toast } from '@/lib/toast'
 
 export interface BoardTelegramTarget {
   ticketId: string
@@ -973,7 +974,8 @@ export const useKanbanStore = create<KanbanState>()(
 
         // Optimistic local update (updated_at/column_changed_at mirror the backend
         // bumps so transition-sorted columns place the ticket correctly right away)
-        const movedAt = new Date().toISOString()
+        const moveStartedAtMs = Date.now()
+        const movedAt = new Date(moveStartedAtMs).toISOString()
         set((state) => {
           const next = new Map(state.tickets)
           const tickets = (next.get(projectId) ?? []).map((t) =>
@@ -999,6 +1001,115 @@ export const useKanbanStore = create<KanbanState>()(
 
         try {
           await kanban.ticket.move(projectId, ticketId, column, sortOrder)
+
+          // Entering the done column ends the ticket's work: close the attached
+          // session so its agent process dies now and the tab is not restored on
+          // the next worktree selection or app launch. Done only — a merged
+          // move must NOT close the session (user decision). Lives in the
+          // renderer because it is the only production caller of this RPC and
+          // the server child cannot reach main-process PTYs — a future
+          // non-renderer mover (bots, automations) needs its own server-side
+          // hook.
+          if (
+            !opts?.skipCompletionEffects &&
+            column === 'done' &&
+            movedTicket?.current_session_id &&
+            movedTicket.column !== column
+          ) {
+            const sessionIdToClose = movedTicket.current_session_id
+            try {
+              // One session can serve several tickets (pre-assign attaches the
+              // worktree's session to every ticket; handoffs relink in bulk).
+              // Closing it while another live ticket still rides it would kill
+              // that ticket's in-flight work — skip, and skip too when the
+              // link set cannot be verified.
+              const linked = await kanban.ticket.getBySession<KanbanTicket>(sessionIdToClose)
+              const sharedWithLiveTicket = linked.some(
+                (t) =>
+                  t.id !== ticketId &&
+                  !t.archived_at &&
+                  t.column !== 'done' &&
+                  t.column !== 'merged'
+              )
+              // The awaits above race two newer intents: the user dragging the
+              // ticket back out of done, and a background revival (follow-up
+              // send, plan approval) putting the session back to work. Re-check
+              // both from current state right before closing — the newer intent
+              // wins. Only status transitions stamped AFTER this move count as
+              // revivals: a session that was merely still working when the user
+              // dragged to done must still be closed (that is the feature).
+              const ticketNow = get()
+                .tickets.get(projectId)
+                ?.find((t) => t.id === ticketId)
+              const statusEntry =
+                useWorktreeStatusStore.getState().sessionStatuses[sessionIdToClose]
+              const revivedDuringMove =
+                statusEntry != null &&
+                statusEntry.timestamp > moveStartedAtMs &&
+                (statusEntry.status === 'working' ||
+                  statusEntry.status === 'planning' ||
+                  statusEntry.status === 'answering' ||
+                  statusEntry.status === 'permission' ||
+                  statusEntry.status === 'command_approval')
+              const { useSessionStore, isSessionReactivating } = await import('./useSessionStore')
+              if (
+                !sharedWithLiveTicket &&
+                ticketNow?.column === 'done' &&
+                !revivedDuringMove &&
+                // A revival can start before its status stamp lands — never
+                // close while a reactivation/reopen is in flight.
+                !isSessionReactivating(sessionIdToClose)
+              ) {
+                // No awaits sit between the guards above and this call, and
+                // closeSession performs the remote stop and the close INSIDE
+                // its per-session lifecycle lock (after re-checking
+                // abortIfRevived there), so guard and transitions are atomic.
+                // closeSession reports failures via its result, not by
+                // throwing — surface non-aborted failures.
+                void (async () => {
+                  const result = await useSessionStore
+                    .getState()
+                    .closeSession(sessionIdToClose, { abortIfRevived: true, stopRemote: true })
+                  if (!result.success && !result.aborted) {
+                    console.error(
+                      'Failed to close session for completed ticket:',
+                      sessionIdToClose,
+                      result.error
+                    )
+                    toast.error(
+                      `Ticket is done, but its session could not be closed: ${result.error ?? 'unknown error'}`
+                    )
+                  }
+                  if (result.success) {
+                    // A drag back out of Done during the close (which does not
+                    // mark the session reactivating) means the newer intent is
+                    // to keep working — undo: restore active status and tab.
+                    // Only when the ticket still references this session; the
+                    // backward-drag-to-todo flow completes and unlinks it on
+                    // purpose and must not be undone.
+                    const ticketAfter = get()
+                      .tickets.get(projectId)
+                      ?.find((t) => t.id === ticketId)
+                    if (
+                      ticketAfter &&
+                      ticketAfter.column !== 'done' &&
+                      ticketAfter.current_session_id === sessionIdToClose
+                    ) {
+                      await useSessionStore.getState().reactivateSession(sessionIdToClose)
+                    }
+                  }
+                })().catch((err) => {
+                  console.error(
+                    'Failed to close session for completed ticket:',
+                    sessionIdToClose,
+                    err
+                  )
+                })
+              }
+            } catch (err) {
+              console.error('Skipping session close — link check failed:', sessionIdToClose, err)
+            }
+          }
 
           // When a ticket moves to done (or review, if that's the trigger), check if any dependents can be auto-launched
           const { useSettingsStore } = await import('./useSettingsStore')
@@ -1262,6 +1373,14 @@ export const useKanbanStore = create<KanbanState>()(
                   get()
                     .moveTicket(ticket.id, projectId, 'in_progress', ticket.sort_order)
                     .catch(() => {})
+                  // The done-move closed this session; the approved plan puts it
+                  // back to work — restore its active status and tab (no focus
+                  // change) so the process is not culled as a completed leftover.
+                  import('./useSessionStore')
+                    .then(({ useSessionStore }) =>
+                      useSessionStore.getState().reactivateSession(sessionId)
+                    )
+                    .catch(() => {})
                 }
                 break
               }
@@ -1301,6 +1420,15 @@ export const useKanbanStore = create<KanbanState>()(
                   get()
                     .moveTicket(ticket.id, projectId, 'in_progress', ticket.sort_order)
                     .catch(() => {})
+                  if (reopenedByFollowup) {
+                    // An explicit follow-up revived a done-closed session —
+                    // restore its active status and tab (no focus change).
+                    import('./useSessionStore')
+                      .then(({ useSessionStore }) =>
+                        useSessionStore.getState().reactivateSession(sessionId)
+                      )
+                      .catch(() => {})
+                  }
                 }
                 break
               }

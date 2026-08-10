@@ -1,4 +1,4 @@
-import { cleanup, render, screen } from '@testing-library/react'
+import { act, cleanup, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { MainPane } from './MainPane'
 import { useConnectionStore } from '@/stores/useConnectionStore'
@@ -251,5 +251,109 @@ describe('MainPane terminal visibility', () => {
     const terminal = screen.getByTestId('terminal-view-terminal-1')
     expect(terminal.getAttribute('data-visible')).toBe('false')
     expect(terminal.parentElement?.classList.contains('hidden')).toBe(true)
+  })
+})
+
+// Mounting a stateful terminal view spawns its agent process, so sessions that
+// merely have a tab must NOT mount until an activation signal selects them.
+describe('MainPane terminal activation gating', () => {
+  const second = makeSession({ id: 'session-2', name: 'Claude CLI 2' })
+
+  function setupTwoSessions(): void {
+    setupMainPaneState()
+    useSessionStore.setState({
+      sessionsByWorktree: new Map([['worktree-1', [makeSession(), second]]])
+    })
+  }
+
+  it('does not mount an in-scope terminal session that is not activated', () => {
+    setupTwoSessions()
+
+    renderMainPane()
+
+    expect(screen.getByTestId('session-view-session-1')).toBeTruthy()
+    expect(screen.queryByTestId('session-view-session-2')).toBeNull()
+  })
+
+  it('mounts a session once it becomes the active tab and keeps it mounted after switching away', () => {
+    setupTwoSessions()
+
+    renderMainPane()
+    expect(screen.queryByTestId('session-view-session-2')).toBeNull()
+
+    act(() => {
+      useSessionStore.setState({ activeSessionId: 'session-2' })
+    })
+    expect(screen.getByTestId('session-view-session-2').getAttribute('data-visible')).toBe('true')
+
+    // Switching back must keep session-2 mounted (latched) but hidden
+    act(() => {
+      useSessionStore.setState({ activeSessionId: 'session-1' })
+    })
+    const latched = screen.getByTestId('session-view-session-2')
+    expect(latched.getAttribute('data-visible')).toBe('false')
+    expect(latched.closest('.hidden')).not.toBeNull()
+  })
+
+  it('mounts a non-active session with a pending mount request (ticket modal)', () => {
+    setupTwoSessions()
+    useSessionStore.setState({ sessionMountRequests: new Map([['session-2', 1]]) })
+
+    renderMainPane()
+
+    expect(screen.getByTestId('session-view-session-2')).toBeTruthy()
+  })
+
+  it('mounts a non-active session with a queued pending message', () => {
+    setupTwoSessions()
+    useSessionStore.setState({ pendingMessages: new Map([['session-2', 'do the thing']]) })
+
+    renderMainPane()
+
+    expect(screen.getByTestId('session-view-session-2')).toBeTruthy()
+  })
+
+  it('mounts a non-active pinned session', () => {
+    setupTwoSessions()
+    useSessionStore.setState({ activePinnedSessionId: 'session-2' })
+
+    renderMainPane()
+
+    expect(screen.getByTestId('session-view-session-2')).toBeTruthy()
+  })
+
+  it('mounts an inline connection session even when its connection is not selected', () => {
+    setupMainPaneState()
+    const connSession = makeSession({
+      id: 'conn-session-1',
+      worktree_id: null,
+      connection_id: 'connection-1'
+    })
+    useSessionStore.setState({
+      sessionsByConnection: new Map([['connection-1', [connSession]]]),
+      inlineConnectionSessionId: 'conn-session-1'
+    })
+
+    renderMainPane()
+
+    expect(screen.getByTestId('session-view-conn-session-1')).toBeTruthy()
+  })
+
+  it('unmounts a latched session when its tab is closed', () => {
+    setupTwoSessions()
+
+    renderMainPane()
+    act(() => {
+      useSessionStore.setState({ activeSessionId: 'session-2' })
+    })
+    expect(screen.getByTestId('session-view-session-2')).toBeTruthy()
+
+    act(() => {
+      useSessionStore.setState({
+        activeSessionId: 'session-1',
+        closedTerminalSessionIds: new Set(['session-2'])
+      })
+    })
+    expect(screen.queryByTestId('session-view-session-2')).toBeNull()
   })
 })

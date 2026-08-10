@@ -228,6 +228,10 @@ function ClaudeCliPortalSlot({ sessionId }: { sessionId: string }): React.JSX.El
     return () => {
       registerTarget(sessionId, null)
       releaseSessionMount(sessionId)
+      // Modal-resumed sessions of Done tickets are completed and tab-less —
+      // kill their PTY when the last mount request goes away (no-op for
+      // active sessions).
+      void useSessionStore.getState().destroyCompletedSessionTerminal(sessionId)
     }
   }, [registerTarget, releaseSessionMount, requestSessionMount, sessionId])
 
@@ -464,6 +468,13 @@ async function sendFollowupToSession(opts: {
   const model = resolveSessionModel(opts.sessionId, result.session)
 
   if (session.agent_sdk === 'claude-code-cli') {
+    // The follow-up may target a session closed when its ticket entered Done.
+    // Reactivate BEFORE delivering: this serializes behind any in-flight
+    // close via the lifecycle lock (delivering first could hand the prompt to
+    // a PTY the close is about to destroy), flips the row back to active, and
+    // restores the tab so the working process has a restore entry and is not
+    // culled by the modal-release cleanup.
+    await useSessionStore.getState().reactivateSession(opts.sessionId)
     const delivery = unwrapEnvelope(
       await terminalApi.sendClaudeCliPrompt(opts.sessionId, fullPrompt)
     )
@@ -491,6 +502,13 @@ async function sendFollowupToSession(opts: {
     )
     throw new Error(`No opencode session ID for session: ${opts.sessionId}`)
   }
+
+  // Same as the claude-code-cli branch: reactivate BEFORE reconnecting so the
+  // revival serializes behind any in-flight close via the lifecycle lock —
+  // otherwise a close could disconnect the implementer state while the
+  // reconnect below is in flight and the prompt would fail "session not
+  // found" on a session that was just restored as active.
+  await useSessionStore.getState().reactivateSession(opts.sessionId)
 
   // Ensure the session is loaded in the agent SDK implementer's in-memory map.
   // SessionView does this on mount via initializeSession(), but the kanban
@@ -3924,8 +3942,9 @@ function JumpToSessionButton({
   label?: string
   testId?: string
 }) {
-  const handleJump = useCallback(() => {
-    if (!ticket.current_session_id) return
+  const handleJump = useCallback(async () => {
+    const sessionId = ticket.current_session_id
+    if (!sessionId) return
 
     // Switch off board view
     const kanbanStore = useKanbanStore.getState()
@@ -3939,8 +3958,34 @@ function JumpToSessionButton({
       useSessionStore.getState().setActiveWorktree(ticket.worktree_id)
     }
 
-    // Focus the session tab
-    useSessionStore.getState().setActiveSession(ticket.current_session_id)
+    // Claim the session synchronously BEFORE any await: if the modal unmounts
+    // while the reopen below is in flight (user dismisses it), the release
+    // cleanup must already see this session as active and skip its PTY destroy.
+    const sessionStore = useSessionStore.getState()
+    sessionStore.setActiveSession(sessionId)
+
+    // Jumping to a done-closed session reopens it: restore its tab and flip
+    // it back to active so the modal-release cleanup doesn't kill the very
+    // terminal being navigated to. closeSession drops the session from the
+    // store maps, so the in-memory lookup can miss — fall back to the DB row.
+    // Connection-backed sessions (ticket.worktree_id null) reopen via their
+    // connection, or the jump would target an id MainPane cannot resolve.
+    try {
+      const record =
+        sessionStore.getSessionById(sessionId) ?? (await dbApi.session.get<Session>(sessionId))
+      if (record?.status === 'completed') {
+        if (ticket.worktree_id) {
+          await sessionStore.reopenSession(sessionId, ticket.worktree_id)
+        } else if (record.connection_id) {
+          // MainPane only scopes connection sessions under the selected
+          // connection — select it or the reopened tab has nowhere to mount
+          useConnectionStore.getState().selectConnection(record.connection_id)
+          await sessionStore.reopenConnectionSession(sessionId, record.connection_id)
+        }
+      }
+    } catch {
+      // Best-effort — worst case the jump lands on a tab-less session
+    }
 
     onClose()
   }, [ticket.current_session_id, ticket.worktree_id, onClose])

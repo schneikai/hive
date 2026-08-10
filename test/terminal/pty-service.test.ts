@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, test, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
 import { EventEmitter } from 'events'
 
 // Mock node-pty
@@ -75,11 +75,20 @@ describe('PtyService', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    // destroy() schedules a kill-escalation timer that probes real pids;
+    // MockPty's fake pid must never be probed on the test machine. Fake
+    // timers keep those timers permanently un-fired (this suite is fully
+    // synchronous otherwise).
+    vi.useFakeTimers()
     // Clean up any existing PTYs from previous tests
     ptyService.destroyAll()
 
     mockPty = new MockPty(80, 24)
     spawnMock.mockReturnValue(mockPty)
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
   })
 
   describe('create', () => {

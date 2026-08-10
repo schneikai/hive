@@ -1770,6 +1770,14 @@ export class DatabaseService {
     return rows.map((row) => this.mapSessionRow(row))
   }
 
+  getSessionByClaudeSessionId(claudeSessionId: string): Session | null {
+    const db = this.getDb()
+    const row = db
+      .prepare('SELECT * FROM sessions WHERE claude_session_id = ? LIMIT 1')
+      .get(claudeSessionId) as Record<string, unknown> | undefined
+    return row ? this.mapSessionRow(row) : null
+  }
+
   getActiveBoardAssistantByProject(projectId: string): Session | null {
     const db = this.getDb()
     const row = db
