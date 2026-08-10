@@ -3938,7 +3938,7 @@ function JumpToSessionButton({
   label?: string
   testId?: string
 }) {
-  const handleJump = useCallback(() => {
+  const handleJump = useCallback(async () => {
     const sessionId = ticket.current_session_id
     if (!sessionId) return
 
@@ -3956,13 +3956,23 @@ function JumpToSessionButton({
 
     // Jumping to a done-closed session reopens it: restore its tab and flip
     // it back to active so the modal-release cleanup doesn't kill the very
-    // terminal being navigated to.
+    // terminal being navigated to. closeSession drops the session from the
+    // store maps, so the in-memory lookup can miss — fall back to the DB row.
     const sessionStore = useSessionStore.getState()
-    if (ticket.worktree_id && sessionStore.getSessionById(sessionId)?.status === 'completed') {
-      void sessionStore.reopenSession(sessionId, ticket.worktree_id).catch(() => {})
+    if (ticket.worktree_id) {
+      try {
+        const record =
+          sessionStore.getSessionById(sessionId) ??
+          (await dbApi.session.get<Session>(sessionId))
+        if (record?.status === 'completed') {
+          await sessionStore.reopenSession(sessionId, ticket.worktree_id)
+        }
+      } catch {
+        // Best-effort — worst case the jump lands on a tab-less session
+      }
     }
 
-    // Focus the session tab (synchronously, so the modal-close cleanup sees
+    // Focus the session tab (before the modal-close cleanup runs, so it sees
     // this session as active and skips its PTY destroy)
     sessionStore.setActiveSession(sessionId)
 

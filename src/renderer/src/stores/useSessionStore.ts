@@ -32,6 +32,12 @@ const pushQueuedState = (sessionId: string, hasQueued: boolean): void => {
   systemApi.setSessionQueuedState(sessionId, hasQueued).catch(() => {})
 }
 
+// Sessions currently being flipped back to active by reactivateSession.
+// Consulted (synchronously) by destroyCompletedSessionTerminal so a cleanup
+// racing the async DB flip cannot read the stale 'completed' row and kill a
+// just-revived process.
+const reactivatingSessionIds = new Set<string>()
+
 export const BOARD_TAB_ID = '__board__'
 export const BOARD_ASSISTANT_SESSION_NAME_PREFIX = '[Board Assistant]'
 
@@ -399,6 +405,7 @@ export const useSessionStore = create<SessionState>()(
       // the DB row back to active yet).
       destroyCompletedSessionTerminal: async (sessionId: string) => {
         const isReEngaged = async (): Promise<boolean> => {
+          if (reactivatingSessionIds.has(sessionId)) return true
           if (get().sessionMountRequests.has(sessionId)) return true
           if (get().activeSessionId === sessionId) return true
           const { useWorktreeStatusStore } = await import('./useWorktreeStatusStore')
@@ -1087,28 +1094,36 @@ export const useSessionStore = create<SessionState>()(
       // work: the session must regain a tab and a restore entry, or its
       // respawned process would outlive every UI affordance to close it.
       reactivateSession: async (sessionId: string) => {
-        let dbSession: Session | null = null
+        // Marked synchronously so a concurrently-running
+        // destroyCompletedSessionTerminal cannot read the stale 'completed'
+        // DB row and kill the process this revival is claiming.
+        reactivatingSessionIds.add(sessionId)
         try {
-          dbSession = await dbApi.session.get<Session>(sessionId)
-        } catch {
-          return
-        }
-        if (!dbSession || dbSession.status !== 'completed') return
-        if (dbSession.worktree_id) {
-          await get().reopenSession(sessionId, dbSession.worktree_id, { activate: false })
-        } else if (dbSession.connection_id) {
-          await get().reopenConnectionSession(sessionId, dbSession.connection_id, {
-            activate: false
-          })
-        } else {
+          let dbSession: Session | null = null
           try {
-            await dbApi.session.update<Session>(sessionId, {
-              status: 'active',
-              completed_at: null
-            })
+            dbSession = await dbApi.session.get<Session>(sessionId)
           } catch {
-            // Best-effort — the session stays completed
+            return
           }
+          if (!dbSession || dbSession.status !== 'completed') return
+          if (dbSession.worktree_id) {
+            await get().reopenSession(sessionId, dbSession.worktree_id, { activate: false })
+          } else if (dbSession.connection_id) {
+            await get().reopenConnectionSession(sessionId, dbSession.connection_id, {
+              activate: false
+            })
+          } else {
+            try {
+              await dbApi.session.update<Session>(sessionId, {
+                status: 'active',
+                completed_at: null
+              })
+            } catch {
+              // Best-effort — the session stays completed
+            }
+          }
+        } finally {
+          reactivatingSessionIds.delete(sessionId)
         }
       },
 

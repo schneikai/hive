@@ -30,6 +30,7 @@ vi.mock('./useSessionStore', () => ({
 }))
 
 import { useKanbanStore } from './useKanbanStore'
+import { useWorktreeStatusStore } from './useWorktreeStatusStore'
 import { kanbanApi } from '@/api/kanban-api'
 
 const SESSION_ID = 'sess-1'
@@ -90,10 +91,12 @@ beforeEach(() => {
   vi.clearAllMocks()
   closeSession.mockResolvedValue(undefined)
   useKanbanStore.setState({ tickets: new Map(), dependencyMap: new Map() })
+  useWorktreeStatusStore.setState({ sessionStatuses: {} })
 })
 
 afterEach(() => {
   useKanbanStore.setState({ tickets: new Map(), dependencyMap: new Map() })
+  useWorktreeStatusStore.setState({ sessionStatuses: {} })
 })
 
 describe('moveTicket — close attached session on the done column', () => {
@@ -207,6 +210,52 @@ describe('moveTicket — close attached session on the done column', () => {
     expect(closeSession).not.toHaveBeenCalled()
     expect(columnOf('ticket-1')).toBe('done')
     consoleError.mockRestore()
+  })
+
+  it('does not close when the ticket left done again during the async window', async () => {
+    seed(makeTicket())
+    vi.mocked(kanbanApi.ticket.getBySession).mockImplementationOnce(async () => {
+      // User drags the ticket back to in_progress while the link check is in
+      // flight — the optimistic store already reflects the newer intent.
+      useKanbanStore.setState({
+        tickets: new Map([[PROJECT_ID, [makeTicket({ column: 'in_progress' })]]])
+      })
+      return [makeTicket()]
+    })
+
+    await useKanbanStore.getState().moveTicket('ticket-1', PROJECT_ID, 'done', 0)
+    await flush()
+
+    expect(closeSession).not.toHaveBeenCalled()
+  })
+
+  it('does not close when the session was revived during the move', async () => {
+    seed(makeTicket())
+    vi.mocked(kanbanApi.ticket.getBySession).mockImplementationOnce(async () => {
+      // A background revival (follow-up / plan approval) stamps a fresh
+      // working status while the close flow is in flight.
+      useWorktreeStatusStore.setState({
+        sessionStatuses: { [SESSION_ID]: { status: 'working', timestamp: Date.now() + 1000 } }
+      })
+      return [makeTicket()]
+    })
+
+    await useKanbanStore.getState().moveTicket('ticket-1', PROJECT_ID, 'done', 0)
+    await flush()
+
+    expect(closeSession).not.toHaveBeenCalled()
+  })
+
+  it('still closes when the session status predates the move (was simply working)', async () => {
+    seed(makeTicket())
+    useWorktreeStatusStore.setState({
+      sessionStatuses: { [SESSION_ID]: { status: 'working', timestamp: Date.now() - 60_000 } }
+    })
+
+    await useKanbanStore.getState().moveTicket('ticket-1', PROJECT_ID, 'done', 0)
+    await flush()
+
+    expect(closeSession).toHaveBeenCalledWith(SESSION_ID)
   })
 
   it('does not fail the move when the session close rejects', async () => {

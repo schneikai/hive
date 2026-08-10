@@ -117,6 +117,22 @@ describe('destroyCompletedSessionTerminal', () => {
     expect(terminalDestroy).not.toHaveBeenCalled()
   })
 
+  it('skips while a reactivation is in flight (revival race)', async () => {
+    let releaseReactivateRead: (value: Session) => void = () => {}
+    sessionGet.mockImplementationOnce(
+      () => new Promise<Session>((resolve) => (releaseReactivateRead = resolve))
+    )
+
+    // Reactivation starts first and is parked on its DB read
+    const reactivation = useSessionStore.getState().reactivateSession(SESSION_ID)
+
+    await useSessionStore.getState().destroyCompletedSessionTerminal(SESSION_ID)
+    expect(terminalDestroy).not.toHaveBeenCalled()
+
+    releaseReactivateRead(makeDbSession())
+    await reactivation
+  })
+
   it('skips when a new mount request lands during the DB read (re-mount race)', async () => {
     sessionGet.mockImplementation(async () => {
       // Simulate a modal re-opening while the status read is in flight

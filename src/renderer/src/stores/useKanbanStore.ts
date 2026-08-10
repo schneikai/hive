@@ -971,7 +971,8 @@ export const useKanbanStore = create<KanbanState>()(
 
         // Optimistic local update (updated_at/column_changed_at mirror the backend
         // bumps so transition-sorted columns place the ticket correctly right away)
-        const movedAt = new Date().toISOString()
+        const moveStartedAtMs = Date.now()
+        const movedAt = new Date(moveStartedAtMs).toISOString()
         set((state) => {
           const next = new Map(state.tickets)
           const tickets = (next.get(projectId) ?? []).map((t) =>
@@ -1027,7 +1028,27 @@ export const useKanbanStore = create<KanbanState>()(
                   t.column !== 'done' &&
                   t.column !== 'merged'
               )
-              if (!sharedWithLiveTicket) {
+              // The awaits above race two newer intents: the user dragging the
+              // ticket back out of done, and a background revival (follow-up
+              // send, plan approval) putting the session back to work. Re-check
+              // both from current state right before closing — the newer intent
+              // wins. Only status transitions stamped AFTER this move count as
+              // revivals: a session that was merely still working when the user
+              // dragged to done must still be closed (that is the feature).
+              const ticketNow = get()
+                .tickets.get(projectId)
+                ?.find((t) => t.id === ticketId)
+              const statusEntry =
+                useWorktreeStatusStore.getState().sessionStatuses[sessionIdToClose]
+              const revivedDuringMove =
+                statusEntry != null &&
+                statusEntry.timestamp > moveStartedAtMs &&
+                (statusEntry.status === 'working' ||
+                  statusEntry.status === 'planning' ||
+                  statusEntry.status === 'answering' ||
+                  statusEntry.status === 'permission' ||
+                  statusEntry.status === 'command_approval')
+              if (!sharedWithLiveTicket && ticketNow?.column === 'done' && !revivedDuringMove) {
                 const { useSessionStore } = await import('./useSessionStore')
                 useSessionStore
                   .getState()
