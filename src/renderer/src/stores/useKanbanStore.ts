@@ -1059,7 +1059,9 @@ export const useKanbanStore = create<KanbanState>()(
               ) {
                 useSessionStore
                   .getState()
-                  .closeSession(sessionIdToClose)
+                  // abortIfRevived re-checks inside the lifecycle lock, making
+                  // the revival guard and the close transition atomic
+                  .closeSession(sessionIdToClose, { abortIfRevived: true })
                   .catch((err) => {
                     console.error(
                       'Failed to close session for completed ticket:',

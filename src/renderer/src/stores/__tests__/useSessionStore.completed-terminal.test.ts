@@ -195,6 +195,35 @@ describe('closeSession DB fallback', () => {
     expect(terminalDestroy).not.toHaveBeenCalled()
   })
 
+  it('aborts an abortIfRevived close when a revival marked itself before the close ran', async () => {
+    const dbRow = { current: makeDbSession({ status: 'active', completed_at: null }) }
+    sessionGet.mockImplementation(async () => dbRow.current)
+    sessionUpdate.mockImplementation(async (_id: string, data: Partial<Session>) => {
+      dbRow.current = { ...dbRow.current, ...data } as Session
+      return dbRow.current
+    })
+
+    // The close is dispatched first, then a revival starts in the same tick
+    // (markReactivating is synchronous) — the close's in-lock guard must see
+    // it and abort instead of completing the session under the revival.
+    const closing = useSessionStore.getState().closeSession(SESSION_ID, { abortIfRevived: true })
+    const reactivation = useSessionStore.getState().reactivateSession(SESSION_ID)
+
+    const result = await closing
+    await reactivation
+
+    expect(result).toEqual({
+      success: false,
+      aborted: true,
+      error: 'Session was revived concurrently'
+    })
+    expect(sessionUpdate).not.toHaveBeenCalledWith(
+      SESSION_ID,
+      expect.objectContaining({ status: 'completed' })
+    )
+    expect(terminalDestroy).not.toHaveBeenCalled()
+  })
+
   it('serializes a close behind an in-flight revival (no mid-flight interleave)', async () => {
     const dbRow = { current: makeDbSession() }
     sessionGet.mockImplementation(async () => dbRow.current)

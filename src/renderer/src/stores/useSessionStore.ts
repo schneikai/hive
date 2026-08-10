@@ -215,7 +215,10 @@ interface SessionState {
       customProviderId?: string | null
     }
   ) => Promise<{ success: boolean; session?: Session; error?: string }>
-  closeSession: (sessionId: string) => Promise<{ success: boolean; error?: string }>
+  closeSession: (
+    sessionId: string,
+    opts?: { abortIfRevived?: boolean }
+  ) => Promise<{ success: boolean; error?: string; aborted?: boolean }>
   reopenSession: (
     sessionId: string,
     worktreeId: string,
@@ -738,8 +741,16 @@ export const useSessionStore = create<SessionState>()(
 
       // Close a session tab (removes from tab view, keeps in database for history)
       // Scope-agnostic: works for both worktree and connection sessions
-      closeSession: async (sessionId: string) =>
+      closeSession: async (sessionId: string, opts?: { abortIfRevived?: boolean }) =>
         withSessionLifecycleLock(sessionId, async () => {
+        // Atomic guard for background closes (ticket entered Done): a revival
+        // that queued behind this lock marked itself synchronously before
+        // waiting, so checking here — inside the lock, before the
+        // completed-write — makes guard and transition atomic. Explicit user
+        // closes (tab X, archive) do not pass the flag and always proceed.
+        if (opts?.abortIfRevived && isSessionReactivating(sessionId)) {
+          return { success: false, aborted: true, error: 'Session was revived concurrently' }
+        }
         try {
           // Find the session to determine type and gather disconnect info
           let isTerminalSession = false

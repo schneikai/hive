@@ -15324,10 +15324,7 @@ describe('renderer API cleanup', () => {
       'utf-8'
     )
     const createSessionStart = source.indexOf('createSession: async (')
-    const closeSessionStart = source.indexOf(
-      'closeSession: async (sessionId: string)',
-      createSessionStart
-    )
+    const closeSessionStart = source.indexOf('closeSession: async (', createSessionStart)
     const createSessionSource = source.slice(createSessionStart, closeSessionStart)
 
     expect(createSessionStart).toBeGreaterThan(-1)
@@ -15732,7 +15729,7 @@ describe('renderer API cleanup', () => {
       path.resolve(__dirname, '../../src/renderer/src/stores/useSessionStore.ts'),
       'utf-8'
     )
-    const closeSessionStart = source.indexOf('closeSession: async (sessionId: string)')
+    const closeSessionStart = source.indexOf('closeSession: async (')
     const reopenSessionStart = source.indexOf('reopenSession: async (', closeSessionStart)
     const closeSessionSource = source.slice(closeSessionStart, reopenSessionStart)
 

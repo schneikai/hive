@@ -110,7 +110,7 @@ describe('moveTicket — close attached session on the done column', () => {
     await flush()
 
     expect(closeSession).toHaveBeenCalledTimes(1)
-    expect(closeSession).toHaveBeenCalledWith(SESSION_ID)
+    expect(closeSession).toHaveBeenCalledWith(SESSION_ID, { abortIfRevived: true })
   })
 
   it('does not close the session when a ticket moves to merged', async () => {
@@ -197,7 +197,7 @@ describe('moveTicket — close attached session on the done column', () => {
     await useKanbanStore.getState().moveTicket('ticket-1', PROJECT_ID, 'done', 0)
     await flush()
 
-    expect(closeSession).toHaveBeenCalledWith(SESSION_ID)
+    expect(closeSession).toHaveBeenCalledWith(SESSION_ID, { abortIfRevived: true })
   })
 
   it('skips the close (but not the move) when the link check fails', async () => {
@@ -269,7 +269,7 @@ describe('moveTicket — close attached session on the done column', () => {
     await useKanbanStore.getState().moveTicket('ticket-1', PROJECT_ID, 'done', 0)
     await flush()
 
-    expect(closeSession).toHaveBeenCalledWith(SESSION_ID)
+    expect(closeSession).toHaveBeenCalledWith(SESSION_ID, { abortIfRevived: true })
   })
 
   it('does not fail the move when the session close rejects', async () => {
