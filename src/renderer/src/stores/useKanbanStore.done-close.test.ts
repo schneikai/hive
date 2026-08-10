@@ -1,10 +1,15 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { KanbanTicket, KanbanTicketColumn } from '../../../main/db/types'
 
-const { closeSession, isSessionReactivating } = vi.hoisted(() => ({
-  closeSession: vi.fn().mockResolvedValue(undefined),
-  isSessionReactivating: vi.fn(() => false)
-}))
+const { closeSession, isSessionReactivating, sessionGet, remoteStop, toastError } = vi.hoisted(
+  () => ({
+    closeSession: vi.fn().mockResolvedValue({ success: true }),
+    isSessionReactivating: vi.fn(() => false),
+    sessionGet: vi.fn().mockResolvedValue(null),
+    remoteStop: vi.fn().mockResolvedValue({ ok: true }),
+    toastError: vi.fn()
+  })
+)
 
 // Mock the kanban RPC API so moveTicket doesn't hit a real client.
 vi.mock('@/api/kanban-api', () => ({
@@ -29,6 +34,18 @@ vi.mock('./useSettingsStore', () => ({
 vi.mock('./useSessionStore', () => ({
   useSessionStore: { getState: () => ({ closeSession }) },
   isSessionReactivating
+}))
+
+vi.mock('@/api/db-api', () => ({
+  dbApi: { session: { get: sessionGet } }
+}))
+
+vi.mock('@/api/remote-launch-api', () => ({
+  remoteLaunchApi: { stop: remoteStop }
+}))
+
+vi.mock('@/lib/toast', () => ({
+  toast: { error: toastError, success: vi.fn(), info: vi.fn() }
 }))
 
 import { useKanbanStore } from './useKanbanStore'
@@ -91,8 +108,10 @@ const flush = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 
 
 beforeEach(() => {
   vi.clearAllMocks()
-  closeSession.mockResolvedValue(undefined)
+  closeSession.mockResolvedValue({ success: true })
   isSessionReactivating.mockReturnValue(false)
+  sessionGet.mockResolvedValue(null)
+  remoteStop.mockResolvedValue({ ok: true })
   useKanbanStore.setState({ tickets: new Map(), dependencyMap: new Map() })
   useWorktreeStatusStore.setState({ sessionStatuses: {} })
 })
@@ -270,6 +289,81 @@ describe('moveTicket — close attached session on the done column', () => {
     await flush()
 
     expect(closeSession).toHaveBeenCalledWith(SESSION_ID, { abortIfRevived: true })
+  })
+
+  it('stops a remote-launched session before closing it locally', async () => {
+    seed(makeTicket())
+    sessionGet.mockResolvedValue({
+      id: SESSION_ID,
+      remote_launch: JSON.stringify({ role: 'client', host: 'devbox', tmuxSession: 't1' })
+    })
+
+    await useKanbanStore.getState().moveTicket('ticket-1', PROJECT_ID, 'done', 0)
+    await flush()
+    await flush()
+
+    expect(remoteStop).toHaveBeenCalledWith({ sessionId: SESSION_ID })
+    expect(closeSession).toHaveBeenCalledWith(SESSION_ID, { abortIfRevived: true })
+  })
+
+  it('keeps the session linked when the remote stop fails', async () => {
+    seed(makeTicket())
+    sessionGet.mockResolvedValue({
+      id: SESSION_ID,
+      remote_launch: JSON.stringify({ role: 'client', host: 'devbox', tmuxSession: 't1' })
+    })
+    remoteStop.mockRejectedValueOnce(new Error('host unreachable'))
+
+    await useKanbanStore.getState().moveTicket('ticket-1', PROJECT_ID, 'done', 0)
+    await flush()
+    await flush()
+
+    expect(closeSession).not.toHaveBeenCalled()
+    expect(toastError).toHaveBeenCalled()
+  })
+
+  it('does not stop remote sessions that were already stopped', async () => {
+    seed(makeTicket())
+    sessionGet.mockResolvedValue({
+      id: SESSION_ID,
+      remote_launch: JSON.stringify({
+        role: 'client',
+        host: 'devbox',
+        tmuxSession: 't1',
+        stoppedAt: '2026-01-02T00:00:00.000Z'
+      })
+    })
+
+    await useKanbanStore.getState().moveTicket('ticket-1', PROJECT_ID, 'done', 0)
+    await flush()
+    await flush()
+
+    expect(remoteStop).not.toHaveBeenCalled()
+    expect(closeSession).toHaveBeenCalledWith(SESSION_ID, { abortIfRevived: true })
+  })
+
+  it('surfaces a non-aborted close failure via toast', async () => {
+    seed(makeTicket())
+    closeSession.mockResolvedValue({ success: false, error: 'db locked' })
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
+
+    await useKanbanStore.getState().moveTicket('ticket-1', PROJECT_ID, 'done', 0)
+    await flush()
+    await flush()
+
+    expect(toastError).toHaveBeenCalledWith('Ticket is done, but its session could not be closed')
+    consoleError.mockRestore()
+  })
+
+  it('stays quiet when the close was aborted by a concurrent revival', async () => {
+    seed(makeTicket())
+    closeSession.mockResolvedValue({ success: false, aborted: true, error: 'revived' })
+
+    await useKanbanStore.getState().moveTicket('ticket-1', PROJECT_ID, 'done', 0)
+    await flush()
+    await flush()
+
+    expect(toastError).not.toHaveBeenCalled()
   })
 
   it('does not fail the move when the session close rejects', async () => {

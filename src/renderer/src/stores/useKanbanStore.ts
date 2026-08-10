@@ -21,6 +21,11 @@ import { useConnectionStore } from './useConnectionStore'
 import { usePinnedStore } from './usePinnedStore'
 import { useWorktreeStatusStore } from './useWorktreeStatusStore'
 import { kanbanApi as kanban } from '@/api/kanban-api'
+import { dbApi } from '@/api/db-api'
+import { remoteLaunchApi } from '@/api/remote-launch-api'
+import { parseRemoteLaunch } from '@shared/types/remote-launch'
+import { toast } from '@/lib/toast'
+import type { Session } from '../../../main/db/types'
 
 export interface BoardTelegramTarget {
   ticketId: string
@@ -1057,18 +1062,47 @@ export const useKanbanStore = create<KanbanState>()(
                 // close while a reactivation/reopen is in flight.
                 !isSessionReactivating(sessionIdToClose)
               ) {
-                useSessionStore
-                  .getState()
+                void (async () => {
+                  // Remote-launched agents run in a tmux on the remote host —
+                  // a local close would leave that agent running forever.
+                  // Stop it first (mirroring the backward-drag flow) and keep
+                  // the session linked when the remote cannot be reached.
+                  const dbSession = await dbApi.session.get<Session>(sessionIdToClose)
+                  const remoteInfo = parseRemoteLaunch(dbSession?.remote_launch)
+                  if (remoteInfo?.role === 'client' && !remoteInfo.stoppedAt) {
+                    try {
+                      await remoteLaunchApi.stop({ sessionId: sessionIdToClose })
+                      const { useRemoteLaunchStore } = await import('./useRemoteLaunchStore')
+                      useRemoteLaunchStore.getState().markStopped(sessionIdToClose)
+                    } catch (err) {
+                      toast.error(
+                        `Ticket is done, but its remote session could not be stopped: ${err instanceof Error ? err.message : String(err)}`
+                      )
+                      return
+                    }
+                  }
                   // abortIfRevived re-checks inside the lifecycle lock, making
-                  // the revival guard and the close transition atomic
-                  .closeSession(sessionIdToClose, { abortIfRevived: true })
-                  .catch((err) => {
+                  // the revival guard and the close transition atomic.
+                  // closeSession reports failures via its result, not by
+                  // throwing — surface non-aborted failures.
+                  const result = await useSessionStore
+                    .getState()
+                    .closeSession(sessionIdToClose, { abortIfRevived: true })
+                  if (!result.success && !result.aborted) {
                     console.error(
                       'Failed to close session for completed ticket:',
                       sessionIdToClose,
-                      err
+                      result.error
                     )
-                  })
+                    toast.error('Ticket is done, but its session could not be closed')
+                  }
+                })().catch((err) => {
+                  console.error(
+                    'Failed to close session for completed ticket:',
+                    sessionIdToClose,
+                    err
+                  )
+                })
               }
             } catch (err) {
               console.error('Skipping session close — link check failed:', sessionIdToClose, err)

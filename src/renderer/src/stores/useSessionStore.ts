@@ -817,6 +817,20 @@ export const useSessionStore = create<SessionState>()(
             }
           }
 
+          // A closed session has no live status. The destroy path above
+          // removes exit listeners before killing, so no pty_exit status
+          // overwrites a pre-close 'working' — left in place, that stale
+          // entry would later veto the modal-release cleanup of a
+          // modal-resumed PTY (isReEngaged) and strand the process.
+          if (!revivedMidClose) {
+            try {
+              const { useWorktreeStatusStore } = await import('./useWorktreeStatusStore')
+              useWorktreeStatusStore.getState().clearSessionStatus(sessionId)
+            } catch {
+              // Best-effort — a stale badge is preferable to a failed close
+            }
+          }
+
           // Disconnect agent SDK session to free main-process resources
           // (session state, abort controllers, cached data).
           // Best-effort — session may already be disconnected.
