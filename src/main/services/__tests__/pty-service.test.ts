@@ -116,6 +116,11 @@ describe('ptyService.destroy kill escalation', () => {
 
   beforeEach(() => {
     vi.useFakeTimers()
+    // Drain ptys left registered by other describes — their (shared fake)
+    // pids would trip the registered-pty guard in reapSurvivors. Fake timers
+    // keep the escalations this schedules permanently inert.
+    ptyService.destroyAll()
+    vi.clearAllTimers()
     nodePtyMocks.spawn.mockImplementation(() => makeFakePty(PID))
     killSpy = vi.spyOn(process, 'kill') as unknown as MockInstance<KillFn>
     // Never run the real pgrep in unit tests
@@ -322,6 +327,29 @@ describe('ptyService.destroy kill escalation', () => {
 
     expect(killSpy).toHaveBeenCalledWith(-PID, 'SIGKILL')
     expect(killSpy).toHaveBeenCalledWith(PID, 'SIGKILL')
+  })
+
+  it('a stale escalation timer never touches a pid recycled into a registered pty', async () => {
+    const STALE = 8686
+    nodePtyMocks.spawn.mockImplementation(() => makeFakePty(STALE))
+    killSpy.mockImplementation((() => true) as KillFn)
+
+    // Destroy arms the escalation timer for pid STALE
+    const firstId = `pty-escalation-test-${nextId++}`
+    ptyService.create(firstId, { cwd: '/tmp' })
+    ptyService.destroy(firstId)
+
+    // Before the grace elapses, a NEW pty spawns and the OS recycles the pid
+    const secondId = `pty-escalation-test-${nextId++}`
+    ptyService.create(secondId, { cwd: '/tmp' })
+
+    await advancePastGrace()
+
+    // The stale timer must not probe or signal the new session's process
+    expect(killSpy).not.toHaveBeenCalledWith(-STALE, 'SIGKILL')
+    expect(killSpy).not.toHaveBeenCalledWith(STALE, 'SIGKILL')
+
+    ptyService.destroy(secondId)
   })
 
   it('destroyAllAndReap sweeps survivors after the bounded grace (quit path)', async () => {

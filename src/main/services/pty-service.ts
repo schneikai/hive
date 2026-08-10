@@ -297,7 +297,19 @@ class PtyService {
    * interactive job control forked the agent into its OWN pgid is invisible
    * to both probes; covering that would require a descendant walk.
    */
+  /** True when the pid belongs to a pty currently registered with this service. */
+  private isCurrentPtyPid(pid: number): boolean {
+    for (const instance of this.ptys.values()) {
+      if (instance.pty.pid === pid) return true
+    }
+    return false
+  }
+
   private async reapSurvivors(id: string, pid: number, groupSnapshot: Set<number>): Promise<void> {
+    // The pid may have been recycled into a CURRENTLY REGISTERED pty (a new
+    // spawn between the destroy and this escalation firing) — that process
+    // is alive on purpose; a stale timer must never touch it.
+    if (this.isCurrentPtyPid(pid)) return
     // Once the pty reported exit, the numeric pid may already belong to an
     // unrelated process — never probe or signal it directly; only the group
     // remains a valid target (surviving wrapper-shell grandchildren).
