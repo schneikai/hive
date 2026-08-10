@@ -23,6 +23,7 @@ import {
   type SelectedModel,
   type HandoffAgentSdk
 } from '@/stores/useSettingsStore'
+import { claudeCliFallbackModelName } from '@shared/types/claude-cli-fallback-models'
 import { useSessionStore } from '@/stores/useSessionStore'
 import { toModelCatalogSdk } from '@shared/types/agent-sdk'
 import { toast } from '@/lib/toast'
@@ -440,12 +441,15 @@ export const ModelSelector = memo(function ModelSelector({
     return () => window.removeEventListener('hive:cycle-variant', handleCycleVariant)
   }, [cycleVariant, onChange])
 
-  // Determine display name for the pill
+  // Determine display name for the pill. A safety/usage fallback (e.g.
+  // `opus-4-8`) is absent from the catalog by design, so name it explicitly
+  // rather than showing the raw slug.
   const displayName = currentModel
     ? getModelDisplayName(currentModel)
-    : getModelDisplayName({
+    : (claudeCliFallbackModelName(selectedModel?.modelID) ??
+      getModelDisplayName({
         id: selectedModel?.modelID || 'claude-opus-4-5-20251101'
-      })
+      }))
 
   const sdkFilterOptions = useMemo((): SdkFilterOption[] => {
     const availableSdks = new Set(providers.map((provider) => provider.agentSdk))
