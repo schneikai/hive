@@ -1,5 +1,6 @@
 import { closeSync, fstatSync, openSync, readSync } from 'fs'
 import { CUSTOM_MODEL_PROVIDER_ID } from '@shared/types/custom-provider'
+import { resolveClaudeCliFallbackModel } from '@shared/types/claude-cli-fallback-models'
 import { OPENCODE_STREAM_CHANNEL } from '@shared/opencode-events'
 import type { DatabaseService } from '../db/database'
 import type { Session, SessionUpdate } from '../db/types'
@@ -271,20 +272,33 @@ function clampEffortVariant(alias: string, variant: string | null | undefined): 
   return undefined
 }
 
+/**
+ * The model id Hive stores for a raw transcript model (or an already-stored
+ * id). Selectable models collapse to their alias (fable/opus/sonnet/haiku); a
+ * safety/usage fallback keeps a distinct id (e.g. `opus-4-8`) so the ticket
+ * badge shows "Opus 4.8" instead of the selectable "Opus 5". Comparing both
+ * sides through this resolver keeps the no-op guard honest — a stored
+ * `opus-4-8` and a fresh `claude-opus-4-8` line canonicalize to the same id.
+ */
+function canonicalClaudeCliModelId(rawModel: string | null | undefined): string | null {
+  const fallback = resolveClaudeCliFallbackModel(rawModel)
+  if (fallback) return fallback.id
+  return normalizeClaudeCliModel(rawModel)
+}
+
 function applyDetectedClaudeCliModel(
   sessionId: string,
   session: Session,
   rawModel: string,
   db: DatabaseService
 ): void {
-  const alias = normalizeClaudeCliModel(rawModel)
-  if (!alias) return
+  const modelId = canonicalClaudeCliModelId(rawModel)
+  if (!modelId) return
 
-  const currentAlias = normalizeClaudeCliModel(session.model_id)
-  if (alias === currentAlias) return
+  if (modelId === canonicalClaudeCliModelId(session.model_id)) return
 
-  const update: SessionUpdate = { model_id: alias }
-  const clampedVariant = clampEffortVariant(alias, session.model_variant)
+  const update: SessionUpdate = { model_id: modelId }
+  const clampedVariant = clampEffortVariant(modelId, session.model_variant)
   if (clampedVariant !== undefined) {
     update.model_variant = clampedVariant
   }
@@ -292,7 +306,7 @@ function applyDetectedClaudeCliModel(
   log.info('claude-cli switched models mid-session', {
     sessionId,
     from: session.model_id,
-    to: alias,
+    to: modelId,
     rawModel
   })
 
@@ -301,7 +315,7 @@ function applyDetectedClaudeCliModel(
       type: 'session.model_changed',
       sessionId,
       data: {
-        modelId: alias,
+        modelId,
         previousModelId: session.model_id,
         rawModel,
         ...(clampedVariant !== undefined ? { modelVariant: clampedVariant } : {})

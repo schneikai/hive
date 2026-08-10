@@ -7,10 +7,19 @@ import {
   subscribeModelCatalogCache
 } from '@/lib/handoffSelection'
 import { findModelInfo, getModelDisplayName, isUltraVariant } from '@/lib/parseProviders'
+import {
+  claudeCliFallbackModelName,
+  isClaudeCliFallbackModelId
+} from '@shared/types/claude-cli-fallback-models'
 import { cn } from '@/lib/utils'
 import type { KanbanTicket } from '../../../../main/db/types'
 
-/** Looks up the pretty model name from any cached handoff SDK catalog, falling back to the raw modelId. */
+/**
+ * Looks up the pretty model name from any cached handoff SDK catalog, falling
+ * back to a known safety/usage-fallback name (e.g. `opus-4-8` → "Opus 4.8") and
+ * then to the raw modelId. Fallback models are intentionally absent from the
+ * picker catalog, so their name never resolves via findModelInfo.
+ */
 function resolveModelDisplayName(providerId: string | null, modelId: string): string {
   if (providerId) {
     for (const sdk of getAvailableHandoffAgentSdks()) {
@@ -21,7 +30,7 @@ function resolveModelDisplayName(providerId: string | null, modelId: string): st
     }
   }
 
-  return modelId
+  return claudeCliFallbackModelName(modelId) ?? modelId
 }
 
 interface TicketModelBadgeProps {
@@ -42,7 +51,11 @@ export function TicketModelBadge({
 
   const icon = resolveModelIconAsset(providerId, modelId)
   const displayName = resolveModelDisplayName(providerId, modelId)
-  const title = variant ? `${displayName} (${variant})` : displayName
+  // A non-selectable safety/usage fallback (the CLI degraded the session off the
+  // picked model) — flag it so the badge reads as an involuntary state, not a choice.
+  const isFallback = isClaudeCliFallbackModelId(modelId)
+  const baseTitle = variant ? `${displayName} (${variant})` : displayName
+  const title = isFallback ? `${baseTitle} — safety fallback` : baseTitle
 
   return (
     <span
@@ -55,6 +68,14 @@ export function TicketModelBadge({
     >
       {icon && <img src={icon.src} alt={icon.alt} className="h-3 w-3 shrink-0" draggable={false} />}
       {displayName}
+      {isFallback && (
+        <span
+          className="rounded-sm bg-amber-500/15 px-1 text-[9px] font-semibold uppercase leading-tight tracking-wide text-amber-600 dark:text-amber-400"
+          data-testid="model-fallback-tag"
+        >
+          fallback
+        </span>
+      )}
     </span>
   )
 }

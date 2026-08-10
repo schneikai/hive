@@ -163,6 +163,31 @@ describe('TicketModelBadge', () => {
     expect(badge).toHaveClass('border-transparent')
   })
 
+  it('names a non-selectable safety fallback (opus-4-8 → Opus 4.8) and tags it', () => {
+    // The fallback id is absent from the picker catalog by design, so its name
+    // must resolve without a catalog hit, and a "fallback" tag marks it as an
+    // involuntary degrade rather than a chosen model.
+    render(
+      <TicketModelBadge
+        ticket={{ model_provider_id: 'anthropic', model_id: 'opus-4-8', model_variant: 'high' }}
+      />
+    )
+
+    expect(screen.getByText('Opus 4.8')).toBeInTheDocument()
+    expect(screen.getByTestId('model-fallback-tag')).toBeInTheDocument()
+    expect(screen.getByTitle('Opus 4.8 (high) — safety fallback')).toBeInTheDocument()
+  })
+
+  it('does not tag a normal selectable model', () => {
+    render(
+      <TicketModelBadge
+        ticket={{ model_provider_id: 'anthropic', model_id: 'opus', model_variant: null }}
+      />
+    )
+
+    expect(screen.queryByTestId('model-fallback-tag')).toBeNull()
+  })
+
   it('applies the passed className to the chip', () => {
     render(
       <TicketModelBadge
