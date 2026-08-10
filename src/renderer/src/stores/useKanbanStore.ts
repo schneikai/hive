@@ -1048,8 +1048,15 @@ export const useKanbanStore = create<KanbanState>()(
                   statusEntry.status === 'answering' ||
                   statusEntry.status === 'permission' ||
                   statusEntry.status === 'command_approval')
-              if (!sharedWithLiveTicket && ticketNow?.column === 'done' && !revivedDuringMove) {
-                const { useSessionStore } = await import('./useSessionStore')
+              const { useSessionStore, isSessionReactivating } = await import('./useSessionStore')
+              if (
+                !sharedWithLiveTicket &&
+                ticketNow?.column === 'done' &&
+                !revivedDuringMove &&
+                // A revival can start before its status stamp lands — never
+                // close while a reactivation/reopen is in flight.
+                !isSessionReactivating(sessionIdToClose)
+              ) {
                 useSessionStore
                   .getState()
                   .closeSession(sessionIdToClose)

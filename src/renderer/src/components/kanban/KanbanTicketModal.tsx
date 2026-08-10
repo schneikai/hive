@@ -3954,11 +3954,16 @@ function JumpToSessionButton({
       useSessionStore.getState().setActiveWorktree(ticket.worktree_id)
     }
 
+    // Claim the session synchronously BEFORE any await: if the modal unmounts
+    // while the reopen below is in flight (user dismisses it), the release
+    // cleanup must already see this session as active and skip its PTY destroy.
+    const sessionStore = useSessionStore.getState()
+    sessionStore.setActiveSession(sessionId)
+
     // Jumping to a done-closed session reopens it: restore its tab and flip
     // it back to active so the modal-release cleanup doesn't kill the very
     // terminal being navigated to. closeSession drops the session from the
     // store maps, so the in-memory lookup can miss — fall back to the DB row.
-    const sessionStore = useSessionStore.getState()
     if (ticket.worktree_id) {
       try {
         const record =
@@ -3971,10 +3976,6 @@ function JumpToSessionButton({
         // Best-effort — worst case the jump lands on a tab-less session
       }
     }
-
-    // Focus the session tab (before the modal-close cleanup runs, so it sees
-    // this session as active and skips its PTY destroy)
-    sessionStore.setActiveSession(sessionId)
 
     onClose()
   }, [ticket.current_session_id, ticket.worktree_id, onClose])

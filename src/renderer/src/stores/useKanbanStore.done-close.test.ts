@@ -1,8 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { KanbanTicket, KanbanTicketColumn } from '../../../main/db/types'
 
-const { closeSession } = vi.hoisted(() => ({
-  closeSession: vi.fn().mockResolvedValue(undefined)
+const { closeSession, isSessionReactivating } = vi.hoisted(() => ({
+  closeSession: vi.fn().mockResolvedValue(undefined),
+  isSessionReactivating: vi.fn(() => false)
 }))
 
 // Mock the kanban RPC API so moveTicket doesn't hit a real client.
@@ -26,7 +27,8 @@ vi.mock('./useSettingsStore', () => ({
 // moveTicket dynamically imports useSessionStore to close the attached
 // session when a ticket enters the done column.
 vi.mock('./useSessionStore', () => ({
-  useSessionStore: { getState: () => ({ closeSession }) }
+  useSessionStore: { getState: () => ({ closeSession }) },
+  isSessionReactivating
 }))
 
 import { useKanbanStore } from './useKanbanStore'
@@ -90,6 +92,7 @@ const flush = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 
 beforeEach(() => {
   vi.clearAllMocks()
   closeSession.mockResolvedValue(undefined)
+  isSessionReactivating.mockReturnValue(false)
   useKanbanStore.setState({ tickets: new Map(), dependencyMap: new Map() })
   useWorktreeStatusStore.setState({ sessionStatuses: {} })
 })
@@ -243,6 +246,17 @@ describe('moveTicket — close attached session on the done column', () => {
     await useKanbanStore.getState().moveTicket('ticket-1', PROJECT_ID, 'done', 0)
     await flush()
 
+    expect(closeSession).not.toHaveBeenCalled()
+  })
+
+  it('does not close while a reactivation is in flight for the session', async () => {
+    seed(makeTicket())
+    isSessionReactivating.mockReturnValue(true)
+
+    await useKanbanStore.getState().moveTicket('ticket-1', PROJECT_ID, 'done', 0)
+    await flush()
+
+    expect(isSessionReactivating).toHaveBeenCalledWith(SESSION_ID)
     expect(closeSession).not.toHaveBeenCalled()
   })
 

@@ -32,11 +32,26 @@ const pushQueuedState = (sessionId: string, hasQueued: boolean): void => {
   systemApi.setSessionQueuedState(sessionId, hasQueued).catch(() => {})
 }
 
-// Sessions currently being flipped back to active by reactivateSession.
-// Consulted (synchronously) by destroyCompletedSessionTerminal so a cleanup
-// racing the async DB flip cannot read the stale 'completed' row and kill a
-// just-revived process.
-const reactivatingSessionIds = new Set<string>()
+// Refcount of in-flight revivals per session (reactivateSession /
+// reopenSession / reopenConnectionSession, which nest). Consulted
+// (synchronously) by destroyCompletedSessionTerminal and the kanban
+// done-close so a cleanup racing the async DB flip cannot read the stale
+// 'completed' row and kill a just-revived process.
+const reactivatingSessionIds = new Map<string, number>()
+
+export function isSessionReactivating(sessionId: string): boolean {
+  return (reactivatingSessionIds.get(sessionId) ?? 0) > 0
+}
+
+function markReactivating(sessionId: string): void {
+  reactivatingSessionIds.set(sessionId, (reactivatingSessionIds.get(sessionId) ?? 0) + 1)
+}
+
+function unmarkReactivating(sessionId: string): void {
+  const next = (reactivatingSessionIds.get(sessionId) ?? 0) - 1
+  if (next > 0) reactivatingSessionIds.set(sessionId, next)
+  else reactivatingSessionIds.delete(sessionId)
+}
 
 export const BOARD_TAB_ID = '__board__'
 export const BOARD_ASSISTANT_SESSION_NAME_PREFIX = '[Board Assistant]'
@@ -405,7 +420,7 @@ export const useSessionStore = create<SessionState>()(
       // the DB row back to active yet).
       destroyCompletedSessionTerminal: async (sessionId: string) => {
         const isReEngaged = async (): Promise<boolean> => {
-          if (reactivatingSessionIds.has(sessionId)) return true
+          if (isSessionReactivating(sessionId)) return true
           if (get().sessionMountRequests.has(sessionId)) return true
           if (get().activeSessionId === sessionId) return true
           const { useWorktreeStatusStore } = await import('./useWorktreeStatusStore')
@@ -924,6 +939,9 @@ export const useSessionStore = create<SessionState>()(
       // should stay where they are.
       reopenSession: async (sessionId: string, worktreeId: string, opts?: { activate?: boolean }) => {
         const activate = opts?.activate !== false
+        // Guard the revival window: a concurrent completed-session cleanup
+        // must not kill the PTY while the DB flip is in flight.
+        markReactivating(sessionId)
         try {
           // 1. Update database status first - this ensures persistence
           const updatedSession = await dbApi.session.update<Session>(sessionId, {
@@ -997,6 +1015,8 @@ export const useSessionStore = create<SessionState>()(
             success: false,
             error: error instanceof Error ? error.message : 'Failed to reopen session'
           }
+        } finally {
+          unmarkReactivating(sessionId)
         }
       },
 
@@ -1008,6 +1028,7 @@ export const useSessionStore = create<SessionState>()(
         opts?: { activate?: boolean }
       ) => {
         const activate = opts?.activate !== false
+        markReactivating(sessionId)
         try {
           // 1. Update database status first - this ensures persistence
           const updatedSession = await dbApi.session.update<Session>(sessionId, {
@@ -1085,6 +1106,8 @@ export const useSessionStore = create<SessionState>()(
             success: false,
             error: error instanceof Error ? error.message : 'Failed to reopen connection session'
           }
+        } finally {
+          unmarkReactivating(sessionId)
         }
       },
 
@@ -1097,7 +1120,7 @@ export const useSessionStore = create<SessionState>()(
         // Marked synchronously so a concurrently-running
         // destroyCompletedSessionTerminal cannot read the stale 'completed'
         // DB row and kill the process this revival is claiming.
-        reactivatingSessionIds.add(sessionId)
+        markReactivating(sessionId)
         try {
           let dbSession: Session | null = null
           try {
@@ -1123,7 +1146,7 @@ export const useSessionStore = create<SessionState>()(
             }
           }
         } finally {
-          reactivatingSessionIds.delete(sessionId)
+          unmarkReactivating(sessionId)
         }
       },
 
