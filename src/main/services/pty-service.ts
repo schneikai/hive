@@ -150,6 +150,10 @@ class PtyService {
       env
     })
 
+    // A fresh child may have received a previously-exited pid — the ledger
+    // entry belongs to the old process, not this one.
+    if (ptyProcess.pid) exitedPtyPids.delete(ptyProcess.pid)
+
     const instance: PtyInstance = {
       pty: ptyProcess,
       cwd: opts.cwd,
@@ -232,8 +236,10 @@ class PtyService {
     }
     log.info('Destroying PTY', { id })
     const pid = instance.pty.pid
-    // Snapshot the process group BEFORE signaling: the escalation uses it to
-    // prove the group still belongs to this PTY (see reapSurvivors).
+    // Snapshot the process group around HUP time (pgrep runs concurrently
+    // with the signal, so it observes the members that survive it) — the
+    // escalation uses it to prove the group still belongs to this PTY
+    // (see reapSurvivors).
     const groupSnapshot =
       pid && process.platform !== 'win32'
         ? this.listGroupMembers(pid)
@@ -295,6 +301,12 @@ class PtyService {
     // Once the pty reported exit, the numeric pid may already belong to an
     // unrelated process — never probe or signal it directly; only the group
     // remains a valid target (surviving wrapper-shell grandchildren).
+    // Entries expire at read time too: pruning on insert alone could leave a
+    // stale record vetoing a later PTY that legitimately reused the pid.
+    const exitedAt = exitedPtyPids.get(pid)
+    if (exitedAt !== undefined && Date.now() - exitedAt > EXITED_PID_RETENTION_MS) {
+      exitedPtyPids.delete(pid)
+    }
     const directPidValid = !exitedPtyPids.has(pid)
     let leaderAlive = false
     if (directPidValid) {
@@ -315,17 +327,31 @@ class PtyService {
     if (!leaderAlive && !groupAlive) return
     if (!leaderAlive && groupAlive) {
       // The leader is gone, so the numeric pgid could in principle have been
-      // recycled by an unrelated new group leader. Establish continuity of
-      // ownership before killing: the kernel keeps a pgid reserved while any
-      // original member lives, so the group is provably still ours exactly
-      // when a destroy-time member (other than the leader) is still in it.
-      const current = await this.listGroupMembers(pid)
-      const stillOurs = [...current].some((member) => member !== pid && groupSnapshot.has(member))
-      if (!stillOurs) {
-        log.warn('Skipping group SIGKILL — group no longer traceable to the destroyed PTY', {
-          id,
-          pid
-        })
+      // recycled by an unrelated new group leader. The destroy-time snapshot
+      // (taken concurrently with the HUP, so it observes the HUP survivors)
+      // lets us check continuity: the kernel keeps a pgid reserved while any
+      // original member lives, so overlap with a current member proves the
+      // group is still ours. With an EMPTY snapshot (pgrep produced no
+      // evidence) the default depends on what we know about the leader:
+      // - leader provably exited: an alive group with zero traced members is
+      //   more likely a recycled pgid than an untracked survivor — skip.
+      // - leader never reported exit: our processes are likely still there
+      //   and pgrep merely failed — fail open toward killing, because
+      //   disabling the escalation is the leak this change exists to fix.
+      if (groupSnapshot.size > 0) {
+        const current = await this.listGroupMembers(pid)
+        const stillOurs = [...current].some(
+          (member) => member !== pid && groupSnapshot.has(member)
+        )
+        if (!stillOurs) {
+          log.warn('Skipping group SIGKILL — group no longer traceable to the destroyed PTY', {
+            id,
+            pid
+          })
+          return
+        }
+      } else if (!directPidValid) {
+        log.warn('Skipping group SIGKILL — exited leader and no membership evidence', { id, pid })
         return
       }
     }

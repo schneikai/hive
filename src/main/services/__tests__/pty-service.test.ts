@@ -204,6 +204,79 @@ describe('ptyService.destroy kill escalation', () => {
     expect(killSpy).not.toHaveBeenCalledWith(PID, 'SIGKILL')
   })
 
+  it('kills the surviving group even when the snapshot is empty (pgrep failure fails open)', async () => {
+    // Default groupMembersSpy resolves an empty set — a tooling failure must
+    // not disable the escalation, or the HUP-surviving leak returns.
+    killSpy.mockImplementation(((pid: number, signal?: string | number) => {
+      if (signal === 0 && pid > 0) throw Object.assign(new Error('ESRCH'), { code: 'ESRCH' })
+      return true
+    }) as KillFn)
+
+    createAndGetPty()
+    await advancePastGrace()
+
+    expect(killSpy).toHaveBeenCalledWith(-PID, 'SIGKILL')
+  })
+
+  it('does not kill blind when the leader exited and there is no membership evidence', async () => {
+    // Exited leader + empty snapshot: an alive group with zero traced
+    // members is treated as a recycled pgid, not an untracked survivor.
+    const EXITED = 7575
+    nodePtyMocks.spawn.mockImplementation(() => makeFakePty(EXITED))
+    killSpy.mockImplementation(((pid: number, signal?: string | number) => {
+      if (signal === 0 && pid > 0) throw Object.assign(new Error('ESRCH'), { code: 'ESRCH' })
+      return true
+    }) as KillFn)
+
+    const id = `pty-escalation-test-${nextId++}`
+    ptyService.create(id, { cwd: '/tmp' })
+    const fakePty = nodePtyMocks.spawn.mock.results.at(-1)?.value as {
+      onExit: ReturnType<typeof vi.fn>
+    }
+    ptyService.destroy(id)
+    const exitHandler = fakePty.onExit.mock.calls[0][0] as (e: {
+      exitCode: number
+      signal: number
+    }) => void
+    exitHandler({ exitCode: 0, signal: 1 })
+
+    await advancePastGrace()
+
+    expect(killSpy).not.toHaveBeenCalledWith(-EXITED, 'SIGKILL')
+    expect(killSpy).not.toHaveBeenCalledWith(EXITED, 'SIGKILL')
+  })
+
+  it('a new PTY reusing an exited pid is probed normally (ledger cleared on spawn)', async () => {
+    const RECYCLED = 6464
+    nodePtyMocks.spawn.mockImplementation(() => makeFakePty(RECYCLED))
+    killSpy.mockImplementation((() => true) as KillFn)
+
+    // First pty exits — its pid lands in the exited ledger
+    const firstId = `pty-escalation-test-${nextId++}`
+    ptyService.create(firstId, { cwd: '/tmp' })
+    const firstPty = nodePtyMocks.spawn.mock.results.at(-1)?.value as {
+      onExit: ReturnType<typeof vi.fn>
+    }
+    const exitHandler = firstPty.onExit.mock.calls[0][0] as (e: {
+      exitCode: number
+      signal: number
+    }) => void
+    ptyService.destroy(firstId)
+    exitHandler({ exitCode: 0, signal: 1 })
+    await advancePastGrace()
+    killSpy.mockClear()
+
+    // A new pty spawns with the same (recycled) pid — create() must clear
+    // the stale ledger entry so its own destroy escalation still probes it
+    const secondId = `pty-escalation-test-${nextId++}`
+    ptyService.create(secondId, { cwd: '/tmp' })
+    ptyService.destroy(secondId)
+    await advancePastGrace()
+
+    expect(killSpy).toHaveBeenCalledWith(RECYCLED, 0)
+    expect(killSpy).toHaveBeenCalledWith(-RECYCLED, 'SIGKILL')
+  })
+
   it('never signals the numeric pid after the pty reported exit (pid-reuse hazard)', async () => {
     // Distinct pid: the exited-pid ledger is module-level and must not leak
     // into the other escalation tests.
