@@ -893,6 +893,14 @@ export const useSessionStore = create<SessionState>()(
                   break
                 }
               }
+              if (!worktreePath) {
+                // Board-driven closes can target sessions of projects never
+                // loaded into the store — resolve from the DB so the SDK
+                // session still gets disconnected instead of leaking
+                // main-process implementer state.
+                worktreePath =
+                  (await dbApi.worktree.get<{ path: string }>(sessionWorktreeId))?.path ?? null
+              }
               if (worktreePath) {
                 unwrapEnvelope(await opencodeApi.disconnect(worktreePath, opencodeSessionId))
               }

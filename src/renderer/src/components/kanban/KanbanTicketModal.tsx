@@ -503,6 +503,13 @@ async function sendFollowupToSession(opts: {
     throw new Error(`No opencode session ID for session: ${opts.sessionId}`)
   }
 
+  // Same as the claude-code-cli branch: reactivate BEFORE reconnecting so the
+  // revival serializes behind any in-flight close via the lifecycle lock —
+  // otherwise a close could disconnect the implementer state while the
+  // reconnect below is in flight and the prompt would fail "session not
+  // found" on a session that was just restored as active.
+  await useSessionStore.getState().reactivateSession(opts.sessionId)
+
   // Ensure the session is loaded in the agent SDK implementer's in-memory map.
   // SessionView does this on mount via initializeSession(), but the kanban
   // followup path bypasses SessionView entirely.  Without this, the Claude Code
@@ -518,9 +525,6 @@ async function sendFollowupToSession(opts: {
     ? buildMessageParts(opts.attachments, fullPrompt)
     : [{ type: 'text' as const, text: fullPrompt }]
 
-  // Same as the claude-code-cli branch: reactivate before prompting so the
-  // revival serializes behind any in-flight close of this session.
-  await useSessionStore.getState().reactivateSession(opts.sessionId)
   const promptResult = unwrapEnvelope(
     await opencodeApi.prompt(workingPath, session.opencode_session_id, messageParts, model)
   )
