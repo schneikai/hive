@@ -65,7 +65,10 @@ interface UsageState {
   fetchUsage: () => Promise<void>
 }
 
-const DEBOUNCE_MS = 180_000 // 3 minutes
+// Exported so the popover's "Refreshing in…" countdown can model the floor
+// this debounce puts under the scheduled refresh cadence.
+export const USAGE_FETCH_DEBOUNCE_MS = 180_000 // 3 minutes
+const DEBOUNCE_MS = USAGE_FETCH_DEBOUNCE_MS
 
 function errorMessage(err: unknown): string {
   return err instanceof Error ? err.message : String(err)

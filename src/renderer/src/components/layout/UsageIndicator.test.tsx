@@ -8,6 +8,15 @@ import { useAccountStore, useUsageStore } from '@/stores'
 import { useAccountScheduleStore } from '@/stores/useAccountScheduleStore'
 import type { AccountMemberInfo } from './MemberAvatarStack'
 import type { OpenAIUsageData, UsageData } from '@shared/types/usage'
+import { nextUsageRefreshAt } from '@/hooks/useAccountScheduleRunner'
+
+// Default to "nothing scheduled" so the countdown stays hidden in the
+// unrelated tests, matching the real function's behavior when no session
+// is running.
+vi.mock('@/hooks/useAccountScheduleRunner', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/hooks/useAccountScheduleRunner')>()
+  return { ...actual, nextUsageRefreshAt: vi.fn(() => null) }
+})
 
 afterEach(() => {
   cleanup()
@@ -448,6 +457,96 @@ describe('UsageAccountRow', () => {
 
     expect(screen.queryByTestId('member-avatar')).toBeNull()
     expect(screen.queryByTestId('member-avatar-stack-loading')).toBeNull()
+  })
+})
+
+describe('UsageAccountRow refresh countdown', () => {
+  const initialLastFetchedAt = useUsageStore.getState().anthropicLastFetchedAt
+
+  beforeEach(() => {
+    vi.mocked(nextUsageRefreshAt).mockReturnValue(null)
+    useUsageStore.setState({ anthropicLastFetchedAt: null })
+  })
+
+  afterEach(() => {
+    useUsageStore.setState({ anthropicLastFetchedAt: initialLastFetchedAt })
+  })
+
+  const activeRow = {
+    id: 'acc-1',
+    email: 'active@example.com',
+    usage: sampleUsage,
+    status: 'ok' as const,
+    lastError: null,
+    isActive: true,
+    isRefreshing: false
+  }
+
+  it('shows a seconds countdown on the active row when a refresh is scheduled', () => {
+    vi.mocked(nextUsageRefreshAt).mockImplementation(() => Date.now() + 45_000)
+
+    render(<UsageAccountRow row={activeRow} provider="anthropic" onRefresh={vi.fn()} />)
+
+    expect(screen.getByTestId('usage-refresh-countdown').textContent).toMatch(
+      /^Refreshing in \d+ sec$/
+    )
+  })
+
+  it('shows minutes once the next refresh is over a minute away', () => {
+    vi.mocked(nextUsageRefreshAt).mockImplementation(() => Date.now() + 150_000)
+
+    render(<UsageAccountRow row={activeRow} provider="anthropic" onRefresh={vi.fn()} />)
+
+    expect(screen.getByTestId('usage-refresh-countdown').textContent).toMatch(
+      /^Refreshing in \d+ min$/
+    )
+  })
+
+  it('shows "Refreshing soon" when the scheduled time has already passed', () => {
+    vi.mocked(nextUsageRefreshAt).mockImplementation(() => Date.now() - 5_000)
+
+    render(<UsageAccountRow row={activeRow} provider="anthropic" onRefresh={vi.fn()} />)
+
+    expect(screen.getByTestId('usage-refresh-countdown').textContent).toBe('Refreshing soon')
+  })
+
+  it('shows how long ago usage was refreshed when nothing is scheduled', () => {
+    useUsageStore.setState({ anthropicLastFetchedAt: Date.now() - 5 * 60_000 })
+
+    render(<UsageAccountRow row={activeRow} provider="anthropic" onRefresh={vi.fn()} />)
+
+    expect(screen.getByTestId('usage-refresh-countdown').textContent).toMatch(
+      /^Refreshed \d+ min ago$/
+    )
+  })
+
+  it('shows "Refreshed just now" right after an idle refresh', () => {
+    useUsageStore.setState({ anthropicLastFetchedAt: Date.now() })
+
+    render(<UsageAccountRow row={activeRow} provider="anthropic" onRefresh={vi.fn()} />)
+
+    expect(screen.getByTestId('usage-refresh-countdown').textContent).toBe('Refreshed just now')
+  })
+
+  it('is hidden when nothing is scheduled and usage was never fetched', () => {
+    render(<UsageAccountRow row={activeRow} provider="anthropic" onRefresh={vi.fn()} />)
+
+    expect(screen.queryByTestId('usage-refresh-countdown')).toBeNull()
+  })
+
+  it('is hidden on inactive account rows', () => {
+    vi.mocked(nextUsageRefreshAt).mockImplementation(() => Date.now() + 45_000)
+
+    render(
+      <UsageAccountRow
+        row={{ ...activeRow, isActive: false }}
+        provider="anthropic"
+        onRefresh={vi.fn()}
+        onSwitch={vi.fn()}
+      />
+    )
+
+    expect(screen.queryByTestId('usage-refresh-countdown')).toBeNull()
   })
 })
 
