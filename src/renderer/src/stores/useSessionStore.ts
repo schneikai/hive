@@ -763,8 +763,14 @@ export const useSessionStore = create<SessionState>()(
             completed_at: new Date().toISOString()
           })
 
+          // A revival may have started while the completed-write above was in
+          // flight — re-check before tearing down the process. The revival
+          // flips the row back to active and keeps (or respawns into) the
+          // live PTY, so skipping the destroy here is the consistent outcome.
+          const revivedMidClose = isSessionReactivating(sessionId)
+
           // Destroy PTY for terminal sessions
-          if (isTerminalSession) {
+          if (isTerminalSession && !revivedMidClose) {
             try {
               unwrapEnvelope(await terminalApi.destroy(sessionId))
             } catch {
@@ -775,7 +781,7 @@ export const useSessionStore = create<SessionState>()(
           // Disconnect agent SDK session to free main-process resources
           // (session state, abort controllers, cached data).
           // Best-effort — session may already be disconnected.
-          if (!isTerminalSession && opencodeSessionId && sessionWorktreeId) {
+          if (!isTerminalSession && !revivedMidClose && opencodeSessionId && sessionWorktreeId) {
             try {
               // Resolve worktree filesystem path from worktree ID
               let worktreePath: string | null = null

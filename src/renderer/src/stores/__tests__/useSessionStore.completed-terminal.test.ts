@@ -172,6 +172,29 @@ describe('closeSession DB fallback', () => {
     expect(terminalDestroy).not.toHaveBeenCalled()
   })
 
+  it('skips the PTY destroy when a revival starts mid-close', async () => {
+    let releaseReactivateRead: (value: Session) => void = () => {}
+    sessionGet.mockImplementationOnce(
+      () => new Promise<Session>((resolve) => (releaseReactivateRead = resolve))
+    )
+
+    // A revival is in flight (parked on its DB read) while closeSession runs
+    const reactivation = useSessionStore.getState().reactivateSession(SESSION_ID)
+
+    await useSessionStore.getState().closeSession(SESSION_ID)
+
+    // The row is still marked completed (last-write ordering), but the live
+    // process is left for the revival to reclaim
+    expect(sessionUpdate).toHaveBeenCalledWith(SESSION_ID, {
+      status: 'completed',
+      completed_at: expect.any(String)
+    })
+    expect(terminalDestroy).not.toHaveBeenCalled()
+
+    releaseReactivateRead(makeDbSession())
+    await reactivation
+  })
+
   it('does not hit the DB when the session is present in the store', async () => {
     useSessionStore.setState({
       sessionsByWorktree: new Map([['worktree-1', [makeDbSession({ status: 'active' })]]])

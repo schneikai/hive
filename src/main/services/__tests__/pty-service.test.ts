@@ -176,6 +176,39 @@ describe('ptyService.destroy kill escalation', () => {
     expect(killSpy).toHaveBeenCalledWith(PID, 'SIGKILL')
   })
 
+  it('never signals the numeric pid after the pty reported exit (pid-reuse hazard)', () => {
+    // Distinct pid: the exited-pid ledger is module-level and must not leak
+    // into the other escalation tests.
+    const REUSED_PID = 5353
+    nodePtyMocks.spawn.mockImplementation(() => makeFakePty(REUSED_PID))
+    // Simulate the worst case: the pid probe would "succeed" because an
+    // unrelated process inherited the number; the group is empty.
+    killSpy.mockImplementation(((pid: number, signal?: string | number) => {
+      if (signal === 0 && pid < 0) throw Object.assign(new Error('ESRCH'), { code: 'ESRCH' })
+      return true
+    }) as KillFn)
+
+    const id = `pty-escalation-test-${nextId++}`
+    ptyService.create(id, { cwd: '/tmp' })
+    const fakePty = nodePtyMocks.spawn.mock.results.at(-1)?.value as {
+      onExit: ReturnType<typeof vi.fn>
+    }
+    ptyService.destroy(id)
+    // The child exits (and is reaped) during the grace period
+    const exitHandler = fakePty.onExit.mock.calls[0][0] as (e: {
+      exitCode: number
+      signal: number
+    }) => void
+    exitHandler({ exitCode: 0, signal: 1 })
+
+    vi.advanceTimersByTime(1500)
+
+    expect(killSpy).not.toHaveBeenCalledWith(REUSED_PID, 0)
+    expect(killSpy).toHaveBeenCalledWith(-REUSED_PID, 0)
+    expect(killSpy).not.toHaveBeenCalledWith(REUSED_PID, 'SIGKILL')
+    expect(killSpy).not.toHaveBeenCalledWith(-REUSED_PID, 'SIGKILL')
+  })
+
   it('destroyAllAndReap sweeps survivors after the bounded grace (quit path)', async () => {
     killSpy.mockImplementation((() => true) as KillFn)
 

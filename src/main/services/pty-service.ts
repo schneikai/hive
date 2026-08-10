@@ -67,6 +67,23 @@ function buildEnvSnapshot(env: Record<string, string>): Record<string, string | 
 /** Grace period between the polite SIGHUP and the SIGKILL escalation probe. */
 const KILL_ESCALATION_GRACE_MS = 1500
 
+// Pids whose pty reported exit (child reaped — the numeric pid is reusable by
+// the OS from that moment). The escalation probe must not signal such a pid
+// directly: a probe hit would be a *different* process that inherited the
+// number. Group probes stay valid — pgid reuse additionally requires the new
+// owner to become a session/group leader. Entries are pruned after 60s.
+const EXITED_PID_RETENTION_MS = 60_000
+const exitedPtyPids = new Map<number, number>()
+
+function recordPtyExit(pid: number | undefined): void {
+  if (!pid) return
+  const now = Date.now()
+  exitedPtyPids.set(pid, now)
+  for (const [oldPid, at] of exitedPtyPids) {
+    if (now - at > EXITED_PID_RETENTION_MS) exitedPtyPids.delete(oldPid)
+  }
+}
+
 class PtyService {
   private ptys: Map<string, PtyInstance> = new Map()
 
@@ -160,6 +177,7 @@ class PtyService {
       const code = exitCode ?? -1
       const sig = signal ?? 0
       log.info('PTY exited', { id, exitCode: code, signal: sig })
+      recordPtyExit(ptyProcess.pid)
       for (const listener of instance.exitListeners) {
         try {
           listener(code, sig)
@@ -247,12 +265,18 @@ class PtyService {
    * to both probes; covering that would require a descendant walk.
    */
   private reapSurvivors(id: string, pid: number): void {
+    // Once the pty reported exit, the numeric pid may already belong to an
+    // unrelated process — never probe or signal it directly; only the group
+    // remains a valid target (surviving wrapper-shell grandchildren).
+    const directPidValid = !exitedPtyPids.has(pid)
     let anyAlive = false
-    try {
-      process.kill(pid, 0)
-      anyAlive = true
-    } catch {
-      // direct child dead and reaped
+    if (directPidValid) {
+      try {
+        process.kill(pid, 0)
+        anyAlive = true
+      } catch {
+        // direct child dead and reaped
+      }
     }
     if (!anyAlive) {
       try {
@@ -267,10 +291,12 @@ class PtyService {
     try {
       process.kill(-pid, 'SIGKILL')
     } catch {
-      try {
-        process.kill(pid, 'SIGKILL')
-      } catch {
-        // Died between the probe and the kill — nothing left to do
+      if (directPidValid) {
+        try {
+          process.kill(pid, 'SIGKILL')
+        } catch {
+          // Died between the probe and the kill — nothing left to do
+        }
       }
     }
   }
