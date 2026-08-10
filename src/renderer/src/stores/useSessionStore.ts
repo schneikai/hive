@@ -5,7 +5,8 @@ import { useWorktreeStore } from './useWorktreeStore'
 import {
   notifyKanbanSessionSync,
   notifyKanbanNewSession,
-  notifyKanbanRenameSync
+  notifyKanbanRenameSync,
+  notifyKanbanModelSync
 } from './store-coordination'
 import { useSettingsStore } from './useSettingsStore'
 import { getUnavailableAgentSdkMessage } from '@/lib/agent-sdk-availability'
@@ -199,6 +200,10 @@ interface SessionState {
     model: SelectedModel,
     options?: { skipGlobalUpdate?: boolean }
   ) => Promise<void>
+  applyDetectedSessionModel: (
+    sessionId: string,
+    model: { modelId: string; modelVariant?: string }
+  ) => void
   setOpenCodeSessionId: (sessionId: string, opencodeSessionId: string | null) => void
   setClaudeSessionId: (sessionId: string, claudeSessionId: string | null) => void
   setPendingMessage: (sessionId: string, message: string) => void
@@ -1511,6 +1516,56 @@ export const useSessionStore = create<SessionState>()(
             /* non-critical */
           }
         }
+      },
+
+      // Apply a model change detected from the running CLI itself (usage-limit
+      // or safety degradation, /model in the terminal). Main already persisted
+      // the session row, so this only patches in-memory state — unlike
+      // setSessionModel it must not write the DB, push to the agent backend,
+      // or rewrite global/worktree model preferences (a CLI-side degrade is
+      // not a user preference).
+      applyDetectedSessionModel: (sessionId, model) => {
+        set((state) => {
+          const newWorktreeSessionsMap = new Map(state.sessionsByWorktree)
+          for (const [worktreeId, sessions] of newWorktreeSessionsMap.entries()) {
+            const updated = sessions.map((s) =>
+              s.id === sessionId
+                ? {
+                    ...s,
+                    model_id: model.modelId,
+                    model_variant: model.modelVariant !== undefined ? model.modelVariant : s.model_variant
+                  }
+                : s
+            )
+            if (updated.some((s, i) => s !== sessions[i])) {
+              newWorktreeSessionsMap.set(worktreeId, updated)
+            }
+          }
+
+          const newConnectionSessionsMap = new Map(state.sessionsByConnection)
+          for (const [connectionId, sessions] of newConnectionSessionsMap.entries()) {
+            const updated = sessions.map((s) =>
+              s.id === sessionId
+                ? {
+                    ...s,
+                    model_id: model.modelId,
+                    model_variant: model.modelVariant !== undefined ? model.modelVariant : s.model_variant
+                  }
+                : s
+            )
+            if (updated.some((s, i) => s !== sessions[i])) {
+              newConnectionSessionsMap.set(connectionId, updated)
+            }
+          }
+
+          return {
+            sessionsByWorktree: newWorktreeSessionsMap,
+            sessionsByConnection: newConnectionSessionsMap
+          }
+        })
+
+        // Keep the linked kanban ticket's model badge in sync.
+        notifyKanbanModelSync(sessionId, model)
       },
 
       // Apply mode-specific default model when toggling modes

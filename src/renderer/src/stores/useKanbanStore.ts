@@ -14,8 +14,10 @@ import {
   registerKanbanNewSession,
   registerKanbanAutoCreateTicket,
   registerKanbanRenameSync,
+  registerKanbanModelSync,
   type KanbanSessionEvent
 } from './store-coordination'
+import { CUSTOM_MODEL_PROVIDER_ID } from '@shared/types/custom-provider'
 import { isPlanLike } from '../lib/constants'
 import { useConnectionStore } from './useConnectionStore'
 import { usePinnedStore } from './usePinnedStore'
@@ -1971,6 +1973,50 @@ registerKanbanRenameSync((sessionId, name) => {
       const target = linked.find((t) => t.created_from_session && !t.archived_at)
       if (target && target.title !== name) {
         store.updateTicket(target.id, target.project_id, { title: name }).catch(() => {})
+      }
+    } catch {
+      // Best-effort.
+    }
+  })()
+})
+
+// ── Register model-sync callback (mid-session model change → ticket badge) ──
+// The CLI can switch models mid-session (usage-limit or safety degradation,
+// /model in the terminal). Main persists the session row and the session store
+// patches its maps; this syncs the linked ticket's badge so the board shows
+// the model actually running. Only tickets that already carry a model are
+// touched — a model-less ticket has no stale badge to fix — and custom-provider
+// slugs are never overwritten with a stock alias.
+registerKanbanModelSync((sessionId, model) => {
+  void (async () => {
+    try {
+      const store = useKanbanStore.getState()
+      const apply = (ticket: KanbanTicket, projectId: string): void => {
+        if (!ticket.model_id || ticket.model_provider_id === CUSTOM_MODEL_PROVIDER_ID) return
+        const patch: KanbanTicketUpdate = {}
+        if (ticket.model_id !== model.modelId) patch.model_id = model.modelId
+        if (model.modelVariant !== undefined && ticket.model_variant !== model.modelVariant) {
+          patch.model_variant = model.modelVariant
+        }
+        if (Object.keys(patch).length === 0) return
+        store.updateTicket(ticket.id, projectId, patch).catch(() => {})
+      }
+
+      let matched = false
+      for (const [projectId, tickets] of store.tickets.entries()) {
+        for (const ticket of tickets) {
+          if (ticket.current_session_id === sessionId && !ticket.archived_at) {
+            matched = true
+            apply(ticket, projectId)
+          }
+        }
+      }
+      if (matched) return
+
+      // Fallback: the ticket's board may not be loaded into the map yet.
+      const linked = await kanban.ticket.getBySession<KanbanTicket>(sessionId)
+      for (const target of linked) {
+        if (!target.archived_at) apply(target, target.project_id)
       }
     } catch {
       // Best-effort.
