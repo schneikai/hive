@@ -93,6 +93,7 @@ type KillFn = (pid: number, signal?: string | number) => true
 describe('ptyService.destroy kill escalation', () => {
   const PID = 4242
   let killSpy: MockInstance<KillFn>
+  let groupMembersSpy: MockInstance<(pgid: number) => Promise<Set<number>>>
   let nextId = 0
 
   function createAndGetPty(): { kill: ReturnType<typeof vi.fn> } {
@@ -105,20 +106,38 @@ describe('ptyService.destroy kill escalation', () => {
     return fakePty
   }
 
+  async function advancePastGrace(): Promise<void> {
+    await vi.advanceTimersByTimeAsync(1500)
+    // Flush the snapshot/ownership promise chains the timer kicked off
+    await Promise.resolve()
+    await Promise.resolve()
+    await Promise.resolve()
+  }
+
   beforeEach(() => {
     vi.useFakeTimers()
     nodePtyMocks.spawn.mockImplementation(() => makeFakePty(PID))
     killSpy = vi.spyOn(process, 'kill') as unknown as MockInstance<KillFn>
+    // Never run the real pgrep in unit tests
+    groupMembersSpy = vi
+      .spyOn(
+        ptyService as unknown as { listGroupMembers(pgid: number): Promise<Set<number>> },
+        'listGroupMembers'
+      )
+      .mockResolvedValue(new Set<number>()) as unknown as MockInstance<
+      (pgid: number) => Promise<Set<number>>
+    >
   })
 
   afterEach(() => {
     vi.clearAllTimers()
     vi.useRealTimers()
     killSpy.mockRestore()
+    groupMembersSpy.mockRestore()
     vi.clearAllMocks()
   })
 
-  it('escalates to a process-group SIGKILL when the process survives SIGHUP', () => {
+  it('escalates to a process-group SIGKILL when the process survives SIGHUP', async () => {
     killSpy.mockImplementation((() => true) as KillFn)
 
     const fakePty = createAndGetPty()
@@ -126,20 +145,20 @@ describe('ptyService.destroy kill escalation', () => {
     expect(fakePty.kill).toHaveBeenCalledTimes(1)
     expect(killSpy).not.toHaveBeenCalled()
 
-    vi.advanceTimersByTime(1500)
+    await advancePastGrace()
 
     expect(killSpy).toHaveBeenCalledWith(PID, 0)
     expect(killSpy).toHaveBeenCalledWith(-PID, 'SIGKILL')
   })
 
-  it('does not escalate when the process and its group are both dead at probe time', () => {
+  it('does not escalate when the process and its group are both dead at probe time', async () => {
     killSpy.mockImplementation(((_pid: number, signal?: string | number) => {
       if (signal === 0) throw Object.assign(new Error('ESRCH'), { code: 'ESRCH' })
       return true
     }) as KillFn)
 
     createAndGetPty()
-    vi.advanceTimersByTime(1500)
+    await advancePastGrace()
 
     expect(killSpy).toHaveBeenCalledWith(PID, 0)
     expect(killSpy).toHaveBeenCalledWith(-PID, 0)
@@ -147,36 +166,45 @@ describe('ptyService.destroy kill escalation', () => {
     expect(killSpy).not.toHaveBeenCalledWith(PID, 'SIGKILL')
   })
 
-  it('escalates when the wrapper shell died but a group member survives', () => {
+  it('escalates when the wrapper shell died but a snapshot member survives in the group', async () => {
     // Custom-provider topology: the direct child ($SHELL wrapper) is reaped,
-    // but a HUP-ignoring agent in the same process group lives on.
+    // but a HUP-ignoring agent in the same process group lives on. The agent
+    // (999) appears in both the destroy-time snapshot and the current group,
+    // proving ownership continuity.
+    groupMembersSpy.mockResolvedValue(new Set([PID, 999]))
     killSpy.mockImplementation(((pid: number, signal?: string | number) => {
       if (signal === 0 && pid > 0) throw Object.assign(new Error('ESRCH'), { code: 'ESRCH' })
       return true
     }) as KillFn)
 
     createAndGetPty()
-    vi.advanceTimersByTime(1500)
+    await advancePastGrace()
 
     expect(killSpy).toHaveBeenCalledWith(-PID, 0)
     expect(killSpy).toHaveBeenCalledWith(-PID, 'SIGKILL')
   })
 
-  it('falls back to a direct SIGKILL when the group kill fails', () => {
+  it('does not kill a group that no longer traces to the destroyed PTY (reused pgid)', async () => {
+    // At destroy time the group held only the leader; at escalation time the
+    // probe finds a live group, but none of its members were ours — the
+    // numeric pgid was recycled by an unrelated process. No SIGKILL.
+    groupMembersSpy
+      .mockResolvedValueOnce(new Set([PID])) // destroy-time snapshot
+      .mockResolvedValueOnce(new Set([777])) // escalation-time membership
     killSpy.mockImplementation(((pid: number, signal?: string | number) => {
-      if (signal === 0) return true
-      if (pid < 0) throw Object.assign(new Error('EPERM'), { code: 'EPERM' })
+      if (signal === 0 && pid > 0) throw Object.assign(new Error('ESRCH'), { code: 'ESRCH' })
       return true
     }) as KillFn)
 
     createAndGetPty()
-    vi.advanceTimersByTime(1500)
+    await advancePastGrace()
 
-    expect(killSpy).toHaveBeenCalledWith(-PID, 'SIGKILL')
-    expect(killSpy).toHaveBeenCalledWith(PID, 'SIGKILL')
+    expect(killSpy).toHaveBeenCalledWith(-PID, 0)
+    expect(killSpy).not.toHaveBeenCalledWith(-PID, 'SIGKILL')
+    expect(killSpy).not.toHaveBeenCalledWith(PID, 'SIGKILL')
   })
 
-  it('never signals the numeric pid after the pty reported exit (pid-reuse hazard)', () => {
+  it('never signals the numeric pid after the pty reported exit (pid-reuse hazard)', async () => {
     // Distinct pid: the exited-pid ledger is module-level and must not leak
     // into the other escalation tests.
     const REUSED_PID = 5353
@@ -201,12 +229,26 @@ describe('ptyService.destroy kill escalation', () => {
     }) => void
     exitHandler({ exitCode: 0, signal: 1 })
 
-    vi.advanceTimersByTime(1500)
+    await advancePastGrace()
 
     expect(killSpy).not.toHaveBeenCalledWith(REUSED_PID, 0)
     expect(killSpy).toHaveBeenCalledWith(-REUSED_PID, 0)
     expect(killSpy).not.toHaveBeenCalledWith(REUSED_PID, 'SIGKILL')
     expect(killSpy).not.toHaveBeenCalledWith(-REUSED_PID, 'SIGKILL')
+  })
+
+  it('falls back to a direct SIGKILL when the group kill fails', async () => {
+    killSpy.mockImplementation(((pid: number, signal?: string | number) => {
+      if (signal === 0) return true
+      if (pid < 0) throw Object.assign(new Error('EPERM'), { code: 'EPERM' })
+      return true
+    }) as KillFn)
+
+    createAndGetPty()
+    await advancePastGrace()
+
+    expect(killSpy).toHaveBeenCalledWith(-PID, 'SIGKILL')
+    expect(killSpy).toHaveBeenCalledWith(PID, 'SIGKILL')
   })
 
   it('destroyAllAndReap sweeps survivors after the bounded grace (quit path)', async () => {

@@ -117,20 +117,43 @@ describe('destroyCompletedSessionTerminal', () => {
     expect(terminalDestroy).not.toHaveBeenCalled()
   })
 
-  it('skips while a reactivation is in flight (revival race)', async () => {
+  it('serializes behind an in-flight revival and then leaves the active session alone', async () => {
+    // Stateful DB row: the revival's active-write must be visible to the
+    // destroy that runs after it.
+    const dbRow = { current: makeDbSession() }
+    sessionGet.mockImplementation(async () => dbRow.current)
+    sessionUpdate.mockImplementation(async (_id: string, data: Partial<Session>) => {
+      dbRow.current = { ...dbRow.current, ...data } as Session
+      return dbRow.current
+    })
     let releaseReactivateRead: (value: Session) => void = () => {}
     sessionGet.mockImplementationOnce(
       () => new Promise<Session>((resolve) => (releaseReactivateRead = resolve))
     )
 
-    // Reactivation starts first and is parked on its DB read
+    // Reactivation starts first and is parked on its DB read (holding the
+    // lifecycle lock)
     const reactivation = useSessionStore.getState().reactivateSession(SESSION_ID)
 
-    await useSessionStore.getState().destroyCompletedSessionTerminal(SESSION_ID)
+    let destroyed = false
+    const destroying = useSessionStore
+      .getState()
+      .destroyCompletedSessionTerminal(SESSION_ID)
+      .then(() => {
+        destroyed = true
+      })
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    // The destroy is queued behind the revival, not interleaved with it
+    expect(destroyed).toBe(false)
     expect(terminalDestroy).not.toHaveBeenCalled()
 
-    releaseReactivateRead(makeDbSession())
+    releaseReactivateRead(dbRow.current)
     await reactivation
+    await destroying
+
+    // Running after the revival, the destroy sees the active row and no-ops
+    expect(terminalDestroy).not.toHaveBeenCalled()
   })
 
   it('skips when a new mount request lands during the DB read (re-mount race)', async () => {
@@ -172,27 +195,46 @@ describe('closeSession DB fallback', () => {
     expect(terminalDestroy).not.toHaveBeenCalled()
   })
 
-  it('skips the PTY destroy when a revival starts mid-close', async () => {
+  it('serializes a close behind an in-flight revival (no mid-flight interleave)', async () => {
+    const dbRow = { current: makeDbSession() }
+    sessionGet.mockImplementation(async () => dbRow.current)
+    sessionUpdate.mockImplementation(async (_id: string, data: Partial<Session>) => {
+      dbRow.current = { ...dbRow.current, ...data } as Session
+      return dbRow.current
+    })
     let releaseReactivateRead: (value: Session) => void = () => {}
     sessionGet.mockImplementationOnce(
       () => new Promise<Session>((resolve) => (releaseReactivateRead = resolve))
     )
 
-    // A revival is in flight (parked on its DB read) while closeSession runs
+    // A revival holds the lifecycle lock (parked on its DB read)
     const reactivation = useSessionStore.getState().reactivateSession(SESSION_ID)
 
-    await useSessionStore.getState().closeSession(SESSION_ID)
+    let closed = false
+    const closing = useSessionStore
+      .getState()
+      .closeSession(SESSION_ID)
+      .then(() => {
+        closed = true
+      })
+    await new Promise((resolve) => setTimeout(resolve, 0))
 
-    // The row is still marked completed (last-write ordering), but the live
-    // process is left for the revival to reclaim
-    expect(sessionUpdate).toHaveBeenCalledWith(SESSION_ID, {
-      status: 'completed',
-      completed_at: expect.any(String)
-    })
+    // The close must not interleave with the revival: no completed-write and
+    // no teardown until the revival finishes
+    expect(closed).toBe(false)
+    expect(sessionUpdate).not.toHaveBeenCalledWith(
+      SESSION_ID,
+      expect.objectContaining({ status: 'completed' })
+    )
     expect(terminalDestroy).not.toHaveBeenCalled()
 
-    releaseReactivateRead(makeDbSession())
+    releaseReactivateRead(dbRow.current)
     await reactivation
+    await closing
+
+    // The close then runs on the revival's final state as the newest intent
+    expect(closed).toBe(true)
+    expect(terminalDestroy).toHaveBeenCalledWith(SESSION_ID)
   })
 
   it('does not hit the DB when the session is present in the store', async () => {

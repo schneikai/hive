@@ -32,11 +32,37 @@ const pushQueuedState = (sessionId: string, hasQueued: boolean): void => {
   systemApi.setSessionQueuedState(sessionId, hasQueued).catch(() => {})
 }
 
+// Per-session promise chain serializing lifecycle transitions (close,
+// reopen, reactivate, completed-terminal destroy). These flows all
+// read-then-write the session row and the process state; interleaving them
+// produces lost updates — e.g. a revival reading the still-active row while
+// a close's completed-write is in flight would no-op and then lose its
+// process to the close. The lock makes each transition see the previous
+// one's final state.
+const sessionLifecycleLocks = new Map<string, Promise<void>>()
+
+async function withSessionLifecycleLock<T>(sessionId: string, fn: () => Promise<T>): Promise<T> {
+  const prev = sessionLifecycleLocks.get(sessionId) ?? Promise.resolve()
+  const run = prev.then(fn)
+  const tail = run.then(
+    () => undefined,
+    () => undefined
+  )
+  sessionLifecycleLocks.set(sessionId, tail)
+  try {
+    return await run
+  } finally {
+    if (sessionLifecycleLocks.get(sessionId) === tail) {
+      sessionLifecycleLocks.delete(sessionId)
+    }
+  }
+}
+
 // Refcount of in-flight revivals per session (reactivateSession /
 // reopenSession / reopenConnectionSession, which nest). Consulted
 // (synchronously) by destroyCompletedSessionTerminal and the kanban
-// done-close so a cleanup racing the async DB flip cannot read the stale
-// 'completed' row and kill a just-revived process.
+// done-close as a fast pre-check; the lifecycle lock above provides the
+// actual serialization.
 const reactivatingSessionIds = new Map<string, number>()
 
 export function isSessionReactivating(sessionId: string): boolean {
@@ -193,12 +219,12 @@ interface SessionState {
   reopenSession: (
     sessionId: string,
     worktreeId: string,
-    opts?: { activate?: boolean }
+    opts?: { activate?: boolean; skipLifecycleLock?: boolean }
   ) => Promise<{ success: boolean; error?: string }>
   reopenConnectionSession: (
     sessionId: string,
     connectionId: string,
-    opts?: { activate?: boolean }
+    opts?: { activate?: boolean; skipLifecycleLock?: boolean }
   ) => Promise<{ success: boolean; error?: string }>
   reactivateSession: (sessionId: string) => Promise<void>
   setActiveSession: (sessionId: string | null) => void
@@ -418,7 +444,8 @@ export const useSessionStore = create<SessionState>()(
       // navigated to (active session), or actively working/awaiting input per
       // its hook-driven status (a background follow-up may not have flipped
       // the DB row back to active yet).
-      destroyCompletedSessionTerminal: async (sessionId: string) => {
+      destroyCompletedSessionTerminal: async (sessionId: string) =>
+        withSessionLifecycleLock(sessionId, async () => {
         const isReEngaged = async (): Promise<boolean> => {
           if (isSessionReactivating(sessionId)) return true
           if (get().sessionMountRequests.has(sessionId)) return true
@@ -453,7 +480,7 @@ export const useSessionStore = create<SessionState>()(
         set((state) => ({
           closedTerminalSessionIds: new Set([...state.closedTerminalSessionIds, sessionId])
         }))
-      },
+        }),
 
       // Load sessions for a worktree from database (only active sessions for tabs)
       loadSessions: async (worktreeId: string, _projectId: string) => {
@@ -711,7 +738,8 @@ export const useSessionStore = create<SessionState>()(
 
       // Close a session tab (removes from tab view, keeps in database for history)
       // Scope-agnostic: works for both worktree and connection sessions
-      closeSession: async (sessionId: string) => {
+      closeSession: async (sessionId: string) =>
+        withSessionLifecycleLock(sessionId, async () => {
         try {
           // Find the session to determine type and gather disconnect info
           let isTerminalSession = false
@@ -937,13 +965,18 @@ export const useSessionStore = create<SessionState>()(
             error: error instanceof Error ? error.message : 'Failed to close session'
           }
         }
-      },
+        }),
 
       // Reopen a closed session (from history) - marks as active and adds to tabs.
       // opts.activate=false restores the tab without stealing focus — used by
       // background flows (follow-up sends, plan approvals) where the user
       // should stay where they are.
-      reopenSession: async (sessionId: string, worktreeId: string, opts?: { activate?: boolean }) => {
+      reopenSession: async (
+        sessionId: string,
+        worktreeId: string,
+        opts?: { activate?: boolean; skipLifecycleLock?: boolean }
+      ) => {
+        const run = async (): Promise<{ success: boolean; error?: string }> => {
         const activate = opts?.activate !== false
         // Guard the revival window: a concurrent completed-session cleanup
         // must not kill the PTY while the DB flip is in flight.
@@ -1024,6 +1057,10 @@ export const useSessionStore = create<SessionState>()(
         } finally {
           unmarkReactivating(sessionId)
         }
+        }
+        // reactivateSession already holds the lifecycle lock — a nested
+        // acquisition would deadlock, so it opts out here.
+        return opts?.skipLifecycleLock ? run() : withSessionLifecycleLock(sessionId, run)
       },
 
       // Reopen a closed connection session (from history).
@@ -1031,8 +1068,9 @@ export const useSessionStore = create<SessionState>()(
       reopenConnectionSession: async (
         sessionId: string,
         connectionId: string,
-        opts?: { activate?: boolean }
+        opts?: { activate?: boolean; skipLifecycleLock?: boolean }
       ) => {
+        const run = async (): Promise<{ success: boolean; error?: string }> => {
         const activate = opts?.activate !== false
         markReactivating(sessionId)
         try {
@@ -1115,6 +1153,8 @@ export const useSessionStore = create<SessionState>()(
         } finally {
           unmarkReactivating(sessionId)
         }
+        }
+        return opts?.skipLifecycleLock ? run() : withSessionLifecycleLock(sessionId, run)
       },
 
       // Flip a completed session back to active and restore its tab WITHOUT
@@ -1123,11 +1163,12 @@ export const useSessionStore = create<SessionState>()(
       // work: the session must regain a tab and a restore entry, or its
       // respawned process would outlive every UI affordance to close it.
       reactivateSession: async (sessionId: string) => {
-        // Marked synchronously so a concurrently-running
-        // destroyCompletedSessionTerminal cannot read the stale 'completed'
-        // DB row and kill the process this revival is claiming.
+        // Marked synchronously (before any await) so concurrent flows get a
+        // fast signal that a revival is queued/running even while it waits
+        // for the lifecycle lock.
         markReactivating(sessionId)
         try {
+          await withSessionLifecycleLock(sessionId, async () => {
           let dbSession: Session | null = null
           try {
             dbSession = await dbApi.session.get<Session>(sessionId)
@@ -1136,10 +1177,14 @@ export const useSessionStore = create<SessionState>()(
           }
           if (!dbSession || dbSession.status !== 'completed') return
           if (dbSession.worktree_id) {
-            await get().reopenSession(sessionId, dbSession.worktree_id, { activate: false })
+            await get().reopenSession(sessionId, dbSession.worktree_id, {
+              activate: false,
+              skipLifecycleLock: true
+            })
           } else if (dbSession.connection_id) {
             await get().reopenConnectionSession(sessionId, dbSession.connection_id, {
-              activate: false
+              activate: false,
+              skipLifecycleLock: true
             })
           } else {
             try {
@@ -1151,6 +1196,7 @@ export const useSessionStore = create<SessionState>()(
               // Best-effort — the session stays completed
             }
           }
+          })
         } finally {
           unmarkReactivating(sessionId)
         }
