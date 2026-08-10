@@ -1,10 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Session } from '../../../../main/db/types'
 
-const { sessionGet, sessionUpdate, terminalDestroy } = vi.hoisted(() => ({
+const { sessionGet, sessionUpdate, terminalDestroy, remoteStop } = vi.hoisted(() => ({
   sessionGet: vi.fn(),
   sessionUpdate: vi.fn(),
-  terminalDestroy: vi.fn()
+  terminalDestroy: vi.fn(),
+  remoteStop: vi.fn()
 }))
 
 vi.mock('@/api/db-api', () => ({
@@ -20,6 +21,10 @@ vi.mock('@/api/terminal-api', () => ({
   terminalApi: {
     destroy: terminalDestroy
   }
+}))
+
+vi.mock('@/api/remote-launch-api', () => ({
+  remoteLaunchApi: { stop: remoteStop }
 }))
 
 import { useSessionStore } from '../useSessionStore'
@@ -60,7 +65,22 @@ beforeEach(() => {
   sessionGet.mockResolvedValue(makeDbSession())
   terminalDestroy.mockResolvedValue({ success: true, value: undefined })
   sessionUpdate.mockResolvedValue(makeDbSession({ status: 'active', completed_at: null }))
+  remoteStop.mockResolvedValue({ ok: true })
 })
+
+const REMOTE_LAUNCH_CLIENT = JSON.stringify({
+  role: 'client',
+  host: 'devbox',
+  tmuxSession: 't1'
+})
+
+function seedWorktreeSession(overrides: Partial<Session> = {}): void {
+  useSessionStore.setState({
+    sessionsByWorktree: new Map([
+      ['worktree-1', [makeDbSession({ status: 'active', completed_at: null, ...overrides })]]
+    ])
+  })
+}
 
 afterEach(() => {
   useSessionStore.setState(initialSessionState, true)
@@ -275,5 +295,66 @@ describe('closeSession DB fallback', () => {
 
     expect(sessionGet).not.toHaveBeenCalled()
     expect(terminalDestroy).toHaveBeenCalledWith(SESSION_ID)
+  })
+})
+
+describe('closeSession stopRemote', () => {
+  it('stops a remote-launched client session inside the close', async () => {
+    seedWorktreeSession({ remote_launch: REMOTE_LAUNCH_CLIENT })
+
+    const result = await useSessionStore
+      .getState()
+      .closeSession(SESSION_ID, { stopRemote: true })
+
+    expect(remoteStop).toHaveBeenCalledWith({ sessionId: SESSION_ID })
+    expect(result.success).toBe(true)
+    expect(sessionUpdate).toHaveBeenCalledWith(
+      SESSION_ID,
+      expect.objectContaining({ status: 'completed' })
+    )
+  })
+
+  it('keeps the session open when the remote stop fails', async () => {
+    seedWorktreeSession({ remote_launch: REMOTE_LAUNCH_CLIENT })
+    remoteStop.mockRejectedValueOnce(new Error('host unreachable'))
+
+    const result = await useSessionStore
+      .getState()
+      .closeSession(SESSION_ID, { stopRemote: true })
+
+    expect(result.success).toBe(false)
+    expect(result.error).toMatch(/remote stop failed/)
+    expect(sessionUpdate).not.toHaveBeenCalledWith(
+      SESSION_ID,
+      expect.objectContaining({ status: 'completed' })
+    )
+    expect(terminalDestroy).not.toHaveBeenCalled()
+  })
+
+  it('does not stop remotes that were already stopped', async () => {
+    seedWorktreeSession({
+      remote_launch: JSON.stringify({
+        role: 'client',
+        host: 'devbox',
+        tmuxSession: 't1',
+        stoppedAt: '2026-01-02T00:00:00.000Z'
+      })
+    })
+
+    const result = await useSessionStore
+      .getState()
+      .closeSession(SESSION_ID, { stopRemote: true })
+
+    expect(remoteStop).not.toHaveBeenCalled()
+    expect(result.success).toBe(true)
+  })
+
+  it('leaves remote agents alone without the stopRemote opt (tab close)', async () => {
+    seedWorktreeSession({ remote_launch: REMOTE_LAUNCH_CLIENT })
+
+    const result = await useSessionStore.getState().closeSession(SESSION_ID)
+
+    expect(remoteStop).not.toHaveBeenCalled()
+    expect(result.success).toBe(true)
   })
 })

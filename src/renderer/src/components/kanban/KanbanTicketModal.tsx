@@ -3973,6 +3973,9 @@ function JumpToSessionButton({
         if (ticket.worktree_id) {
           await sessionStore.reopenSession(sessionId, ticket.worktree_id)
         } else if (record.connection_id) {
+          // MainPane only scopes connection sessions under the selected
+          // connection — select it or the reopened tab has nowhere to mount
+          useConnectionStore.getState().selectConnection(record.connection_id)
           await sessionStore.reopenConnectionSession(sessionId, record.connection_id)
         }
       }

@@ -16,6 +16,8 @@ import { systemApi } from '@/api/system-api'
 import { dbApi } from '@/api/db-api'
 import { connectionApi } from '@/api/connection-api'
 import { terminalApi } from '@/api/terminal-api'
+import { remoteLaunchApi } from '@/api/remote-launch-api'
+import { parseRemoteLaunch } from '@shared/types/remote-launch'
 import { opencodeApi } from '@/api/opencode-api'
 import { type AgentSdk, isTerminalBacked } from '@shared/types/agent-sdk'
 import { CUSTOM_MODEL_PROVIDER_ID } from '@shared/types/custom-provider'
@@ -130,6 +132,8 @@ interface Session {
   claude_session_id: string | null
   agent_sdk: AgentSdk
   custom_provider_id?: string | null
+  /** JSON RemoteLaunchInfo when this session was launched on a remote host. */
+  remote_launch?: string | null
   mode: SessionMode
   session_type: 'default' | 'board-assistant'
   model_provider_id: string | null
@@ -217,7 +221,7 @@ interface SessionState {
   ) => Promise<{ success: boolean; session?: Session; error?: string }>
   closeSession: (
     sessionId: string,
-    opts?: { abortIfRevived?: boolean }
+    opts?: { abortIfRevived?: boolean; stopRemote?: boolean }
   ) => Promise<{ success: boolean; error?: string; aborted?: boolean }>
   reopenSession: (
     sessionId: string,
@@ -741,7 +745,10 @@ export const useSessionStore = create<SessionState>()(
 
       // Close a session tab (removes from tab view, keeps in database for history)
       // Scope-agnostic: works for both worktree and connection sessions
-      closeSession: async (sessionId: string, opts?: { abortIfRevived?: boolean }) =>
+      closeSession: async (
+        sessionId: string,
+        opts?: { abortIfRevived?: boolean; stopRemote?: boolean }
+      ) =>
         withSessionLifecycleLock(sessionId, async () => {
         // Atomic guard for background closes (ticket entered Done): a revival
         // that queued behind this lock marked itself synchronously before
@@ -756,6 +763,7 @@ export const useSessionStore = create<SessionState>()(
           let isTerminalSession = false
           let opencodeSessionId: string | null = null
           let sessionWorktreeId: string | null = null
+          let remoteLaunchRaw: string | null = null
           let foundInStore = false
 
           for (const [worktreeId, sessions] of get().sessionsByWorktree.entries()) {
@@ -764,6 +772,7 @@ export const useSessionStore = create<SessionState>()(
               isTerminalSession = isTerminalBacked(found.agent_sdk)
               opencodeSessionId = found.opencode_session_id
               sessionWorktreeId = worktreeId
+              remoteLaunchRaw = found.remote_launch ?? null
               foundInStore = true
               break
             }
@@ -774,6 +783,7 @@ export const useSessionStore = create<SessionState>()(
               if (found) {
                 isTerminalSession = isTerminalBacked(found.agent_sdk)
                 opencodeSessionId = found.opencode_session_id
+                remoteLaunchRaw = found.remote_launch ?? null
                 foundInStore = true
                 break
               }
@@ -789,9 +799,36 @@ export const useSessionStore = create<SessionState>()(
                 isTerminalSession = isTerminalBacked(dbSession.agent_sdk)
                 opencodeSessionId = dbSession.opencode_session_id
                 sessionWorktreeId = dbSession.worktree_id
+                remoteLaunchRaw = dbSession.remote_launch ?? null
               }
             } catch {
               // Best-effort — proceed with the store-derived (empty) info
+            }
+          }
+
+          // Ticket-done closes stop remote-launched agents (a tmux on a
+          // remote host) before completing: a local-only close would leave
+          // that agent running forever. This runs INSIDE the lifecycle lock,
+          // after the abortIfRevived check, so a queued revival can never
+          // lose its remote process to a stale stop. On failure the session
+          // stays linked (and alive) — the caller surfaces the error.
+          if (opts?.stopRemote) {
+            const remoteInfo = parseRemoteLaunch(remoteLaunchRaw)
+            if (remoteInfo?.role === 'client' && !remoteInfo.stoppedAt) {
+              try {
+                await remoteLaunchApi.stop({ sessionId })
+              } catch (error) {
+                return {
+                  success: false,
+                  error: `remote stop failed: ${error instanceof Error ? error.message : String(error)}`
+                }
+              }
+              try {
+                const { useRemoteLaunchStore } = await import('./useRemoteLaunchStore')
+                useRemoteLaunchStore.getState().markStopped(sessionId)
+              } catch {
+                // Bookkeeping only — the remote agent is already stopped
+              }
             }
           }
 

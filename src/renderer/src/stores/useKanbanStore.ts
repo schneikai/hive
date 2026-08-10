@@ -21,11 +21,7 @@ import { useConnectionStore } from './useConnectionStore'
 import { usePinnedStore } from './usePinnedStore'
 import { useWorktreeStatusStore } from './useWorktreeStatusStore'
 import { kanbanApi as kanban } from '@/api/kanban-api'
-import { dbApi } from '@/api/db-api'
-import { remoteLaunchApi } from '@/api/remote-launch-api'
-import { parseRemoteLaunch } from '@shared/types/remote-launch'
 import { toast } from '@/lib/toast'
-import type { Session } from '../../../main/db/types'
 
 export interface BoardTelegramTarget {
   ticketId: string
@@ -1062,54 +1058,25 @@ export const useKanbanStore = create<KanbanState>()(
                 // close while a reactivation/reopen is in flight.
                 !isSessionReactivating(sessionIdToClose)
               ) {
+                // No awaits sit between the guards above and this call, and
+                // closeSession performs the remote stop and the close INSIDE
+                // its per-session lifecycle lock (after re-checking
+                // abortIfRevived there), so guard and transitions are atomic.
+                // closeSession reports failures via its result, not by
+                // throwing — surface non-aborted failures.
                 void (async () => {
-                  // Every await in this detached task races newer intents —
-                  // a backward drag out of Done (which never marks the
-                  // session as reactivating) or a revival. Re-validate on
-                  // fresh state immediately before each irreversible step.
-                  const stillEligible = (): boolean => {
-                    const ticketFresh = get()
-                      .tickets.get(projectId)
-                      ?.find((t) => t.id === ticketId)
-                    return (
-                      ticketFresh?.column === 'done' &&
-                      !isSessionReactivating(sessionIdToClose)
-                    )
-                  }
-                  // Remote-launched agents run in a tmux on the remote host —
-                  // a local close would leave that agent running forever.
-                  // Stop it first (mirroring the backward-drag flow) and keep
-                  // the session linked when the remote cannot be reached.
-                  const dbSession = await dbApi.session.get<Session>(sessionIdToClose)
-                  const remoteInfo = parseRemoteLaunch(dbSession?.remote_launch)
-                  if (!stillEligible()) return
-                  if (remoteInfo?.role === 'client' && !remoteInfo.stoppedAt) {
-                    try {
-                      await remoteLaunchApi.stop({ sessionId: sessionIdToClose })
-                      const { useRemoteLaunchStore } = await import('./useRemoteLaunchStore')
-                      useRemoteLaunchStore.getState().markStopped(sessionIdToClose)
-                    } catch (err) {
-                      toast.error(
-                        `Ticket is done, but its remote session could not be stopped: ${err instanceof Error ? err.message : String(err)}`
-                      )
-                      return
-                    }
-                  }
-                  if (!stillEligible()) return
-                  // abortIfRevived re-checks inside the lifecycle lock, making
-                  // the revival guard and the close transition atomic.
-                  // closeSession reports failures via its result, not by
-                  // throwing — surface non-aborted failures.
                   const result = await useSessionStore
                     .getState()
-                    .closeSession(sessionIdToClose, { abortIfRevived: true })
+                    .closeSession(sessionIdToClose, { abortIfRevived: true, stopRemote: true })
                   if (!result.success && !result.aborted) {
                     console.error(
                       'Failed to close session for completed ticket:',
                       sessionIdToClose,
                       result.error
                     )
-                    toast.error('Ticket is done, but its session could not be closed')
+                    toast.error(
+                      `Ticket is done, but its session could not be closed: ${result.error ?? 'unknown error'}`
+                    )
                   }
                 })().catch((err) => {
                   console.error(
