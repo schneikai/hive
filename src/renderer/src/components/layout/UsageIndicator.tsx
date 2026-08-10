@@ -9,6 +9,8 @@ import {
   normalizeUsage
 } from '@/stores'
 import { useSettingsStore } from '@/stores/useSettingsStore'
+import { useTimerTickStore } from '@/stores/useTimerTickStore'
+import { nextUsageRefreshAt } from '@/hooks/useAccountScheduleRunner'
 import { HoverCard, HoverCardContent, HoverCardTrigger } from '@/components/ui/hover-card'
 import { reportActiveAccountsSnapshot } from '@/lib/hive-account-report'
 import { fetchHiveAccountMembers, isHiveTelemetryEnabled } from '@/api/hive-enterprise/client'
@@ -212,6 +214,52 @@ function usageFromSavedAccount(
   return normalizeUsage(provider, null, account.last_usage as OpenAIUsageData)
 }
 
+function formatRefreshCountdown(nextAt: number, nowMs: number): string {
+  const seconds = Math.ceil((nextAt - nowMs) / 1000)
+  if (seconds <= 0) return 'Refreshing soon'
+  if (seconds < 60) return `Refreshing in ${seconds} sec`
+  return `Refreshing in ${Math.ceil(seconds / 60)} min`
+}
+
+function formatRefreshedAgo(lastFetchedAt: number, nowMs: number): string {
+  const seconds = Math.max(0, Math.floor((nowMs - lastFetchedAt) / 1000))
+  if (seconds < 60) return 'Refreshed just now'
+  const minutes = Math.floor(seconds / 60)
+  if (minutes < 60) return `Refreshed ${minutes} min ago`
+  const hours = Math.floor(minutes / 60)
+  if (hours < 24) return `Refreshed ${hours} hr ago`
+  return `Refreshed ${Math.floor(hours / 24)}d ago`
+}
+
+/**
+ * Live "Refreshing in xx" label for the active account — shows when the
+ * schedule runner will next fetch this provider's usage. When nothing is
+ * scheduled (no running session for the provider), falls back to how long
+ * ago usage was last refreshed; hidden only when it never was.
+ */
+function RefreshCountdown({ provider }: { provider: UsageProvider }): React.JSX.Element | null {
+  const tickMs = useTimerTickStore((s) => s.tickMs)
+  const lastFetchedAt = useUsageStore((s) =>
+    provider === 'anthropic' ? s.anthropicLastFetchedAt : s.openaiLastFetchedAt
+  )
+  const nextAt = nextUsageRefreshAt(provider)
+  const label =
+    nextAt !== null
+      ? formatRefreshCountdown(nextAt, tickMs)
+      : lastFetchedAt !== null
+        ? formatRefreshedAgo(lastFetchedAt, tickMs)
+        : null
+  if (label === null) return null
+  return (
+    <span
+      className="ml-auto shrink-0 text-[9px] text-muted-foreground/70"
+      data-testid="usage-refresh-countdown"
+    >
+      {label}
+    </span>
+  )
+}
+
 export interface UsageAccountRowProps {
   row: AccountRowData
   provider?: UsageProvider
@@ -356,6 +404,7 @@ export function UsageAccountRow({
               Sign in again
             </button>
           )}
+          {row.isActive && provider && <RefreshCountdown provider={provider} />}
         </div>
       )}
 

@@ -1,7 +1,11 @@
 import { useEffect } from 'react'
 import { useSessionStore } from '@/stores/useSessionStore'
 import { useWorktreeStatusStore } from '@/stores/useWorktreeStatusStore'
-import { useUsageStore, resolveUsageProvider } from '@/stores/useUsageStore'
+import {
+  useUsageStore,
+  resolveUsageProvider,
+  USAGE_FETCH_DEBOUNCE_MS
+} from '@/stores/useUsageStore'
 import { useAccountScheduleStore, getActiveUsagePercent } from '@/stores/useAccountScheduleStore'
 import type { UsageProvider } from '@shared/types/usage'
 
@@ -63,17 +67,35 @@ function providersWithRunningSessions(): Set<UsageProvider> {
   return providers
 }
 
+// Failed fetches don't advance lastFetchedAt, so gate on our own attempt
+// time too — otherwise a flaky network turns the 5-minute refresh into
+// polling on every tick. Module scope so nextUsageRefreshAt can see it.
+const lastAttemptAt: Partial<Record<UsageProvider, number>> = {}
+
+/**
+ * When the runner will next fetch usage for `provider`, or null when no
+ * refresh is scheduled (no running session for that provider). Mirrors the
+ * tick's gating — interval since last fetch/attempt — floored by the store's
+ * fetch debounce, which would swallow an earlier attempt anyway.
+ */
+export function nextUsageRefreshAt(provider: UsageProvider): number | null {
+  if (!providersWithRunningSessions().has(provider)) return null
+  const usageStore = useUsageStore.getState()
+  const lastFetchedAt =
+    provider === 'anthropic' ? usageStore.anthropicLastFetchedAt : usageStore.openaiLastFetchedAt
+  const lastActivity = Math.max(lastFetchedAt ?? 0, lastAttemptAt[provider] ?? 0)
+  return Math.max(
+    lastActivity + usageRefreshIntervalMs(provider),
+    (lastFetchedAt ?? 0) + USAGE_FETCH_DEBOUNCE_MS
+  )
+}
+
 /**
  * Drives scheduled account switches (see useAccountScheduleStore) and the
  * mid-session usage refresh. Mount once at the app root.
  */
 export function useAccountScheduleRunner(): void {
   useEffect(() => {
-    // Failed fetches don't advance lastFetchedAt, so gate on our own attempt
-    // time too — otherwise a flaky network turns the 5-minute refresh into
-    // polling on every tick.
-    const lastAttemptAt: Partial<Record<UsageProvider, number>> = {}
-
     const tick = (): void => {
       const usageStore = useUsageStore.getState()
       for (const provider of providersWithRunningSessions()) {
