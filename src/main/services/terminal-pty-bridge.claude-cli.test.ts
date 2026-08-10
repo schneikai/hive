@@ -7,7 +7,7 @@ const mocks = vi.hoisted(() => {
   const handlers = new Map<string, (...args: any[]) => any>()
   const exitCallbacks = new Map<string, (code: number | null) => void>()
   const dataCallbacks = new Map<string, (data: string) => void>()
-  const claudeSessionWatchCallbacks = new Map<string, (claudeSessionId: string) => void>()
+  const claudeSessionWatchCallbacks = new Map<string, (claudeSessionId: string) => boolean | void>()
 
   return {
     handlers,
@@ -40,7 +40,8 @@ const mocks = vi.hoisted(() => {
       write: vi.fn(),
       resize: vi.fn(),
       destroy: vi.fn(),
-      destroyAll: vi.fn()
+      destroyAll: vi.fn(),
+      destroyAllAndReap: vi.fn(async () => {})
     }
   }
 })
@@ -108,7 +109,7 @@ vi.mock('./claude-cli-pty-prompt', async (importOriginal) => ({
 
 vi.mock('./claude-session-watcher', () => ({
   watchForClaudeSessionId: vi.fn(
-    (worktreePath: string, callback: (claudeSessionId: string) => void) => {
+    (worktreePath: string, callback: (claudeSessionId: string) => boolean | void) => {
       mocks.claudeSessionWatchCallbacks.set(worktreePath, callback)
       return { close: vi.fn(() => mocks.claudeSessionWatchCallbacks.delete(worktreePath)) }
     }
@@ -183,6 +184,7 @@ function setupDb(session: Session = makeSession()): void {
     getWorktree: vi.fn(() => ({ path: '/repo/worktree' })),
     getConnection: vi.fn(() => ({ path: '/repo/connection' })),
     getSetting: vi.fn(() => null),
+    getSessionByClaudeSessionId: vi.fn(() => null),
     updateSession: vi.fn()
   })
 }
@@ -464,6 +466,63 @@ describe('Claude CLI terminal hook status wiring', () => {
         'terminal:claude-session-id:hive-session-1',
         'claude-session-new'
       )
+    })
+  })
+
+  it('stamps a discovered claude session id when no other session claims it', async () => {
+    setupDb(makeSession({ claude_session_id: null }))
+    const db = mocks.getDatabase() as { updateSession: ReturnType<typeof vi.fn> }
+
+    await createClaudeCliTerminal('hive-session-1', {})
+
+    const verdict = mocks.claudeSessionWatchCallbacks.get('/repo/worktree')?.('claude-session-new')
+
+    expect(verdict).not.toBe(false)
+    expect(db.updateSession).toHaveBeenCalledWith('hive-session-1', {
+      claude_session_id: 'claude-session-new'
+    })
+  })
+
+  it('rejects a discovered claude session id already claimed by a concurrent session', async () => {
+    setupDb(makeSession({ claude_session_id: null }))
+    const db = mocks.getDatabase() as {
+      updateSession: ReturnType<typeof vi.fn>
+      getSessionByClaudeSessionId: ReturnType<typeof vi.fn>
+    }
+    db.getSessionByClaudeSessionId.mockReturnValue(makeSession({ id: 'hive-session-other' }))
+
+    await createClaudeCliTerminal('hive-session-1', {})
+
+    const verdict = mocks.claudeSessionWatchCallbacks.get('/repo/worktree')?.('claude-session-stolen')
+
+    expect(verdict).toBe(false)
+    expect(db.updateSession).not.toHaveBeenCalled()
+    // Flush the async publish chain (dynamic import + .then) before the
+    // negative assertion — asserting synchronously would pass even if the
+    // rejected branch fell through to the publish.
+    await waitImmediate()
+    await waitImmediate()
+    expect(mocks.publishDesktopBackendEvent).not.toHaveBeenCalledWith(
+      'terminal:claude-session-id:hive-session-1',
+      'claude-session-stolen'
+    )
+  })
+
+  it('stamps a discovered claude session id already claimed by the same session', async () => {
+    setupDb(makeSession({ claude_session_id: null }))
+    const db = mocks.getDatabase() as {
+      updateSession: ReturnType<typeof vi.fn>
+      getSessionByClaudeSessionId: ReturnType<typeof vi.fn>
+    }
+    db.getSessionByClaudeSessionId.mockReturnValue(makeSession({ id: 'hive-session-1' }))
+
+    await createClaudeCliTerminal('hive-session-1', {})
+
+    const verdict = mocks.claudeSessionWatchCallbacks.get('/repo/worktree')?.('claude-session-mine')
+
+    expect(verdict).not.toBe(false)
+    expect(db.updateSession).toHaveBeenCalledWith('hive-session-1', {
+      claude_session_id: 'claude-session-mine'
     })
   })
 

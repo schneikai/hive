@@ -353,6 +353,27 @@ export async function createClaudeCliTerminal(
       claudeWatchers.set(
         sessionId,
         watchForClaudeSessionId(worktreePath, (claudeSessionId) => {
+          // The newest-jsonl heuristic can match a transcript created by a
+          // concurrent spawn in the same worktree. A claude session id belongs
+          // to exactly one Hive session — reject an already-claimed id (the
+          // watcher keeps looking) instead of cross-stamping both sessions
+          // into resuming the same transcript.
+          try {
+            const claimedBy = db.getSessionByClaudeSessionId(claudeSessionId)
+            if (claimedBy && claimedBy.id !== sessionId) {
+              log.warn('Discovered Claude session id already claimed by another session', {
+                sessionId,
+                claudeSessionId,
+                claimedBySessionId: claimedBy.id
+              })
+              return false
+            }
+          } catch (error) {
+            log.warn('Failed to check Claude session id claim', {
+              sessionId,
+              error: error instanceof Error ? error.message : String(error)
+            })
+          }
           try {
             db.updateSession(sessionId, { claude_session_id: claudeSessionId })
           } catch (error) {
@@ -371,6 +392,7 @@ export async function createClaudeCliTerminal(
             armClaudePlanFollowupWatcher(sessionId)
           }
           claudeWatchers.delete(sessionId)
+          return true
         })
       )
     }
@@ -442,7 +464,7 @@ export async function createClaudeCliTerminal(
   }
 }
 
-export function cleanupTerminals(): void {
+export function cleanupTerminals(): Promise<void> {
   log.info('Cleaning up all terminals')
   for (const [, cleanup] of listenerCleanups) {
     cleanup.removeData()
@@ -469,6 +491,9 @@ export function cleanupTerminals(): void {
   unsubscribeClaudeCliStatus?.()
   unsubscribeClaudeCliStatus = null
   resetAllClaudeCliTitleState()
-  ptyService.destroyAll()
+  // HUP + bounded-grace SIGKILL sweep: awaited by the quit chain so
+  // HUP-surviving agents are reaped before the process exits.
+  const reaped = ptyService.destroyAllAndReap()
   ghosttyService.shutdown()
+  return reaped
 }

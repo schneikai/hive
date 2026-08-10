@@ -152,6 +152,7 @@ interface SessionState {
   acknowledgeClosedTerminals: (ids: Set<string>) => void
   requestSessionMount: (sessionId: string) => void
   releaseSessionMount: (sessionId: string) => void
+  destroyCompletedSessionTerminal: (sessionId: string) => Promise<void>
   openOrphanedSession: (session: Session) => void
   closeOrphanedSessions: () => void
   loadSessions: (worktreeId: string, projectId: string) => Promise<void>
@@ -170,12 +171,15 @@ interface SessionState {
   closeSession: (sessionId: string) => Promise<{ success: boolean; error?: string }>
   reopenSession: (
     sessionId: string,
-    worktreeId: string
+    worktreeId: string,
+    opts?: { activate?: boolean }
   ) => Promise<{ success: boolean; error?: string }>
   reopenConnectionSession: (
     sessionId: string,
-    connectionId: string
+    connectionId: string,
+    opts?: { activate?: boolean }
   ) => Promise<{ success: boolean; error?: string }>
+  reactivateSession: (sessionId: string) => Promise<void>
   setActiveSession: (sessionId: string | null) => void
   setActiveWorktree: (worktreeId: string | null) => void
   updateSessionName: (sessionId: string, name: string) => Promise<boolean>
@@ -383,6 +387,50 @@ export const useSessionStore = create<SessionState>()(
           }
           return { sessionMountRequests: requests }
         })
+      },
+
+      // Kill the PTY of a completed (tab-less) session once the last mount
+      // request releases it. Ticket modals resume completed sessions of Done
+      // tickets on open; without this the respawned process would outlive the
+      // modal with no tab left to close it from. Guards: never kill a session
+      // that was re-engaged in the meantime — re-mounted by another modal,
+      // navigated to (active session), or actively working/awaiting input per
+      // its hook-driven status (a background follow-up may not have flipped
+      // the DB row back to active yet).
+      destroyCompletedSessionTerminal: async (sessionId: string) => {
+        const isReEngaged = async (): Promise<boolean> => {
+          if (get().sessionMountRequests.has(sessionId)) return true
+          if (get().activeSessionId === sessionId) return true
+          const { useWorktreeStatusStore } = await import('./useWorktreeStatusStore')
+          const status = useWorktreeStatusStore.getState().sessionStatuses[sessionId]?.status
+          return (
+            status === 'working' ||
+            status === 'planning' ||
+            status === 'answering' ||
+            status === 'permission' ||
+            status === 'command_approval'
+          )
+        }
+
+        if (await isReEngaged()) return
+        let dbSession: Session | null = null
+        try {
+          dbSession = await dbApi.session.get<Session>(sessionId)
+        } catch {
+          return
+        }
+        if (dbSession?.status !== 'completed' || !isTerminalBacked(dbSession.agent_sdk)) return
+        // Re-check after the async gap — the session may have been re-engaged
+        // while the DB read was in flight.
+        if (await isReEngaged()) return
+        try {
+          unwrapEnvelope(await terminalApi.destroy(sessionId))
+        } catch {
+          // Best-effort — PTY may already be gone
+        }
+        set((state) => ({
+          closedTerminalSessionIds: new Set([...state.closedTerminalSessionIds, sessionId])
+        }))
       },
 
       // Load sessions for a worktree from database (only active sessions for tabs)
@@ -647,6 +695,7 @@ export const useSessionStore = create<SessionState>()(
           let isTerminalSession = false
           let opencodeSessionId: string | null = null
           let sessionWorktreeId: string | null = null
+          let foundInStore = false
 
           for (const [worktreeId, sessions] of get().sessionsByWorktree.entries()) {
             const found = sessions.find((s) => s.id === sessionId)
@@ -654,6 +703,7 @@ export const useSessionStore = create<SessionState>()(
               isTerminalSession = isTerminalBacked(found.agent_sdk)
               opencodeSessionId = found.opencode_session_id
               sessionWorktreeId = worktreeId
+              foundInStore = true
               break
             }
           }
@@ -663,8 +713,24 @@ export const useSessionStore = create<SessionState>()(
               if (found) {
                 isTerminalSession = isTerminalBacked(found.agent_sdk)
                 opencodeSessionId = found.opencode_session_id
+                foundInStore = true
                 break
               }
+            }
+          }
+          // Board-driven closes (ticket moved to done) can target sessions of
+          // worktrees never loaded into this store — fall back to the DB row so
+          // terminal-backed sessions still get their PTY destroyed.
+          if (!foundInStore) {
+            try {
+              const dbSession = await dbApi.session.get<Session>(sessionId)
+              if (dbSession) {
+                isTerminalSession = isTerminalBacked(dbSession.agent_sdk)
+                opencodeSessionId = dbSession.opencode_session_id
+                sessionWorktreeId = dbSession.worktree_id
+              }
+            } catch {
+              // Best-effort — proceed with the store-derived (empty) info
             }
           }
 
@@ -845,8 +911,12 @@ export const useSessionStore = create<SessionState>()(
         }
       },
 
-      // Reopen a closed session (from history) - marks as active and adds to tabs
-      reopenSession: async (sessionId: string, worktreeId: string) => {
+      // Reopen a closed session (from history) - marks as active and adds to tabs.
+      // opts.activate=false restores the tab without stealing focus — used by
+      // background flows (follow-up sends, plan approvals) where the user
+      // should stay where they are.
+      reopenSession: async (sessionId: string, worktreeId: string, opts?: { activate?: boolean }) => {
+        const activate = opts?.activate !== false
         try {
           // 1. Update database status first - this ensures persistence
           const updatedSession = await dbApi.session.update<Session>(sessionId, {
@@ -875,11 +945,13 @@ export const useSessionStore = create<SessionState>()(
           useQuestionStore.getState().clearSession(sessionId)
           usePermissionStore.getState().clearSession(sessionId)
           useCommandApprovalStore.getState().clearSession(sessionId)
-          // Clear file viewer so session takes focus
-          useFileViewerStore.getState().setActiveFile(null)
-          useFileViewerStore.getState().clearActiveDiff()
+          if (activate) {
+            // Clear file viewer so session takes focus
+            useFileViewerStore.getState().setActiveFile(null)
+            useFileViewerStore.getState().clearActiveDiff()
+          }
 
-          // 3. Update state to add the session to tabs and make it active
+          // 3. Update state to add the session to tabs (and make it active)
           set((state) => {
             const newSessionsMap = new Map(state.sessionsByWorktree)
             const existingSessions = newSessionsMap.get(worktreeId) || []
@@ -908,8 +980,7 @@ export const useSessionStore = create<SessionState>()(
             return {
               sessionsByWorktree: newSessionsMap,
               tabOrderByWorktree: newTabOrderMap,
-              activeSessionId: sessionId,
-              activeWorktreeId: worktreeId
+              ...(activate ? { activeSessionId: sessionId, activeWorktreeId: worktreeId } : {})
             }
           })
 
@@ -922,8 +993,14 @@ export const useSessionStore = create<SessionState>()(
         }
       },
 
-      // Reopen a closed connection session (from history)
-      reopenConnectionSession: async (sessionId: string, connectionId: string) => {
+      // Reopen a closed connection session (from history).
+      // opts.activate=false restores the tab without stealing focus.
+      reopenConnectionSession: async (
+        sessionId: string,
+        connectionId: string,
+        opts?: { activate?: boolean }
+      ) => {
+        const activate = opts?.activate !== false
         try {
           // 1. Update database status first - this ensures persistence
           const updatedSession = await dbApi.session.update<Session>(sessionId, {
@@ -951,10 +1028,12 @@ export const useSessionStore = create<SessionState>()(
           useQuestionStore.getState().clearSession(sessionId)
           usePermissionStore.getState().clearSession(sessionId)
           useCommandApprovalStore.getState().clearSession(sessionId)
-          useFileViewerStore.getState().setActiveFile(null)
-          useFileViewerStore.getState().clearActiveDiff()
+          if (activate) {
+            useFileViewerStore.getState().setActiveFile(null)
+            useFileViewerStore.getState().clearActiveDiff()
+          }
 
-          // 3. Update state to add the session to tabs and make it active
+          // 3. Update state to add the session to tabs (and make it active)
           set((state) => {
             const newSessionsMap = new Map(state.sessionsByConnection)
             const existingSessions = newSessionsMap.get(connectionId) || []
@@ -983,9 +1062,13 @@ export const useSessionStore = create<SessionState>()(
             return {
               sessionsByConnection: newSessionsMap,
               tabOrderByConnection: newTabOrderMap,
-              activeSessionId: sessionId,
-              activeConnectionId: connectionId,
-              activeWorktreeId: null
+              ...(activate
+                ? {
+                    activeSessionId: sessionId,
+                    activeConnectionId: connectionId,
+                    activeWorktreeId: null
+                  }
+                : {})
             }
           })
 
@@ -994,6 +1077,37 @@ export const useSessionStore = create<SessionState>()(
           return {
             success: false,
             error: error instanceof Error ? error.message : 'Failed to reopen connection session'
+          }
+        }
+      },
+
+      // Flip a completed session back to active and restore its tab WITHOUT
+      // changing the current selection. Used when background activity (a
+      // follow-up send, a plan approval) puts a done-closed session back to
+      // work: the session must regain a tab and a restore entry, or its
+      // respawned process would outlive every UI affordance to close it.
+      reactivateSession: async (sessionId: string) => {
+        let dbSession: Session | null = null
+        try {
+          dbSession = await dbApi.session.get<Session>(sessionId)
+        } catch {
+          return
+        }
+        if (!dbSession || dbSession.status !== 'completed') return
+        if (dbSession.worktree_id) {
+          await get().reopenSession(sessionId, dbSession.worktree_id, { activate: false })
+        } else if (dbSession.connection_id) {
+          await get().reopenConnectionSession(sessionId, dbSession.connection_id, {
+            activate: false
+          })
+        } else {
+          try {
+            await dbApi.session.update<Session>(sessionId, {
+              status: 'active',
+              completed_at: null
+            })
+          } catch {
+            // Best-effort — the session stays completed
           }
         }
       },

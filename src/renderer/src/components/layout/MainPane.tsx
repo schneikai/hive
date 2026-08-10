@@ -121,6 +121,7 @@ export function MainPane({ children }: MainPaneProps): React.JSX.Element {
   const sessionsByWorktree = useSessionStore((state) => state.sessionsByWorktree)
   const sessionsByConnection = useSessionStore((state) => state.sessionsByConnection)
   const sessionMountRequests = useSessionStore((state) => state.sessionMountRequests)
+  const pendingMessages = useSessionStore((state) => state.pendingMessages)
 
   // Look up the agent_sdk for a given session ID
   const getAgentSdk = useCallback((sid: string | null): string | null => {
@@ -128,22 +129,43 @@ export function MainPane({ children }: MainPaneProps): React.JSX.Element {
     return useSessionStore.getState().getSessionById(sid)?.agent_sdk ?? null
   }, [])
 
-  // Collect all terminal-type sessions in the current scope.
+  // Collect the terminal-type sessions in the current scope that are activated.
+  // Mounting a stateful terminal view spawns its agent process, so merely
+  // having a tab must NOT admit a session here — selecting the tab, opening
+  // its ticket modal, pinning it, or queueing a prompt for it does. Once
+  // admitted, mountedTerminalSessionIds below keeps it alive across tab
+  // switches until the tab is explicitly closed.
   const terminalSessions = useMemo(() => {
     const terminals = new Set<string>()
+
+    const isActivated = (sessionId: string): boolean =>
+      sessionId === activeSessionId ||
+      sessionId === inlineConnectionSessionId ||
+      sessionId === activePinnedSessionId ||
+      (sessionMountRequests.get(sessionId) ?? 0) > 0 ||
+      pendingMessages.has(sessionId)
 
     if (selectedWorktreeId) {
       const sessions = sessionsByWorktree.get(selectedWorktreeId) || []
       for (const s of sessions) {
-        if (isStatefulTerminalSession(s.agent_sdk)) terminals.add(s.id)
+        if (isStatefulTerminalSession(s.agent_sdk) && isActivated(s.id)) terminals.add(s.id)
       }
     }
 
     if (selectedConnectionId) {
       const sessions = sessionsByConnection.get(selectedConnectionId) || []
       for (const s of sessions) {
-        if (isStatefulTerminalSession(s.agent_sdk)) terminals.add(s.id)
+        if (isStatefulTerminalSession(s.agent_sdk) && isActivated(s.id)) terminals.add(s.id)
       }
+    }
+
+    // Inline sticky-tab sessions belong to a connection that may not be
+    // selected, so admit them independently of the scope scans above.
+    if (
+      inlineConnectionSessionId &&
+      isStatefulTerminalSession(getAgentSdk(inlineConnectionSessionId))
+    ) {
+      terminals.add(inlineConnectionSessionId)
     }
 
     for (const [sessionId, count] of sessionMountRequests.entries()) {
@@ -156,9 +178,13 @@ export function MainPane({ children }: MainPaneProps): React.JSX.Element {
   }, [
     selectedWorktreeId,
     selectedConnectionId,
+    activeSessionId,
+    inlineConnectionSessionId,
+    activePinnedSessionId,
     sessionsByWorktree,
     sessionsByConnection,
     sessionMountRequests,
+    pendingMessages,
     getAgentSdk
   ])
 

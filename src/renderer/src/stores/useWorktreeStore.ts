@@ -606,6 +606,18 @@ export const useWorktreeStore = create<WorktreeState>((set, get) => ({
     }))
 
     try {
+      // Close all sessions so terminal PTYs and agent child processes are
+      // released before delete (parity with archiveWorktree — otherwise their
+      // processes keep running against a deleted cwd)
+      const sessions = useSessionStore.getState().sessionsByWorktree.get(worktreeId) || []
+      for (const session of sessions) {
+        try {
+          await useSessionStore.getState().closeSession(session.id)
+        } catch {
+          // Non-critical — session cleanup may already have happened
+        }
+      }
+
       const result = await worktreeApi.delete({
         worktreeId,
         worktreePath,

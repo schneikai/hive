@@ -128,11 +128,13 @@ describe('MainPane terminal persistence', () => {
 
     const firstTerminalNode = screen.getByTestId('session-terminal-term-1')
     expect(terminalMounts.get('term-1')).toBe(1)
-    expect(terminalMounts.get('term-2')).toBe(1)
+    // Unselected tabs do not mount (mount == process spawn) until activated
+    expect(terminalMounts.get('term-2')).toBeUndefined()
 
     act(() => {
       useSessionStore.setState({ activeSessionId: 'term-2' })
     })
+    expect(terminalMounts.get('term-2')).toBe(1)
 
     // Simulate a transient sessions refresh where the scope map briefly empties,
     // then repopulates with the same terminal sessions.
@@ -195,11 +197,12 @@ describe('MainPane terminal persistence', () => {
   test('removes terminal from mounted list when session is closed via store signal', () => {
     render(<MainPane />)
 
-    // Both terminals are mounted
+    // The active terminal is mounted; the unselected one is not (lazy spawn)
     expect(screen.getByTestId('session-terminal-term-1')).toBeInTheDocument()
-    expect(screen.getByTestId('session-terminal-term-2')).toBeInTheDocument()
+    expect(screen.queryByTestId('session-terminal-term-2')).not.toBeInTheDocument()
 
-    // Simulate closeSession: remove from sessions map AND signal via closedTerminalSessionIds
+    // Simulate closeSession of term-1 while switching to term-2: remove from
+    // sessions map AND signal via closedTerminalSessionIds
     act(() => {
       useSessionStore.setState({
         activeSessionId: 'term-2',
@@ -208,7 +211,7 @@ describe('MainPane terminal persistence', () => {
       })
     })
 
-    // term-1 should be unmounted, term-2 should remain
+    // term-1 should be unmounted, term-2 (now active) should be mounted
     expect(screen.queryByTestId('session-terminal-term-1')).not.toBeInTheDocument()
     expect(screen.getByTestId('session-terminal-term-2')).toBeInTheDocument()
   })
@@ -216,9 +219,8 @@ describe('MainPane terminal persistence', () => {
   test('preserves terminal state across worktree switches', () => {
     render(<MainPane />)
 
-    // Both terminals mounted in wt-1
+    // Only the active terminal mounts in wt-1
     expect(screen.getByTestId('session-terminal-term-1')).toBeInTheDocument()
-    expect(screen.getByTestId('session-terminal-term-2')).toBeInTheDocument()
     expect(terminalMounts.get('term-1')).toBe(1)
 
     // Switch to a different worktree with its own terminal
@@ -234,10 +236,11 @@ describe('MainPane terminal persistence', () => {
       })
     })
 
-    // term-3 is now mounted, term-1 and term-2 are still mounted (hidden)
+    // term-3 is now mounted; term-1 stays mounted (hidden, latched); term-2
+    // was never activated so it still has no instance (and no process)
     expect(screen.getByTestId('session-terminal-term-3')).toBeInTheDocument()
     expect(screen.getByTestId('session-terminal-term-1')).toBeInTheDocument()
-    expect(screen.getByTestId('session-terminal-term-2')).toBeInTheDocument()
+    expect(screen.queryByTestId('session-terminal-term-2')).not.toBeInTheDocument()
 
     // Switch back — term-1 should NOT have remounted
     act(() => {

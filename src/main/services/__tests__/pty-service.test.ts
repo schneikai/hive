@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } from 'vitest'
 import { ptyService } from '../pty-service'
 
 const nodePtyMocks = vi.hoisted(() => ({
@@ -18,8 +18,9 @@ vi.mock('../logger', () => ({
   }))
 }))
 
-function makeFakePty(): Record<string, unknown> {
+function makeFakePty(pid = 4242): Record<string, unknown> {
   return {
+    pid,
     cols: 80,
     rows: 24,
     onData: vi.fn(),
@@ -84,5 +85,113 @@ describe('ptyService.create spawn environment', () => {
 
     expect(spawnedEnv().COLUMNS).toBe('120')
     expect(spawnedEnv().HIVE_TEST_VAR).toBe('yes')
+  })
+})
+
+type KillFn = (pid: number, signal?: string | number) => true
+
+describe('ptyService.destroy kill escalation', () => {
+  const PID = 4242
+  let killSpy: MockInstance<KillFn>
+  let nextId = 0
+
+  function createAndGetPty(): { kill: ReturnType<typeof vi.fn> } {
+    const id = `pty-escalation-test-${nextId++}`
+    ptyService.create(id, { cwd: '/tmp' })
+    const fakePty = nodePtyMocks.spawn.mock.results.at(-1)?.value as {
+      kill: ReturnType<typeof vi.fn>
+    }
+    ptyService.destroy(id)
+    return fakePty
+  }
+
+  beforeEach(() => {
+    vi.useFakeTimers()
+    nodePtyMocks.spawn.mockImplementation(() => makeFakePty(PID))
+    killSpy = vi.spyOn(process, 'kill') as unknown as MockInstance<KillFn>
+  })
+
+  afterEach(() => {
+    vi.clearAllTimers()
+    vi.useRealTimers()
+    killSpy.mockRestore()
+    vi.clearAllMocks()
+  })
+
+  it('escalates to a process-group SIGKILL when the process survives SIGHUP', () => {
+    killSpy.mockImplementation((() => true) as KillFn)
+
+    const fakePty = createAndGetPty()
+
+    expect(fakePty.kill).toHaveBeenCalledTimes(1)
+    expect(killSpy).not.toHaveBeenCalled()
+
+    vi.advanceTimersByTime(1500)
+
+    expect(killSpy).toHaveBeenCalledWith(PID, 0)
+    expect(killSpy).toHaveBeenCalledWith(-PID, 'SIGKILL')
+  })
+
+  it('does not escalate when the process and its group are both dead at probe time', () => {
+    killSpy.mockImplementation(((_pid: number, signal?: string | number) => {
+      if (signal === 0) throw Object.assign(new Error('ESRCH'), { code: 'ESRCH' })
+      return true
+    }) as KillFn)
+
+    createAndGetPty()
+    vi.advanceTimersByTime(1500)
+
+    expect(killSpy).toHaveBeenCalledWith(PID, 0)
+    expect(killSpy).toHaveBeenCalledWith(-PID, 0)
+    expect(killSpy).not.toHaveBeenCalledWith(-PID, 'SIGKILL')
+    expect(killSpy).not.toHaveBeenCalledWith(PID, 'SIGKILL')
+  })
+
+  it('escalates when the wrapper shell died but a group member survives', () => {
+    // Custom-provider topology: the direct child ($SHELL wrapper) is reaped,
+    // but a HUP-ignoring agent in the same process group lives on.
+    killSpy.mockImplementation(((pid: number, signal?: string | number) => {
+      if (signal === 0 && pid > 0) throw Object.assign(new Error('ESRCH'), { code: 'ESRCH' })
+      return true
+    }) as KillFn)
+
+    createAndGetPty()
+    vi.advanceTimersByTime(1500)
+
+    expect(killSpy).toHaveBeenCalledWith(-PID, 0)
+    expect(killSpy).toHaveBeenCalledWith(-PID, 'SIGKILL')
+  })
+
+  it('falls back to a direct SIGKILL when the group kill fails', () => {
+    killSpy.mockImplementation(((pid: number, signal?: string | number) => {
+      if (signal === 0) return true
+      if (pid < 0) throw Object.assign(new Error('EPERM'), { code: 'EPERM' })
+      return true
+    }) as KillFn)
+
+    createAndGetPty()
+    vi.advanceTimersByTime(1500)
+
+    expect(killSpy).toHaveBeenCalledWith(-PID, 'SIGKILL')
+    expect(killSpy).toHaveBeenCalledWith(PID, 'SIGKILL')
+  })
+
+  it('destroyAllAndReap sweeps survivors after the bounded grace (quit path)', async () => {
+    killSpy.mockImplementation((() => true) as KillFn)
+
+    const id = `pty-escalation-test-${nextId++}`
+    ptyService.create(id, { cwd: '/tmp' })
+    const fakePty = nodePtyMocks.spawn.mock.results.at(-1)?.value as {
+      kill: ReturnType<typeof vi.fn>
+    }
+
+    const reap = ptyService.destroyAllAndReap(300)
+    expect(fakePty.kill).toHaveBeenCalledTimes(1)
+    expect(killSpy).not.toHaveBeenCalledWith(-PID, 'SIGKILL')
+
+    await vi.advanceTimersByTimeAsync(300)
+    await reap
+
+    expect(killSpy).toHaveBeenCalledWith(-PID, 'SIGKILL')
   })
 })

@@ -15997,10 +15997,10 @@ describe('renderer API cleanup', () => {
       'utf-8'
     )
     const reopenSessionStart = source.indexOf(
-      'reopenSession: async (sessionId: string, worktreeId: string)'
+      'reopenSession: async (sessionId: string, worktreeId: string'
     )
     const reopenConnectionSessionStart = source.indexOf(
-      'reopenConnectionSession: async (sessionId: string',
+      'reopenConnectionSession: async (',
       reopenSessionStart
     )
     const reopenSessionSource = source.slice(reopenSessionStart, reopenConnectionSessionStart)
@@ -16023,7 +16023,7 @@ describe('renderer API cleanup', () => {
       'utf-8'
     )
     const reopenConnectionSessionStart = source.indexOf(
-      'reopenConnectionSession: async (sessionId: string, connectionId: string)'
+      'reopenConnectionSession: async ('
     )
     const setActiveSessionStart = source.indexOf(
       'setActiveSession: (sessionId: string | null)',

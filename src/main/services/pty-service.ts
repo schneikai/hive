@@ -64,6 +64,9 @@ function buildEnvSnapshot(env: Record<string, string>): Record<string, string | 
   return snapshot
 }
 
+/** Grace period between the polite SIGHUP and the SIGKILL escalation probe. */
+const KILL_ESCALATION_GRACE_MS = 1500
+
 class PtyService {
   private ptys: Map<string, PtyInstance> = new Map()
 
@@ -209,18 +212,94 @@ class PtyService {
       return
     }
     log.info('Destroying PTY', { id })
+    const pid = instance.pty.pid
     try {
       instance.pty.kill()
     } catch (err) {
       log.error('Error killing PTY', err instanceof Error ? err : new Error(String(err)), { id })
     }
     this.ptys.delete(id)
+    this.scheduleKillEscalation(id, pid)
+  }
+
+  /**
+   * node-pty's kill() sends a single SIGHUP to the direct child and never
+   * checks the outcome. HUP-ignoring processes — and custom-provider spawns,
+   * where the agent is a grandchild of a `$SHELL -ilc` wrapper — survive it
+   * and leak. After a grace period, probe liveness and escalate to a
+   * process-group SIGKILL (the pty child is a session leader, so pgid ===
+   * pid, which also reaps same-group grandchildren). The timer is unref'd
+   * and fire-and-forget so destroyAll() under the quit-cleanup deadline
+   * never blocks on it.
+   */
+  private scheduleKillEscalation(id: string, pid: number | undefined): void {
+    if (!pid || process.platform === 'win32') return
+    const timer = setTimeout(() => this.reapSurvivors(id, pid), KILL_ESCALATION_GRACE_MS)
+    timer.unref?.()
+  }
+
+  /**
+   * Probe the direct child AND its process group before deciding everything
+   * is dead: a wrapper shell can die on SIGHUP while a HUP-ignoring agent in
+   * the same group survives — probing only the (reaped) wrapper pid would
+   * skip the group SIGKILL that reaps the survivor. Known gap: a shell whose
+   * interactive job control forked the agent into its OWN pgid is invisible
+   * to both probes; covering that would require a descendant walk.
+   */
+  private reapSurvivors(id: string, pid: number): void {
+    let anyAlive = false
+    try {
+      process.kill(pid, 0)
+      anyAlive = true
+    } catch {
+      // direct child dead and reaped
+    }
+    if (!anyAlive) {
+      try {
+        process.kill(-pid, 0)
+        anyAlive = true
+      } catch {
+        // process group empty
+      }
+    }
+    if (!anyAlive) return
+    log.warn('PTY process (or group member) survived SIGHUP, escalating to SIGKILL', { id, pid })
+    try {
+      process.kill(-pid, 'SIGKILL')
+    } catch {
+      try {
+        process.kill(pid, 'SIGKILL')
+      } catch {
+        // Died between the probe and the kill — nothing left to do
+      }
+    }
   }
 
   destroyAll(): void {
     log.info('Destroying all PTYs', { count: this.ptys.size })
     for (const [id] of this.ptys) {
       this.destroy(id)
+    }
+  }
+
+  /**
+   * Quit-path variant of destroyAll: HUP everything, wait a short bounded
+   * grace (well inside the quit-cleanup deadline), then synchronously
+   * group-SIGKILL anything still alive. The per-destroy escalation timers
+   * never get to fire on quit — the process exits first — so without this
+   * sweep HUP-surviving agents would leak on every app quit.
+   */
+  async destroyAllAndReap(graceMs = 300): Promise<void> {
+    const targets: Array<{ id: string; pid: number }> = []
+    for (const [id, instance] of this.ptys) {
+      const pid = instance.pty.pid
+      if (pid) targets.push({ id, pid })
+    }
+    this.destroyAll()
+    if (process.platform === 'win32' || targets.length === 0) return
+    await new Promise((resolve) => setTimeout(resolve, graceMs))
+    for (const { id, pid } of targets) {
+      this.reapSurvivors(id, pid)
     }
   }
 

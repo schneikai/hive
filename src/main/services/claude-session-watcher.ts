@@ -13,7 +13,11 @@ function listJsonlFiles(dir: string): Set<string> {
   }
 }
 
-function newestJsonlCreatedAfter(dir: string, existing: Set<string>, startedAtMs: number): string | null {
+function newestJsonlCreatedAfter(
+  dir: string,
+  existing: Set<string>,
+  startedAtMs: number
+): { name: string; sessionId: string } | null {
   let newest: { name: string; mtimeMs: number } | null = null
   for (const name of listJsonlFiles(dir)) {
     if (existing.has(name)) continue
@@ -27,7 +31,7 @@ function newestJsonlCreatedAfter(dir: string, existing: Set<string>, startedAtMs
       // File can disappear between readdir and stat; ignore this scan tick.
     }
   }
-  return newest ? basename(newest.name, '.jsonl') : null
+  return newest ? { name: newest.name, sessionId: basename(newest.name, '.jsonl') } : null
 }
 
 export interface ClaudeSessionWatchHandle {
@@ -36,7 +40,10 @@ export interface ClaudeSessionWatchHandle {
 
 export function watchForClaudeSessionId(
   worktreePath: string,
-  onSessionId: (sessionId: string) => void
+  // Return false to reject a discovered id (e.g. the transcript belongs to a
+  // concurrent session in the same worktree) — the watcher then excludes that
+  // file and keeps watching instead of closing.
+  onSessionId: (sessionId: string) => boolean | void
 ): ClaudeSessionWatchHandle {
   const dir = join(resolveProjectsDir(), encodePath(worktreePath))
   const existing = listJsonlFiles(dir)
@@ -53,18 +60,36 @@ export function watchForClaudeSessionId(
     scanScheduled = null
   }
 
-  const complete = (sessionId: string): void => {
+  const complete = (name: string, sessionId: string): void => {
     if (closed) return
+    log.info('Detected Claude CLI session id', { worktreePath, sessionId })
+    let verdict: boolean | void = undefined
+    try {
+      verdict = onSessionId(sessionId)
+    } catch (error) {
+      log.warn('Claude session id consumer threw, closing watcher', {
+        worktreePath,
+        sessionId,
+        error: error instanceof Error ? error.message : String(error)
+      })
+    }
+    if (verdict === false) {
+      // Rejected — this transcript belongs to someone else. Exclude it and
+      // keep watching. Re-scan immediately: our own transcript may already
+      // exist (it was merely older than the rejected one), and with fs.watch
+      // active no further event may arrive to trigger the next scan.
+      existing.add(name)
+      scan()
+      return
+    }
     closed = true
     stopTimers()
     watcher?.close()
-    log.info('Detected Claude CLI session id', { worktreePath, sessionId })
-    onSessionId(sessionId)
   }
 
   const scan = (): void => {
-    const sessionId = newestJsonlCreatedAfter(dir, existing, startedAtMs)
-    if (sessionId) complete(sessionId)
+    const found = newestJsonlCreatedAfter(dir, existing, startedAtMs)
+    if (found) complete(found.name, found.sessionId)
   }
 
   // Coalesce bursts of fs events (the CLI appends many lines while a transcript

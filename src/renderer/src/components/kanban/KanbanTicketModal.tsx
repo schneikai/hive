@@ -228,6 +228,10 @@ function ClaudeCliPortalSlot({ sessionId }: { sessionId: string }): React.JSX.El
     return () => {
       registerTarget(sessionId, null)
       releaseSessionMount(sessionId)
+      // Modal-resumed sessions of Done tickets are completed and tab-less —
+      // kill their PTY when the last mount request goes away (no-op for
+      // active sessions).
+      void useSessionStore.getState().destroyCompletedSessionTerminal(sessionId)
     }
   }, [registerTarget, releaseSessionMount, requestSessionMount, sessionId])
 
@@ -475,6 +479,13 @@ async function sendFollowupToSession(opts: {
         throw new Error(createResult.error ?? 'Failed to start Claude CLI session')
       }
     }
+    // The follow-up may target a session closed when its ticket entered Done
+    // (delivered into a modal-resumed PTY or freshly respawned above either
+    // way). Flip it back to active and restore its tab so the working process
+    // has a restore entry and is not culled by the modal-release cleanup — a
+    // completed session with a live PTY would be a stranded process with no
+    // UI affordance to close it.
+    await useSessionStore.getState().reactivateSession(opts.sessionId)
     recordSuccessfulFollowupSideEffects(
       session,
       opts.sessionId,
@@ -517,6 +528,9 @@ async function sendFollowupToSession(opts: {
     )
     throw new Error(promptResult.error || 'Failed to send prompt to session')
   }
+  // Same as the claude-code-cli branch: a follow-up to a done-closed session
+  // resumes real work — restore its active status and tab.
+  await useSessionStore.getState().reactivateSession(opts.sessionId)
   recordSuccessfulFollowupSideEffects(session, opts.sessionId, fullPrompt, opts.followUpMode, model)
 }
 
@@ -3925,7 +3939,8 @@ function JumpToSessionButton({
   testId?: string
 }) {
   const handleJump = useCallback(() => {
-    if (!ticket.current_session_id) return
+    const sessionId = ticket.current_session_id
+    if (!sessionId) return
 
     // Switch off board view
     const kanbanStore = useKanbanStore.getState()
@@ -3939,8 +3954,17 @@ function JumpToSessionButton({
       useSessionStore.getState().setActiveWorktree(ticket.worktree_id)
     }
 
-    // Focus the session tab
-    useSessionStore.getState().setActiveSession(ticket.current_session_id)
+    // Jumping to a done-closed session reopens it: restore its tab and flip
+    // it back to active so the modal-release cleanup doesn't kill the very
+    // terminal being navigated to.
+    const sessionStore = useSessionStore.getState()
+    if (ticket.worktree_id && sessionStore.getSessionById(sessionId)?.status === 'completed') {
+      void sessionStore.reopenSession(sessionId, ticket.worktree_id).catch(() => {})
+    }
+
+    // Focus the session tab (synchronously, so the modal-close cleanup sees
+    // this session as active and skips its PTY destroy)
+    sessionStore.setActiveSession(sessionId)
 
     onClose()
   }, [ticket.current_session_id, ticket.worktree_id, onClose])
