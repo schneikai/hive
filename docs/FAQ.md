@@ -74,7 +74,7 @@ Yes, use the "Unbranch" option to remove both the worktree and its associated br
 Hive uses dog and cat breed names (labrador, beagle, ragdoll, etc.) to make worktrees memorable and fun. It's easier to remember "the labrador worktree" than "feature/user-auth-refactor-v2". You can switch between dog and cat names in Settings > General > Branch Naming.
 
 ### What if I run out of breed names?
-Hive has over 50 dog breeds and 50 cat breeds. If all are used, it adds numeric suffixes (labrador-2, labrador-3). You can also rename worktrees.
+Hive has 56 dog breeds and 50 cat breeds. If all are used, it adds numeric suffixes (labrador-2, labrador-3). You can also rename worktrees.
 
 ## Connections
 

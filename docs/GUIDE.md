@@ -98,7 +98,7 @@ Projects can be organized into Spaces (see [Using Spaces](#using-spaces)) and pi
 ### Worktree Naming
 
 Hive uses a clever naming system:
-- Each worktree gets a breed name from a pool of over 50 dog breeds and 50 cat breeds
+- Each worktree gets a breed name from a pool of 56 dog breeds and 50 cat breeds
 - Pick dog or cat names in Settings > General > Branch Naming (dogs by default)
 - If a name is taken, it adds a numeric suffix (-2, -3, etc.)
 - You can rename worktrees after creation
