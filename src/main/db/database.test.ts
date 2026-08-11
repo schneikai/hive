@@ -31,6 +31,15 @@ describe('database path resolution', () => {
     )
   })
 
+  it('prefers the server base dir over a desktop base dir inherited from the shell', () => {
+    expect(
+      resolveDatabasePath({
+        desktopBaseDir: '/tmp/hive-dev-test',
+        serverBaseDir: '/tmp/hive-server-test'
+      })
+    ).toBe(join('/tmp/hive-server-test', 'userdata', 'state.sqlite'))
+  })
+
   it('prefers an explicit database path override over desktop base dir', () => {
     expect(
       resolveDatabasePath({

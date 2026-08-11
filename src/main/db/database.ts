@@ -77,6 +77,14 @@ export function resolveDatabasePath(options?: {
     return explicitPath
   }
 
+  // Ranked above the desktop base dir below: a server process can inherit
+  // HIVE_DESKTOP_BASE_DIR from the shell that started it, and it must still use
+  // its own state database.
+  const serverBaseDir = options?.serverBaseDir ?? process.env.HIVE_SERVER_BASE_DIR
+  if (serverBaseDir) {
+    return join(serverBaseDir, 'userdata', 'state.sqlite')
+  }
+
   // Dev/E2E data dir. The backend child gets this as an explicit
   // HIVE_SERVER_DB_PATH, so main must derive the same path or the two halves of
   // one app open different databases.
@@ -85,13 +93,7 @@ export function resolveDatabasePath(options?: {
     return join(desktopBaseDir, 'hive.db')
   }
 
-  const serverBaseDir = options?.serverBaseDir ?? process.env.HIVE_SERVER_BASE_DIR
   const homeDir = options?.homeDir ?? homedir()
-
-  if (serverBaseDir) {
-    return join(serverBaseDir, 'userdata', 'state.sqlite')
-  }
-
   return join(homeDir, '.hive', 'hive.db')
 }
 
