@@ -24,4 +24,19 @@ describe('database path resolution', () => {
       })
     ).toBe('/tmp/legacy/hive.db')
   })
+
+  it('uses the desktop base dir database so main matches the backend child', () => {
+    expect(resolveDatabasePath({ desktopBaseDir: '/tmp/hive-dev-test' })).toBe(
+      join('/tmp/hive-dev-test', 'hive.db')
+    )
+  })
+
+  it('prefers an explicit database path override over desktop base dir', () => {
+    expect(
+      resolveDatabasePath({
+        explicitPath: '/tmp/legacy/hive.db',
+        desktopBaseDir: '/tmp/hive-dev-test'
+      })
+    ).toBe('/tmp/legacy/hive.db')
+  })
 })

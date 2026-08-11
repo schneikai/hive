@@ -64,6 +64,7 @@ import type {
 
 export function resolveDatabasePath(options?: {
   readonly explicitPath?: string
+  readonly desktopBaseDir?: string
   readonly serverBaseDir?: string
   readonly homeDir?: string
 }): string {
@@ -74,6 +75,14 @@ export function resolveDatabasePath(options?: {
   const explicitPath = options?.explicitPath ?? process.env.HIVE_SERVER_DB_PATH
   if (explicitPath) {
     return explicitPath
+  }
+
+  // Dev/E2E data dir. The backend child gets this as an explicit
+  // HIVE_SERVER_DB_PATH, so main must derive the same path or the two halves of
+  // one app open different databases.
+  const desktopBaseDir = options?.desktopBaseDir ?? process.env.HIVE_DESKTOP_BASE_DIR
+  if (desktopBaseDir) {
+    return join(desktopBaseDir, 'hive.db')
   }
 
   const serverBaseDir = options?.serverBaseDir ?? process.env.HIVE_SERVER_BASE_DIR
