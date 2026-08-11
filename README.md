@@ -82,7 +82,7 @@ Hive is an AI agent orchestrator. See all your running agents in one sidebar, cl
 ## Features
 
 ### 🌳 **Worktree-First Workflow**
-Work on multiple branches simultaneously without stashing or switching. Create, archive, and organize worktrees with one click. Each worktree gets a unique city-based name for easy identification.
+Work on multiple branches simultaneously without stashing or switching. Create, archive, and organize worktrees with one click. Each worktree gets a unique dog or cat breed name for easy identification.
 
 ### 🤖 **Built-in AI Coding Sessions**
 Run AI coding agents directly inside Hive with **OpenCode**, **Claude Code**, and **Codex** support. Stream responses in real-time, watch tool calls execute, and approve permissions as needed. Full undo/redo support keeps you in control.

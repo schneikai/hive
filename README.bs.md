@@ -74,7 +74,7 @@ Hive je AI agent orkestrator. Vidite sve pokrenute agente u jednom sidebaru, kli
 ## Funkcionalnosti
 
 ### 🌳 **Worktree-First Radni Tok**
-Radite na više brancheva istovremeno bez stashiranja ili prebacivanja. Kreirajte, arhivirajte i organizirajte worktreeje jednim klikom. Svaki worktree dobija jedinstveno ime bazirano na gradovima za lakšu identifikaciju.
+Radite na više brancheva istovremeno bez stashiranja ili prebacivanja. Kreirajte, arhivirajte i organizirajte worktreeje jednim klikom. Svaki worktree dobija jedinstveno ime bazirano na rasama pasa i mačaka za lakšu identifikaciju.
 
 ### 🤖 **Ugrađene AI Coding Sesije**
 Pokrenite AI coding agente direktno u Hive sa podrškom za **OpenCode**, **Claude Code** i **Codex**. Pratite odgovore u realnom vremenu, gledajte izvršavanje tool poziva i odobravajte dozvole po potrebi. Puna undo/redo podrška vas drži u kontroli.

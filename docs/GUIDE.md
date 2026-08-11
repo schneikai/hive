@@ -93,13 +93,14 @@ Projects can be organized into Spaces (see [Using Spaces](#using-spaces)) and pi
 1. Select a project
 2. Click **"New Worktree"**
 3. Choose an existing branch or create a new one
-4. Hive automatically assigns a unique city-based name (e.g., "tokyo", "paris")
+4. Hive automatically assigns a unique breed name (e.g., "labrador", "beagle")
 
 ### Worktree Naming
 
 Hive uses a clever naming system:
-- Each worktree gets a city name from a pool of 200+ cities
-- If a city is taken, it adds a version suffix (-v1, -v2, etc.)
+- Each worktree gets a breed name from a pool of 56 dog breeds and 50 cat breeds
+- Pick dog or cat names in Settings > General > Branch Naming (dogs by default)
+- If a name is taken, it adds a numeric suffix (-2, -3, etc.)
 - You can rename worktrees after creation
 
 ### Worktree Actions
@@ -414,7 +415,7 @@ Spaces help organize related projects and worktrees.
 
 ### Productivity Tips
 
-1. **Use City Names**: Remember worktrees by their city names instead of branch names
+1. **Use Breed Names**: Remember worktrees by their breed names instead of branch names
 2. **Pin Favorites**: Pin frequently used worktrees for quick access
 3. **Keyboard Navigation**: Master `Cmd+K` for speed
 4. **Multiple Sessions**: Run different AI sessions in different worktrees

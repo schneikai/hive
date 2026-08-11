@@ -81,7 +81,7 @@ Hive ist ein KI-Agent-Orchestrator. Sieh alle laufenden Agenten in einer Seitenl
 ## Funktionen
 
 ### 🌳 **Worktree-First Workflow**
-Arbeite gleichzeitig an mehreren Branches ohne Stashing oder Wechseln. Erstelle, archiviere und organisiere Worktrees mit einem Klick. Jeder Worktree erhält einen einzigartigen stadtbasierten Namen zur leichten Identifikation.
+Arbeite gleichzeitig an mehreren Branches ohne Stashing oder Wechseln. Erstelle, archiviere und organisiere Worktrees mit einem Klick. Jeder Worktree erhält einen einzigartigen Namen aus Hunde- und Katzenrassen zur leichten Identifikation.
 
 ### 🤖 **Integrierte KI-Coding-Sessions**
 Führe KI-Coding-Agenten direkt in Hive aus mit **OpenCode**, **Claude Code** und **Codex** Unterstützung. Streame Antworten in Echtzeit, beobachte Tool-Aufrufe und genehmige Berechtigungen nach Bedarf. Vollständige Rückgängig/Wiederherstellen-Unterstützung behält die Kontrolle.
