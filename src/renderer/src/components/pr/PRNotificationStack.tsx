@@ -17,6 +17,7 @@ import { useWorktreeStore } from '@/stores/useWorktreeStore'
 import { useProjectStore } from '@/stores/useProjectStore'
 import { toast } from '@/lib/toast'
 import { gitApi } from '@/api/git-api'
+import { moveWorktreeTicketsToMerged } from '@/lib/pr-merge-ticket-move'
 
 // ---------------------------------------------------------------------------
 // Status icon
@@ -104,6 +105,7 @@ function PRNotificationCard({
       const result = await gitApi.prMerge(worktreePath, prNumber)
       if (result.success) {
         setMergePhase('merged')
+        void moveWorktreeTicketsToMerged(worktreeId, prNumber)
       } else {
         toast.error(`Merge failed: ${result.error}`)
         setMergePhase('idle')

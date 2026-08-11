@@ -13,6 +13,7 @@ import { messageSendTimes, userExplicitSendTimes, lastSendMode } from '@/lib/mes
 import { bumpWorktreeLastMessage } from '@/lib/last-message-utils'
 import { snapshotTokenBaseline } from '@/lib/token-baselines'
 import { unwrapEnvelope } from '@/lib/ipc-envelope'
+import { moveWorktreeTicketsToMerged } from '@/lib/pr-merge-ticket-move'
 import { systemApi } from '@/api/system-api'
 import { opencodeApi } from '@/api/opencode-api'
 import { dbApi } from '@/api/db-api'
@@ -338,6 +339,7 @@ export function useLifecycleActions(worktreeId: string | null): LifecycleActions
       if (result.success) {
         toast.success('PR merged successfully')
         setPrLiveState((prev) => ({ state: 'MERGED', title: prev?.title }))
+        void moveWorktreeTicketsToMerged(worktreeId, pr.number)
         return true
       } else {
         toast.error(`Merge failed: ${result.error}`)
