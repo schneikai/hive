@@ -3,9 +3,10 @@
  * stealth-patched Playwright) with a persistent per-account profile, navigates
  * to the provider's authorize URL, captures the resulting `code`/`state` from
  * the redirect, exchanges it for tokens, and stores the account. TypeScript
- * port of ccswitch's manual-login path (`login-sidecar/login.mjs` capture
- * mechanics + `src/login.rs` orchestration) — no email autofill, no OTP
- * control channel.
+ * port of ccswitch's manual-login path (`login-sidecar/login.mjs` capture +
+ * email-autofill mechanics + `src/login.rs` orchestration) — no OTP control
+ * channel. When an email hint is provided (e.g. "Sign in again" on a known
+ * account), the provider's email field is auto-filled and submitted.
  *
  * Runs in-process (in the spawned server process) rather than as a sidecar.
  * `patchright` is loaded via dynamic `import()` inside `loginStart` so that
@@ -61,10 +62,25 @@ export interface FrameLike {
   url: () => string
 }
 
+export interface ElementHandleLike {
+  click: (options?: { clickCount?: number }) => Promise<void>
+  fill: (value: string) => Promise<void>
+  press: (key: string) => Promise<void>
+  innerText: () => Promise<string>
+  getAttribute: (name: string) => Promise<string | null>
+  isVisible: () => Promise<boolean>
+  isEnabled: () => Promise<boolean>
+}
+
 export interface PageLike {
   goto: (url: string) => Promise<unknown>
   on: (event: 'framenavigated', handler: (frame: FrameLike) => void) => void
   mainFrame: () => FrameLike
+  waitForSelector: (
+    selector: string,
+    options: { timeout: number; state: 'visible' }
+  ) => Promise<ElementHandleLike | null>
+  $$: (selector: string) => Promise<ElementHandleLike[]>
 }
 
 export interface BrowserContextLike {
@@ -352,6 +368,107 @@ async function runLoginFlow(session: LoginSession, emailHint?: string): Promise<
     await page.goto(authorizeUrl)
   } catch (error) {
     failSession(session, error instanceof Error ? error.message : String(error))
+    return
+  }
+
+  // Best-effort, fire-and-forget: never blocks or fails the login. If the
+  // profile still has a live session, the provider skips the email form and
+  // this quietly finds nothing to fill.
+  if (emailHint) {
+    void autofillEmail(session, page, emailHint)
+  }
+}
+
+// ─── Email autofill (port of login.mjs submitEmail/clickByText) ───────────
+
+const EMAIL_INPUT_SELECTORS = [
+  'input[type="email"]',
+  'input[name="email"]',
+  'input[autocomplete="username"]',
+  'input[name="username"]',
+  'input[id*="email" i]',
+  'input[type="text"]'
+]
+
+const EMAIL_SUBMIT_PATTERNS = [
+  /continue with email/i,
+  /^continue$/i,
+  /^next$/i,
+  /^log ?in$/i,
+  /^sign ?in$/i,
+  /^submit$/i
+]
+
+/** Social-provider buttons ("Continue with Google/Apple/…") sit next to the email form — never click those. */
+const SOCIAL_BUTTON_PATTERN = /google|apple|microsoft|phone|passkey|sso|saml|facebook|github|okta/i
+
+const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms))
+
+async function clickByText(
+  page: PageLike,
+  patterns: RegExp[],
+  exclude?: RegExp
+): Promise<boolean> {
+  const buttons = await page.$$('button, [role="button"], input[type="submit"], a')
+  for (const button of buttons) {
+    let label = ''
+    try {
+      label =
+        (await button.innerText().catch(() => '')) ||
+        (await button.getAttribute('value').catch(() => null)) ||
+        ''
+    } catch {
+      // ignore — treat as unlabeled
+    }
+    label = label.trim()
+    if (!label) continue
+    if (exclude && exclude.test(label)) continue
+    if (patterns.some((re) => re.test(label))) {
+      const visible = await button.isVisible().catch(() => false)
+      const enabled = await button.isEnabled().catch(() => true)
+      if (visible && enabled) {
+        await button.click().catch(() => {})
+        return true
+      }
+    }
+  }
+  return false
+}
+
+async function autofillEmail(session: LoginSession, page: PageLike, email: string): Promise<void> {
+  try {
+    let input: ElementHandleLike | null = null
+    for (const selector of EMAIL_INPUT_SELECTORS) {
+      // The redirect may already have been captured (profile still signed in),
+      // or the user may have cancelled — stop poking at the page.
+      if (isTerminal(session.state) || session.resolved) return
+      try {
+        input = await page.waitForSelector(selector, { timeout: 8000, state: 'visible' })
+        if (input) break
+      } catch {
+        // selector not found within the timeout — try the next one
+      }
+    }
+    if (!input) {
+      log.info('Email field not found for autofill', { loginId: session.loginId })
+      return
+    }
+    if (isTerminal(session.state) || session.resolved) return
+
+    await input.click({ clickCount: 3 }).catch(() => {})
+    await input.fill(email)
+    await sleep(200)
+
+    const clicked = await clickByText(page, EMAIL_SUBMIT_PATTERNS, SOCIAL_BUTTON_PATTERN)
+    if (!clicked) {
+      await input.press('Enter').catch(() => {})
+    }
+    log.info('Email autofilled and submitted', { loginId: session.loginId })
+  } catch (error) {
+    log.warn('Email autofill failed', {
+      loginId: session.loginId,
+      error: error instanceof Error ? error.message : String(error)
+    })
   }
 }
 
