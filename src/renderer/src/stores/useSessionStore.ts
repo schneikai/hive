@@ -273,6 +273,7 @@ interface SessionState {
   requeueFollowUpMessageFront: (sessionId: string, message: string) => void
   consumeFollowUpMessage: (sessionId: string) => string | null
   enqueueFollowUpMessage: (sessionId: string, message: string) => void
+  removeFollowUpMessageAt: (sessionId: string, index: number) => void
   closeOtherSessions: (worktreeId: string, keepSessionId: string) => Promise<void>
   closeSessionsToRight: (worktreeId: string, fromSessionId: string) => Promise<void>
   // Plan approval
@@ -2044,6 +2045,24 @@ export const useSessionStore = create<SessionState>()(
           return { pendingFollowUpMessages: newMap }
         })
         pushQueuedState(sessionId, true)
+      },
+
+      // Drop one queued follow-up. Index-based on purpose: two queued messages
+      // can hold identical text, and removing by content would hit the wrong one.
+      removeFollowUpMessageAt: (sessionId: string, index: number) => {
+        const existing = get().pendingFollowUpMessages.get(sessionId)
+        if (!existing || index < 0 || index >= existing.length) return
+        const rest = existing.filter((_, i) => i !== index)
+        set((state) => {
+          const newMap = new Map(state.pendingFollowUpMessages)
+          if (rest.length === 0) {
+            newMap.delete(sessionId)
+          } else {
+            newMap.set(sessionId, rest)
+          }
+          return { pendingFollowUpMessages: newMap }
+        })
+        pushQueuedState(sessionId, rest.length > 0)
       },
 
       // Close all sessions except the kept one

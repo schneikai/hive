@@ -101,6 +101,11 @@ import { notifyKanbanSessionSync, notifyKanbanAutoCreateTicket } from '@/stores/
 import { isComposingKeyboardEvent } from '@/lib/message-composer-shortcuts'
 import { copyTextToClipboard } from '@/lib/clipboard'
 import { handleSessionIdleFollowUp } from '@/lib/session-follow-up-dispatch'
+import { shouldPreserveBlockingSessionStatus } from '@/lib/session-status-guards'
+import {
+  describeOpenCodeSessionError,
+  type OpenCodeSessionErrorPayload
+} from '@shared/opencode-session-error'
 import {
   recordHivePromptIdleForSession,
   recordHiveQuestionAnswerTelemetry,
@@ -386,6 +391,12 @@ function extractSessionErrorMessage(data: unknown): string {
   const nestedError = asRecord(record.error)
   const nestedData = asRecord(record.data)
 
+  // OpenCode puts the real text in error.data.message and leaves error.message
+  // unset, so without this the banner degrades to a bare "UnknownError".
+  if (nestedError && asString(asRecord(nestedError.data)?.message)) {
+    return describeOpenCodeSessionError(nestedError as OpenCodeSessionErrorPayload)
+  }
+
   return (
     asString(nestedError?.message) ||
     asString(nestedError?.name) ||
@@ -608,6 +619,19 @@ function LegacySessionView({ sessionId }: SessionViewProps): React.JSX.Element {
       timestamp: number
     }>
   >([])
+  // Mirrored so handlers can map a bubble id to its queue index without
+  // rebuilding on every queue change.
+  const queuedMessagesRef = useRef(queuedMessages)
+  useEffect(() => {
+    queuedMessagesRef.current = queuedMessages
+  }, [queuedMessages])
+  const [isStopping, setIsStopping] = useState(false)
+  // Set by the stream effect so the idle drain can also be retried from
+  // outside it. See the recovery effect further down.
+  const drainFollowUpsRef = useRef<(() => void) | null>(null)
+  // One recovery attempt per idle period, so a repeatedly failing dispatch
+  // cannot spin.
+  const drainRetryDoneRef = useRef(false)
   const [attachments, setAttachments] = useState<Attachment[]>([])
   const [ticketPickerOpen, setTicketPickerOpen] = useState(false)
   const fileAttachments = useMemo(
@@ -816,6 +840,46 @@ function LegacySessionView({ sessionId }: SessionViewProps): React.JSX.Element {
 
   // Pending plan approval (ExitPlanMode blocking tool)
   const pendingPlan = useSessionStore((s) => s.pendingPlans.get(sessionId) ?? null)
+
+  // Recovery net for a queue stranded by a failed turn. session.error ends the
+  // turn without draining, so a queued message would sit there for the rest of
+  // the session: the next send goes out directly and never revisits the queue.
+  // Retry at most once per idle period, and only when the session is
+  // demonstrably free to send.
+  //
+  // This deliberately does not cover a drain that returned 'blocked'. That path
+  // leaves isStreaming true, so the guard below exits first, and the block
+  // resolving produces its own idle which drains normally.
+  useEffect(() => {
+    if (isStreaming || isSending) {
+      drainRetryDoneRef.current = false
+      return
+    }
+    if (persistedFollowUpMessages.length === 0) return
+    if (drainRetryDoneRef.current) return
+    if (activePermission || activeQuestion || pendingPlan) return
+
+    const status = useWorktreeStatusStore.getState().sessionStatuses[sessionId]
+    if (
+      shouldPreserveBlockingSessionStatus(
+        status?.status,
+        useQuestionStore.getState().getQuestions(sessionId).length > 0
+      )
+    ) {
+      return
+    }
+
+    drainRetryDoneRef.current = true
+    drainFollowUpsRef.current?.()
+  }, [
+    isStreaming,
+    isSending,
+    persistedFollowUpMessages,
+    activePermission,
+    activeQuestion,
+    pendingPlan,
+    sessionId
+  ])
 
   // Completion badge — reactive subscription to this session's status entry
   const completionEntry = useWorktreeStatusStore((state) => {
@@ -2306,6 +2370,12 @@ function LegacySessionView({ sessionId }: SessionViewProps): React.JSX.Element {
         if (event.childSessionId) return
         setSessionErrorMessage(extractSessionErrorMessage(event.data))
         setSessionErrorStderr(extractSessionErrorStderr(event.data))
+        // The turn is over. Without this, isStreaming stays true and every later
+        // message is queued behind a turn that will never finish. Reset the whole
+        // streaming state rather than just the flags, so the failed turn's
+        // partials cannot leak into the next one.
+        resetStreamingState()
+        setIsSending(false)
         // Notify kanban store so errored tickets auto-move to review
         notifyKanbanSessionSync(sessionId, { type: 'session_error' })
         return
@@ -2963,117 +3033,126 @@ function LegacySessionView({ sessionId }: SessionViewProps): React.JSX.Element {
           if (useSessionStore.getState().getPendingPlan(sessionId)) return
 
           setIsCompacting(false)
-          let optimisticMessageId: string | null = null
+          const runFollowUpDrain = (): void => {
+            let optimisticMessageId: string | null = null
 
-          void handleSessionIdleFollowUp({
-            sessionId,
-            isBlocked: () => {
-              const currentStatus = useWorktreeStatusStore.getState().sessionStatuses[sessionId]
-              return (
-                currentStatus?.status === 'command_approval' ||
-                currentStatus?.status === 'permission'
-              )
-            },
-            dequeueFollowUp: () => useSessionStore.getState().consumeFollowUpMessage(sessionId),
-            requeueFollowUp: (message) =>
-              useSessionStore.getState().requeueFollowUpMessageFront(sessionId, message),
-            onBeforeDispatch: (message) => {
-              recordHivePromptIdleForSession(sessionId)
-              const optimisticMessage = createLocalMessage('user', message)
-              optimisticMessageId = optimisticMessage.id
-              setQueuedMessages((prev) => prev.slice(1))
-              hasFinalizedCurrentResponseRef.current = false
-              setIsStreaming(true)
-              setIsSending(true)
-              setMessages((prev) => [...prev, optimisticMessage])
-              newPromptPendingRef.current = true
-              messageSendTimes.set(sessionId, Date.now())
-              snapshotTokenBaseline(sessionId)
-              startHivePromptTelemetry({
-                sessionId,
-                prompt: message,
-                worktreeId,
-                modelId: sessionRecord?.model_id,
-                providerId: sessionRecord?.model_provider_id,
-                modelVariant: sessionRecord?.model_variant,
-                mode: 'build'
-              })
-              lastSendMode.set(sessionId, 'build')
-              // Queued follow-ups are user-authored; the one-shot marker lets
-              // this working transition reopen a done/merged ticket without
-              // restarting the elapsed timer (userExplicitSendTimes stays).
-              markNextWorkingStatusExplicit(sessionId)
-              useWorktreeStatusStore.getState().setSessionStatus(sessionId, 'working')
-              lastSentPromptRef.current = message
-            },
-            dispatchFollowUp: async (message) => {
-              const wtPath = transcriptSourceRef.current.worktreePath
-              const opcSid = transcriptSourceRef.current.opencodeSessionId
-              if (!wtPath || !opcSid) {
-                return false
-              }
-
-              const result = unwrapEnvelope(
-                await opencodeApi.prompt(
-                  wtPath,
-                  opcSid,
-                  [{ type: 'text', text: message }],
-                  getModelForRequests()
+            void handleSessionIdleFollowUp({
+              sessionId,
+              isBlocked: () => {
+                // Same guard as the background listener: a queued message must not
+                // be sent while the session waits on an approval or a question.
+                const currentStatus = useWorktreeStatusStore.getState().sessionStatuses[sessionId]
+                return shouldPreserveBlockingSessionStatus(
+                  currentStatus?.status,
+                  useQuestionStore.getState().getQuestions(sessionId).length > 0
                 )
-              )
+              },
+              dequeueFollowUp: () => useSessionStore.getState().consumeFollowUpMessage(sessionId),
+              requeueFollowUp: (message) =>
+                useSessionStore.getState().requeueFollowUpMessageFront(sessionId, message),
+              onBeforeDispatch: (message) => {
+                recordHivePromptIdleForSession(sessionId)
+                const optimisticMessage = createLocalMessage('user', message)
+                optimisticMessageId = optimisticMessage.id
+                setQueuedMessages((prev) => prev.slice(1))
+                hasFinalizedCurrentResponseRef.current = false
+                setIsStreaming(true)
+                setIsSending(true)
+                setMessages((prev) => [...prev, optimisticMessage])
+                newPromptPendingRef.current = true
+                messageSendTimes.set(sessionId, Date.now())
+                snapshotTokenBaseline(sessionId)
+                startHivePromptTelemetry({
+                  sessionId,
+                  prompt: message,
+                  worktreeId,
+                  modelId: sessionRecord?.model_id,
+                  providerId: sessionRecord?.model_provider_id,
+                  modelVariant: sessionRecord?.model_variant,
+                  mode: 'build'
+                })
+                lastSendMode.set(sessionId, 'build')
+                // Queued follow-ups are user-authored; the one-shot marker lets
+                // this working transition reopen a done/merged ticket without
+                // restarting the elapsed timer (userExplicitSendTimes stays).
+                markNextWorkingStatusExplicit(sessionId)
+                useWorktreeStatusStore.getState().setSessionStatus(sessionId, 'working')
+                lastSentPromptRef.current = message
+              },
+              dispatchFollowUp: async (message) => {
+                const wtPath = transcriptSourceRef.current.worktreePath
+                const opcSid = transcriptSourceRef.current.opencodeSessionId
+                if (!wtPath || !opcSid) {
+                  return false
+                }
 
-              if (!result.success) {
-                console.error('Failed to send follow-up message:', result.error)
-                return false
+                const result = unwrapEnvelope(
+                  await opencodeApi.prompt(
+                    wtPath,
+                    opcSid,
+                    [{ type: 'text', text: message }],
+                    getModelForRequests()
+                  )
+                )
+
+                if (!result.success) {
+                  console.error('Failed to send follow-up message:', result.error)
+                  return false
+                }
+
+                return true
+              },
+              onDispatchFailure: (message) => {
+                toast.error('Failed to send follow-up prompt')
+                setIsStreaming(false)
+                setIsSending(false)
+                useWorktreeStatusStore.getState().clearSessionStatus(sessionId)
+                setQueuedMessages((prev) => [
+                  {
+                    id: `queued-${crypto.randomUUID()}`,
+                    content: message,
+                    timestamp: Date.now()
+                  },
+                  ...prev
+                ])
+                if (optimisticMessageId) {
+                  setMessages((prev) => prev.filter((entry) => entry.id !== optimisticMessageId))
+                }
+              },
+              onComplete: () => {
+                // Session is done — flush and finalize immediately
+                setSessionRetry(null)
+                immediateFlush()
+                setIsSending(false)
+                setQueuedMessages([])
+                // Clear any stale command approvals when session goes idle
+                useCommandApprovalStore.getState().clearSession(sessionId)
+
+                if (!hasFinalizedCurrentResponseRef.current) {
+                  hasFinalizedCurrentResponseRef.current = true
+                  void finalizeResponse()
+                }
+
+                // Set completion badge with duration since user sent the message
+                const sendTime = messageSendTimes.get(sessionId)
+                const durationMs = sendTime ? Date.now() - sendTime : 0
+                const word = COMPLETION_WORDS[Math.floor(Math.random() * COMPLETION_WORDS.length)]
+                const tokenDelta = computeTokenDelta(sessionId)
+                recordHivePromptIdleForSession(sessionId)
+                const statusStore = useWorktreeStatusStore.getState()
+                statusStore.setSessionStatus(sessionId, 'completed', {
+                  word,
+                  durationMs,
+                  tokenDelta
+                })
               }
+            })
+          }
 
-              return true
-            },
-            onDispatchFailure: (message) => {
-              toast.error('Failed to send follow-up prompt')
-              setIsStreaming(false)
-              setIsSending(false)
-              useWorktreeStatusStore.getState().clearSessionStatus(sessionId)
-              setQueuedMessages((prev) => [
-                {
-                  id: `queued-${crypto.randomUUID()}`,
-                  content: message,
-                  timestamp: Date.now()
-                },
-                ...prev
-              ])
-              if (optimisticMessageId) {
-                setMessages((prev) => prev.filter((entry) => entry.id !== optimisticMessageId))
-              }
-            },
-            onComplete: () => {
-              // Session is done — flush and finalize immediately
-              setSessionRetry(null)
-              immediateFlush()
-              setIsSending(false)
-              setQueuedMessages([])
-              // Clear any stale command approvals when session goes idle
-              useCommandApprovalStore.getState().clearSession(sessionId)
-
-              if (!hasFinalizedCurrentResponseRef.current) {
-                hasFinalizedCurrentResponseRef.current = true
-                void finalizeResponse()
-              }
-
-              // Set completion badge with duration since user sent the message
-              const sendTime = messageSendTimes.get(sessionId)
-              const durationMs = sendTime ? Date.now() - sendTime : 0
-              const word = COMPLETION_WORDS[Math.floor(Math.random() * COMPLETION_WORDS.length)]
-              const tokenDelta = computeTokenDelta(sessionId)
-              recordHivePromptIdleForSession(sessionId)
-              const statusStore = useWorktreeStatusStore.getState()
-              statusStore.setSessionStatus(sessionId, 'completed', {
-                word,
-                durationMs,
-                tokenDelta
-              })
-            }
-          })
+          // Expose the drain so the recovery effect can retry it if this idle
+          // was blocked and the queue is still waiting once the block clears.
+          drainFollowUpsRef.current = runFollowUpDrain
+          runFollowUpDrain()
         } else if (status.type === 'retry') {
           setIsStreaming(true)
           setIsSending(true)
@@ -4214,6 +4293,11 @@ function LegacySessionView({ sessionId }: SessionViewProps): React.JSX.Element {
           await opencodeApi.steer(worktreePath, opencodeSessionId, content)
         )
         if (result?.success) {
+          // Resolve the queue position after the request but before the local
+          // removal below: the drain or the delete button may have shifted the
+          // queue while steer was in flight, and the ref still mirrors the store.
+          // Index-based because two queued messages can hold identical text.
+          const queueIndex = queuedMessagesRef.current.findIndex((msg) => msg.id === messageId)
           setQueuedMessages((prev) => prev.filter((msg) => msg.id !== messageId))
           const anchorAssistantMessageId = codexStreamingMessageIdRef.current
           const insertedMessageId = result.insertedMessageId
@@ -4236,16 +4320,8 @@ function LegacySessionView({ sessionId }: SessionViewProps): React.JSX.Element {
             void refreshMessagesFromOpenCode()
           }
 
-          // Remove the steered message from the follow-up queue by content
-          const currentFollowUps =
-            useSessionStore.getState().pendingFollowUpMessages.get(sessionId) ?? []
-          const indexToRemove = currentFollowUps.indexOf(content)
-          if (indexToRemove >= 0) {
-            const updatedFollowUps = [
-              ...currentFollowUps.slice(0, indexToRemove),
-              ...currentFollowUps.slice(indexToRemove + 1)
-            ]
-            useSessionStore.getState().setPendingFollowUpMessages(sessionId, updatedFollowUps)
+          if (queueIndex >= 0) {
+            useSessionStore.getState().removeFollowUpMessageAt(sessionId, queueIndex)
           }
         } else {
           console.warn('Steer failed', { messageId, error: result?.error })
@@ -4259,6 +4335,38 @@ function LegacySessionView({ sessionId }: SessionViewProps): React.JSX.Element {
     },
     [opencodeSessionId, refreshMessagesFromOpenCode, sessionId, worktreePath]
   )
+
+  const handleDeleteQueuedMessage = useCallback(
+    (messageId: string) => {
+      const queueIndex = queuedMessagesRef.current.findIndex((msg) => msg.id === messageId)
+      if (queueIndex < 0) return
+      setQueuedMessages((prev) => prev.filter((msg) => msg.id !== messageId))
+      useSessionStore.getState().removeFollowUpMessageAt(sessionId, queueIndex)
+    },
+    [sessionId]
+  )
+
+  /**
+   * Pull unsent queued messages back into the composer. Used when the user stops
+   * a turn: the abort is followed by an idle event, and without this the idle
+   * handler would send exactly the messages the user just cancelled.
+   */
+  const reclaimQueuedMessages = useCallback((): number => {
+    const queued = useSessionStore.getState().pendingFollowUpMessages.get(sessionId) ?? []
+    if (queued.length === 0) return 0
+
+    useSessionStore.getState().setPendingFollowUpMessages(sessionId, [])
+    setQueuedMessages([])
+
+    const restored = queued.join('\n\n')
+    const draft = inputValueRef.current.trim()
+    const next = draft ? `${inputValueRef.current}\n\n${restored}` : restored
+    setInputValue(next)
+    inputValueRef.current = next
+    if (draftTimerRef.current) clearTimeout(draftTimerRef.current)
+    dbApi.session.updateDraft(sessionId, next)
+    return queued.length
+  }, [sessionId])
 
   const handleForkFromAssistantMessage = useCallback(
     async (message: OpenCodeMessage) => {
@@ -5422,10 +5530,41 @@ function LegacySessionView({ sessionId }: SessionViewProps): React.JSX.Element {
       return
     }
     if (!worktreePath || !opencodeSessionId) return
+    if (isStopping) return
+
+    setIsStopping(true)
+    // Stop means stop: hand the queue back before the abort, because the idle
+    // event that follows would otherwise auto-send it.
+    const reclaimed = reclaimQueuedMessages()
     // Clear any pending command approvals — the abort will auto-deny them on the main process side
     useCommandApprovalStore.getState().clearSession(sessionId)
-    unwrapEnvelope(await opencodeApi.abort(worktreePath, opencodeSessionId))
-  }, [isBashRunning, abortBash, worktreePath, opencodeSessionId, sessionId])
+
+    try {
+      const result = unwrapEnvelope(await opencodeApi.abort(worktreePath, opencodeSessionId))
+      if (result?.success === false) {
+        toast.error('Could not stop the session')
+      } else if (reclaimed > 0) {
+        toast.info(
+          reclaimed === 1
+            ? 'Stopped. Queued message moved back to the input.'
+            : `Stopped. ${reclaimed} queued messages moved back to the input.`
+        )
+      }
+    } catch (error) {
+      console.error('Abort failed', error)
+      toast.error('Could not stop the session')
+    } finally {
+      setIsStopping(false)
+    }
+  }, [
+    isBashRunning,
+    abortBash,
+    worktreePath,
+    opencodeSessionId,
+    sessionId,
+    isStopping,
+    reclaimQueuedMessages
+  ])
 
   // Handle keyboard shortcuts
   const handleKeyDown = useCallback(
@@ -6194,6 +6333,7 @@ function LegacySessionView({ sessionId }: SessionViewProps): React.JSX.Element {
               queuedMessages={queuedMessages}
               canSteer={canSteer}
               onSteerMessage={handleSteerMessage}
+              onDeleteQueuedMessage={handleDeleteQueuedMessage}
               steeringMessageId={steeringMessageId}
               completionEntry={completionEntry}
               scrollElement={scrollElement}
@@ -6438,17 +6578,29 @@ function LegacySessionView({ sessionId }: SessionViewProps): React.JSX.Element {
                     isCompacting={isCompacting}
                   />
                 )}
-                {(isStreaming || isBashRunning) && !inputValue.trim() ? (
+                {/* isStopping keeps the button in place while the abort runs: stopping
+                    can refill the composer with reclaimed queued text, which would
+                    otherwise swap in the send button mid-stop. */}
+                {(isStreaming || isBashRunning) && (!inputValue.trim() || isStopping) ? (
                   <Button
                     onClick={handleAbort}
+                    disabled={isStopping}
                     size="sm"
                     variant="destructive"
                     className="h-7 w-7 p-0"
-                    aria-label={isBashRunning ? 'Stop command' : 'Stop streaming'}
-                    title={isBashRunning ? 'Stop command' : 'Stop streaming'}
+                    aria-label={
+                      isStopping ? 'Stopping' : isBashRunning ? 'Stop command' : 'Stop streaming'
+                    }
+                    title={
+                      isStopping ? 'Stopping…' : isBashRunning ? 'Stop command' : 'Stop streaming'
+                    }
                     data-testid="stop-button"
                   >
-                    <Square className="h-3 w-3" />
+                    {isStopping ? (
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                    ) : (
+                      <Square className="h-3 w-3" />
+                    )}
                   </Button>
                 ) : (
                   <Button

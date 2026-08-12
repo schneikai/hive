@@ -41,6 +41,7 @@ export interface VirtualizedMessageListProps {
   queuedMessages: { id: string; content: string }[]
   canSteer: boolean
   onSteerMessage: (messageId: string, content: string) => void | Promise<void>
+  onDeleteQueuedMessage: (messageId: string) => void
   steeringMessageId: string | null
   completionEntry: { word?: string; durationMs?: number } | null
   scrollElement: HTMLDivElement | null
@@ -89,6 +90,7 @@ export const VirtualizedMessageList = memo(
   queuedMessages,
   canSteer,
   onSteerMessage,
+  onDeleteQueuedMessage,
   steeringMessageId,
   completionEntry,
   scrollElement,
@@ -331,6 +333,7 @@ export const VirtualizedMessageList = memo(
               canSteer={canSteer}
               isLoading={steeringMessageId === item.queuedMessage.id}
               onSteer={() => onSteerMessage(item.queuedMessage.id, item.queuedMessage.content)}
+              onDelete={() => onDeleteQueuedMessage(item.queuedMessage.id)}
             />
           )
 
