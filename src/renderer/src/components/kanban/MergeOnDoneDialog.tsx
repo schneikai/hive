@@ -178,6 +178,13 @@ export function MergeOnDoneDialog() {
         // commit/merge steps but still offer the archive/keep choice
         const alreadyMerged = !hasUncommitted && branchStats.commitsAhead === 0
 
+        // Connection members never get the archive prompt — archiving would
+        // tear the worktree out of the connection (symlink + membership)
+        if (pending.worktreeId && alreadyMerged) {
+          await completeDoneMove()
+          return
+        }
+
         // Get project path for archive step
         const project = await dbApi.project.get<MergeProject>(featureWorktree.project_id)
         if (cancelled) return
@@ -372,6 +379,12 @@ export function MergeOnDoneDialog() {
       }
 
       toast.success('Branch merged successfully')
+      // Connection members advance the queue instead of offering the
+      // destructive archive step (see init)
+      if (pendingDoneMove.worktreeId) {
+        await completeDoneMove()
+        return
+      }
       setStep('archive')
     } catch (err) {
       toast.error(`Merge failed: ${err instanceof Error ? err.message : String(err)}`)
@@ -379,7 +392,7 @@ export function MergeOnDoneDialog() {
     } finally {
       setMerging(false)
     }
-  }, [resolved, pendingDoneMove, clearPendingDoneMove])
+  }, [resolved, pendingDoneMove, completeDoneMove, clearPendingDoneMove])
 
   const handleArchive = useCallback(async () => {
     if (!resolved) return

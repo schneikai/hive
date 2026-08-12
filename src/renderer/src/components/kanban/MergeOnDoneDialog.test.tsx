@@ -190,3 +190,77 @@ describe('MergeOnDoneDialog — already-merged branch', () => {
     expect(moveTicketMock).not.toHaveBeenCalled()
   })
 })
+
+describe('MergeOnDoneDialog — connection member queue', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    moveTicketMock.mockResolvedValue(undefined)
+    archiveWorktreeMock.mockResolvedValue({ success: true })
+    mockAlreadyMergedBranch()
+    setupStores()
+    // Connection tickets have no worktree_id — the queue supplies it
+    useKanbanStore.setState({
+      tickets: new Map([['project-1', [{ ...ticket, worktree_id: null }]]]),
+      pendingDoneMove: {
+        ticketId: 'ticket-1',
+        projectId: 'project-1',
+        sortOrder: 5,
+        targetColumn: 'merged',
+        worktreeId: 'worktree-1',
+        worktreeProjectId: 'project-1',
+        remainingWorktrees: [{ worktreeId: 'worktree-next', projectId: 'project-2' }]
+      }
+    })
+  })
+
+  afterEach(() => {
+    cleanup()
+    useKanbanStore.setState({ pendingDoneMove: null })
+  })
+
+  it('advances the queue after a successful merge instead of offering archive', async () => {
+    gitApiMocks.branchDiffShortStat.mockResolvedValue({
+      success: true,
+      filesChanged: 2,
+      insertions: 10,
+      deletions: 3,
+      commitsAhead: 1
+    })
+    gitApiMocks.getRemoteUrl.mockResolvedValue({ url: null })
+    gitApiMocks.merge.mockResolvedValue({ success: true })
+
+    render(<MergeOnDoneDialog />)
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Merge' }))
+
+    await waitFor(() =>
+      expect(useKanbanStore.getState().pendingDoneMove?.worktreeId).toBe('worktree-next')
+    )
+    expect(gitApiMocks.merge).toHaveBeenCalledWith('/repo/main', 'feature')
+    expect(moveTicketMock).not.toHaveBeenCalled()
+    expect(archiveWorktreeMock).not.toHaveBeenCalled()
+    expect(screen.queryByRole('button', { name: 'Archive' })).toBeNull()
+  })
+
+  it('skips the archive prompt for an already-merged member and moves after the last one', async () => {
+    useKanbanStore.setState({
+      pendingDoneMove: {
+        ticketId: 'ticket-1',
+        projectId: 'project-1',
+        sortOrder: 5,
+        targetColumn: 'merged',
+        worktreeId: 'worktree-1',
+        worktreeProjectId: 'project-1',
+        remainingWorktrees: []
+      }
+    })
+
+    render(<MergeOnDoneDialog />)
+
+    await waitFor(() =>
+      expect(moveTicketMock).toHaveBeenCalledWith('ticket-1', 'project-1', 'merged', 5)
+    )
+    expect(archiveWorktreeMock).not.toHaveBeenCalled()
+    expect(screen.queryByText(/Branch already merged/)).toBeNull()
+  })
+})
