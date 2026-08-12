@@ -367,6 +367,11 @@ export function MergeOnDoneDialog() {
               ticketKey(pendingDoneMove.projectId, pendingDoneMove.ticketId),
               resolved.baseWorktreeId
             )
+          // Hydrate the owning project's worktrees so the conflict banner can
+          // resolve the worktree path when the member project isn't loaded yet
+          void useWorktreeStore
+            .getState()
+            .loadWorktrees(pendingDoneMove.worktreeProjectId ?? pendingDoneMove.projectId)
           void useGitStore.getState().refreshStatuses(resolved.baseWorktreePath)
           toast.error(
             `Merge conflicts in ${mergeResult.conflicts.length} file${mergeResult.conflicts.length !== 1 ? 's' : ''} — merge manually`
