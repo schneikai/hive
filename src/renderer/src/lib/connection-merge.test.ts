@@ -204,4 +204,22 @@ describe('buildConnectionMergeQueue', () => {
     connectionApiMocks.get.mockResolvedValue({ success: false, error: 'nope' })
     await expect(buildConnectionMergeQueue('conn-1')).rejects.toThrow('nope')
   })
+
+  it('returns an empty queue for a deleted connection so the move proceeds', async () => {
+    connectionApiMocks.get.mockResolvedValue({ success: false, error: 'Connection not found' })
+    expect(await buildConnectionMergeQueue('conn-1')).toEqual([])
+  })
+
+  it('returns an empty queue for an archived connection so the move proceeds', async () => {
+    connectionApiMocks.get.mockResolvedValue({
+      success: true,
+      connection: {
+        id: 'conn-1',
+        status: 'archived',
+        members: [{ worktree_id: 'wt-feature', project_id: 'proj-1' }]
+      }
+    })
+    expect(await buildConnectionMergeQueue('conn-1')).toEqual([])
+    expect(dbApiMocks.worktree.get).not.toHaveBeenCalled()
+  })
 })

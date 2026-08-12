@@ -607,7 +607,9 @@ export function KanbanColumn({
           if (draggedTicket?.worktree_id) {
             try {
               const worktree = await dbApi.worktree.get<Worktree>(draggedTicket.worktree_id)
-              if (worktree) {
+              // Archived/deleted worktrees have nothing to merge — fall
+              // through to the normal move instead of failing the transition
+              if (worktree && worktree.status === 'active') {
                 // Resolve the effective base branch
                 const defaultWorktrees =
                   await dbApi.worktree.getActiveByProject<Worktree>(ticketProjectId)
