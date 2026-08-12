@@ -61,7 +61,9 @@ function formatResetTime(
   const timeStr =
     minutes === 0 ? `${hour12}${ampm}` : `${hour12}:${String(minutes).padStart(2, '0')}${ampm}`
 
-  if (type === 'five_hour') {
+  // 5h resets within 24h show just the time; anything further out (or the
+  // weekly window, always) needs the date to be unambiguous.
+  if (type === 'five_hour' && date.getTime() - Date.now() <= 24 * 60 * 60 * 1000) {
     return timeStr
   }
 

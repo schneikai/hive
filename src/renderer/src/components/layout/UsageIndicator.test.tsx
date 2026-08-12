@@ -100,6 +100,71 @@ describe('UsageAccountRow', () => {
     expect(screen.getByText('66%')).toBeTruthy()
   })
 
+  it('includes the date in the five_hour reset time when it is more than 24h away', () => {
+    const farReset = new Date(Date.now() + 30 * 60 * 60 * 1000)
+    farReset.setMinutes(0, 0, 0)
+    render(
+      <UsageAccountRow
+        row={{
+          id: 'acc-far-window',
+          email: 'far@example.com',
+          usage: {
+            five_hour: { utilization: 20, resets_at: farReset.toISOString() },
+            seven_day: { utilization: 10, resets_at: null }
+          },
+          status: 'ok',
+          lastError: null,
+          isActive: false,
+          isRefreshing: false
+        }}
+      />
+    )
+
+    const months = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec'
+    ]
+    const hour12 = farReset.getHours() % 12 || 12
+    const ampm = farReset.getHours() >= 12 ? 'pm' : 'am'
+    const expected = `${months[farReset.getMonth()]} ${farReset.getDate()}, ${hour12}${ampm}`
+    expect(screen.getByText(expected)).toBeTruthy()
+  })
+
+  it('shows only the time for a five_hour reset within 24h', () => {
+    const nearReset = new Date(Date.now() + 60 * 60 * 1000)
+    nearReset.setMinutes(0, 0, 0)
+    render(
+      <UsageAccountRow
+        row={{
+          id: 'acc-near-window',
+          email: 'near@example.com',
+          usage: {
+            five_hour: { utilization: 20, resets_at: nearReset.toISOString() },
+            seven_day: { utilization: 10, resets_at: null }
+          },
+          status: 'ok',
+          lastError: null,
+          isActive: false,
+          isRefreshing: false
+        }}
+      />
+    )
+
+    const hour12 = nearReset.getHours() % 12 || 12
+    const ampm = nearReset.getHours() >= 12 ? 'pm' : 'am'
+    expect(screen.getByText(`${hour12}${ampm}`)).toBeTruthy()
+  })
+
   it('shows N/A and an empty bar for a scoped entry whose reset time is in the past', () => {
     render(
       <UsageAccountRow
