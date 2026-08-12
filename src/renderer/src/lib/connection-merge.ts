@@ -30,17 +30,23 @@ export async function resolveTicketConnectionId(
  * Assess every member worktree of a connection and return the ones with work
  * to merge (uncommitted changes or commits ahead of their base branch), using
  * the same pre-checks as the single-project merge-on-done drop path.
- * Members that are on their base branch or inactive are skipped; an
- * unverifiable member (DB/git failure) rejects so callers can abort the move
- * instead of treating unchecked work as clean.
+ * Members that are on their base branch or inactive are skipped, and a
+ * deleted or archived connection yields an empty queue (nothing to merge);
+ * an unverifiable member (DB/git failure) rejects so callers can abort the
+ * move instead of treating unchecked work as clean.
  */
 export async function buildConnectionMergeQueue(
   connectionId: string
 ): Promise<ConnectionMergeTarget[]> {
   const result = await connectionApi.get(connectionId)
   if (!result.success || !result.connection) {
+    // A deleted connection has nothing to merge — return an empty queue so
+    // the ticket move proceeds instead of failing the transition
+    if (result.error === 'Connection not found') return []
     throw new Error(result.error ?? 'Could not retrieve connection members')
   }
+  // Same for archived connections — their members are no longer mergeable
+  if (result.connection.status === 'archived') return []
   const members = result.connection.members
   const seenWorktrees = new Set<string>()
 

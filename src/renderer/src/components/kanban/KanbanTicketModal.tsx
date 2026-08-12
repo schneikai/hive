@@ -3385,7 +3385,8 @@ function ReviewModeContent({
     if (ticket.worktree_id) {
       try {
         const worktree = await dbApi.worktree.get<Worktree>(ticket.worktree_id)
-        if (worktree) {
+        // Archived/deleted worktrees skip the merge flow — plain move below
+        if (worktree && worktree.status === 'active') {
           const defaultWorktrees = await dbApi.worktree.getActiveByProject<Worktree>(
             ticket.project_id
           )

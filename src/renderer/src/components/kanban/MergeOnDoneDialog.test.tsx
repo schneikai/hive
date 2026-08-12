@@ -174,6 +174,27 @@ describe('MergeOnDoneDialog — already-merged branch', () => {
     )
   })
 
+  it('completes the move when the feature worktree was archived', async () => {
+    dbApiMocks.worktree.get.mockResolvedValue({ ...featureWorktree, status: 'archived' })
+
+    render(<MergeOnDoneDialog />)
+
+    await waitFor(() =>
+      expect(moveTicketMock).toHaveBeenCalledWith('ticket-1', 'project-1', 'done', 5)
+    )
+    expect(useKanbanStore.getState().pendingDoneMove).toBeNull()
+  })
+
+  it('completes the move when the feature worktree row is gone', async () => {
+    dbApiMocks.worktree.get.mockResolvedValue(null)
+
+    render(<MergeOnDoneDialog />)
+
+    await waitFor(() =>
+      expect(moveTicketMock).toHaveBeenCalledWith('ticket-1', 'project-1', 'done', 5)
+    )
+  })
+
   it('still runs the merge flow when the branch has commits ahead', async () => {
     gitApiMocks.branchDiffShortStat.mockResolvedValue({
       success: true,

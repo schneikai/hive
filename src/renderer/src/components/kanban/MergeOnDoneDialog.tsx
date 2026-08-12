@@ -111,8 +111,13 @@ export function MergeOnDoneDialog() {
         // Fetch feature worktree
         const featureWorktree = await dbApi.worktree.get<MergeWorktree>(mergeWorktreeId)
         if (!featureWorktree || featureWorktree.status !== 'active') {
-          toast.warning('Cannot merge — feature worktree is not active')
-          clearPendingDoneMove()
+          // Worktree archived/deleted since the drop — nothing to merge, so
+          // complete the move instead of failing the transition
+          await completeDoneMove({
+            ticketId: pending.ticketId,
+            projectId: pending.projectId,
+            worktreeId: pending.worktreeId
+          })
           return
         }
 
@@ -124,8 +129,12 @@ export function MergeOnDoneDialog() {
         const resolvedBaseBranch = featureWorktree.base_branch ?? defaultWt?.branch_name
 
         if (!resolvedBaseBranch) {
-          toast.warning('Cannot merge — no base branch resolved')
-          clearPendingDoneMove()
+          toast.warning('Skipping merge — no base branch resolved')
+          await completeDoneMove({
+            ticketId: pending.ticketId,
+            projectId: pending.projectId,
+            worktreeId: pending.worktreeId
+          })
           return
         }
 
@@ -135,8 +144,14 @@ export function MergeOnDoneDialog() {
         )
 
         if (!baseWorktree) {
-          toast.warning(`Cannot merge — no worktree for ${resolvedBaseBranch}`)
-          clearPendingDoneMove()
+          // Base worktree archived/deleted — merge impossible, but the move
+          // should still land in the target column
+          toast.warning(`Skipping merge — no worktree for ${resolvedBaseBranch}`)
+          await completeDoneMove({
+            ticketId: pending.ticketId,
+            projectId: pending.projectId,
+            worktreeId: pending.worktreeId
+          })
           return
         }
 
