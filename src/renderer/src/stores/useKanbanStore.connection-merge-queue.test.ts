@@ -54,6 +54,28 @@ describe('completeDoneMove — connection merge queue', () => {
     expect(moveTicketMock).not.toHaveBeenCalled()
   })
 
+  it('ignores stale completions whose identity no longer matches the pending move', async () => {
+    await useKanbanStore.getState().completeDoneMove({
+      ticketId: 'ticket-1',
+      projectId: 'proj-a',
+      worktreeId: 'wt-stale'
+    })
+
+    expect(moveTicketMock).not.toHaveBeenCalled()
+    // Queue untouched — still on wt-a
+    expect(useKanbanStore.getState().pendingDoneMove?.worktreeId).toBe('wt-a')
+  })
+
+  it('completes when the expected identity matches the pending move', async () => {
+    await useKanbanStore.getState().completeDoneMove({
+      ticketId: 'ticket-1',
+      projectId: 'proj-a',
+      worktreeId: 'wt-a'
+    })
+
+    expect(useKanbanStore.getState().pendingDoneMove?.worktreeId).toBe('wt-b')
+  })
+
   it('moves the ticket directly when no queue is present (single-project flow)', async () => {
     useKanbanStore.setState({
       pendingDoneMove: {

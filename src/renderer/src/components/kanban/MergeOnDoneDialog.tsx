@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { ticketKey, useKanbanStore } from '@/stores/useKanbanStore'
 import { useGitStore } from '@/stores/useGitStore'
 import { useWorktreeStatusStore } from '@/stores/useWorktreeStatusStore'
@@ -56,6 +56,20 @@ export function MergeOnDoneDialog() {
   const pendingDoneMove = useKanbanStore((s) => s.pendingDoneMove)
   const completeDoneMove = useKanbanStore((s) => s.completeDoneMove)
   const clearPendingDoneMove = useKanbanStore((s) => s.clearPendingDoneMove)
+
+  // Identity passed to completeDoneMove so a stale async completion (e.g. a
+  // merge resolving after dismissal) can't act on a replacement pending move
+  const pendingIdentity = useMemo(
+    () =>
+      pendingDoneMove
+        ? {
+            ticketId: pendingDoneMove.ticketId,
+            projectId: pendingDoneMove.projectId,
+            worktreeId: pendingDoneMove.worktreeId
+          }
+        : undefined,
+    [pendingDoneMove]
+  )
 
   const [step, setStep] = useState<Step>('loading')
   const [resolved, setResolved] = useState<ResolvedState | null>(null)
@@ -181,7 +195,11 @@ export function MergeOnDoneDialog() {
         // Connection members never get the archive prompt — archiving would
         // tear the worktree out of the connection (symlink + membership)
         if (pending.worktreeId && alreadyMerged) {
-          await completeDoneMove()
+          await completeDoneMove({
+            ticketId: pending.ticketId,
+            projectId: pending.projectId,
+            worktreeId: pending.worktreeId
+          })
           return
         }
 
@@ -271,14 +289,14 @@ export function MergeOnDoneDialog() {
         setStep('merge')
       } else {
         // No divergence after commit — base already has everything
-        await completeDoneMove()
+        await completeDoneMove(pendingIdentity)
       }
     } catch (err) {
       toast.error(`Commit failed: ${err instanceof Error ? err.message : String(err)}`)
     } finally {
       setCommitting(false)
     }
-  }, [resolved, commitMessage, completeDoneMove, clearPendingDoneMove])
+  }, [resolved, commitMessage, pendingIdentity, completeDoneMove, clearPendingDoneMove])
 
   const handleCommitBase = useCallback(async () => {
     if (!resolved || !baseCommitMessage.trim()) return
@@ -331,7 +349,7 @@ export function MergeOnDoneDialog() {
           )
           setStep('merge')
         } else {
-          await completeDoneMove()
+          await completeDoneMove(pendingIdentity)
         }
       }
     } catch (err) {
@@ -339,7 +357,7 @@ export function MergeOnDoneDialog() {
     } finally {
       setCommittingBase(false)
     }
-  }, [resolved, baseCommitMessage, completeDoneMove, clearPendingDoneMove])
+  }, [resolved, baseCommitMessage, pendingIdentity, completeDoneMove, clearPendingDoneMove])
 
   const handleMerge = useCallback(async () => {
     if (!resolved || !pendingDoneMove) return
@@ -387,7 +405,7 @@ export function MergeOnDoneDialog() {
       // Connection members advance the queue instead of offering the
       // destructive archive step (see init)
       if (pendingDoneMove.worktreeId) {
-        await completeDoneMove()
+        await completeDoneMove(pendingIdentity)
         return
       }
       setStep('archive')
@@ -397,7 +415,7 @@ export function MergeOnDoneDialog() {
     } finally {
       setMerging(false)
     }
-  }, [resolved, pendingDoneMove, completeDoneMove, clearPendingDoneMove])
+  }, [resolved, pendingDoneMove, pendingIdentity, completeDoneMove, clearPendingDoneMove])
 
   const handleArchive = useCallback(async () => {
     if (!resolved) return
@@ -411,7 +429,7 @@ export function MergeOnDoneDialog() {
 
     try {
       setArchiving(true)
-      await completeDoneMove()
+      await completeDoneMove(pendingIdentity)
     } catch (err) {
       setArchiving(false)
       toast.error(
@@ -438,7 +456,7 @@ export function MergeOnDoneDialog() {
       .catch((err) => {
         toast.error(`Archive failed: ${err instanceof Error ? err.message : String(err)}`)
       })
-  }, [resolved, completeDoneMove])
+  }, [resolved, pendingIdentity, completeDoneMove])
 
   // The dialog serves both the Done and the optional Merged column
   const targetLabel = pendingDoneMove?.targetColumn === 'merged' ? 'Merged' : 'Done'
@@ -517,7 +535,7 @@ export function MergeOnDoneDialog() {
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => completeDoneMove()}
+                  onClick={() => completeDoneMove(pendingIdentity)}
                   disabled={committingBase}
                 >
                   Move to {targetLabel} anyway
@@ -562,7 +580,7 @@ export function MergeOnDoneDialog() {
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => completeDoneMove()}
+                  onClick={() => completeDoneMove(pendingIdentity)}
                   disabled={committing}
                 >
                   Move to {targetLabel} anyway
@@ -608,7 +626,7 @@ export function MergeOnDoneDialog() {
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => completeDoneMove()}
+                  onClick={() => completeDoneMove(pendingIdentity)}
                   disabled={merging}
                 >
                   Move to {targetLabel} anyway
@@ -633,7 +651,7 @@ export function MergeOnDoneDialog() {
               <code className="bg-muted px-1 rounded">{resolved.featureBranch}</code> worktree?
             </p>
             <div className="flex items-center justify-between">
-              <Button variant="outline" size="sm" onClick={() => completeDoneMove()}>
+              <Button variant="outline" size="sm" onClick={() => completeDoneMove(pendingIdentity)}>
                 Keep
               </Button>
               <Button size="sm" onClick={handleArchive} disabled={archiving}>

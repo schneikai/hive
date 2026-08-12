@@ -297,7 +297,11 @@ interface KanbanState {
   setBoardSearchDescriptions: (on: boolean) => void
   setPendingDoneMove: (data: PendingDoneMove) => void
   clearPendingDoneMove: () => void
-  completeDoneMove: () => Promise<void>
+  completeDoneMove: (expected?: {
+    ticketId: string
+    projectId: string
+    worktreeId?: string
+  }) => Promise<void>
 
   // ── Session coordination ────────────────────────────────────────────
   syncTicketWithSession: (sessionId: string, event: KanbanSessionEvent) => void
@@ -1552,9 +1556,20 @@ export const useKanbanStore = create<KanbanState>()(
         set({ pendingDoneMove: null })
       },
 
-      completeDoneMove: async () => {
+      completeDoneMove: async (expected) => {
         const pending = get().pendingDoneMove
         if (!pending) return
+        // Stale async completion (e.g. a merge resolving after the dialog was
+        // dismissed and another ticket set a new pending move) must not
+        // advance or move an unrelated pending state
+        if (
+          expected &&
+          (expected.ticketId !== pending.ticketId ||
+            expected.projectId !== pending.projectId ||
+            expected.worktreeId !== pending.worktreeId)
+        ) {
+          return
+        }
         // Connection flow: advance to the next member worktree before moving
         // the ticket — the move only happens after the last worktree finishes
         const [nextWorktree, ...restWorktrees] = pending.remainingWorktrees ?? []
