@@ -200,8 +200,8 @@ describe('buildConnectionMergeQueue', () => {
     await expect(buildConnectionMergeQueue('conn-1')).rejects.toThrow('git exploded')
   })
 
-  it('returns empty when the connection lookup fails', async () => {
+  it('rejects when the connection lookup fails, so the drop can abort', async () => {
     connectionApiMocks.get.mockResolvedValue({ success: false, error: 'nope' })
-    expect(await buildConnectionMergeQueue('conn-1')).toEqual([])
+    await expect(buildConnectionMergeQueue('conn-1')).rejects.toThrow('nope')
   })
 })

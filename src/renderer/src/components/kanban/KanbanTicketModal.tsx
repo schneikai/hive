@@ -645,7 +645,7 @@ function MergeConflictBanner({ ticket }: { ticket: KanbanTicket }) {
   const mergeConflictMode = useSettingsStore((s) => s.mergeConflictMode)
   const { startFixFlow, openAttachedSession } = useConflictFixFlow(conflictTargetWorktreeId)
 
-  if (!ticket.worktree_id || ticket.archived_at || !hasConflicts) return null
+  if (!conflictTargetWorktreeId || ticket.archived_at || !hasConflicts) return null
 
   const isConflictFlowActive =
     conflictFlow?.phase === 'starting' ||

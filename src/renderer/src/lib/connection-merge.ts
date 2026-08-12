@@ -38,7 +38,10 @@ export async function buildConnectionMergeQueue(
   connectionId: string
 ): Promise<ConnectionMergeTarget[]> {
   const result = await connectionApi.get(connectionId)
-  const members = result.connection?.members ?? []
+  if (!result.success || !result.connection) {
+    throw new Error(result.error ?? 'Could not retrieve connection members')
+  }
+  const members = result.connection.members
   const seenWorktrees = new Set<string>()
 
   const assessed = await Promise.all(
