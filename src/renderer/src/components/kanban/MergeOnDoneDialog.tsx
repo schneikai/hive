@@ -25,6 +25,7 @@ type MergeWorktree = {
 
 type MergeProject = {
   path: string
+  name?: string
 }
 
 interface BranchStats {
@@ -43,6 +44,7 @@ interface ResolvedState {
   baseBranch: string
   ticketTitle: string
   projectPath: string
+  projectName: string | null
   uncommittedStats: { filesChanged: number; insertions: number; deletions: number }
   baseUncommittedStats: { filesChanged: number; insertions: number; deletions: number }
   baseDirty: boolean
@@ -84,22 +86,25 @@ export function MergeOnDoneDialog() {
         const tickets = useKanbanStore.getState().getTicketsForProject(pending.projectId)
         const ticket = tickets.find((t) => t.id === pending.ticketId)
 
-        if (!ticket || !ticket.worktree_id) {
+        // Connection tickets carry no worktree_id — the drop handler queues
+        // each member worktree explicitly via pending.worktreeId
+        const mergeWorktreeId = pending.worktreeId ?? ticket?.worktree_id
+        if (!ticket || !mergeWorktreeId) {
           clearPendingDoneMove()
           return
         }
 
         // Fetch feature worktree
-        const featureWorktree = await dbApi.worktree.get<MergeWorktree>(ticket.worktree_id)
+        const featureWorktree = await dbApi.worktree.get<MergeWorktree>(mergeWorktreeId)
         if (!featureWorktree || featureWorktree.status !== 'active') {
           toast.warning('Cannot merge — feature worktree is not active')
           clearPendingDoneMove()
           return
         }
 
-        // Resolve base branch
+        // Resolve base branch (connection members may live in another project)
         const activeWorktrees = await dbApi.worktree.getActiveByProject<MergeWorktree>(
-          pending.projectId
+          pending.worktreeProjectId ?? pending.projectId
         )
         const defaultWt = activeWorktrees.find((w) => w.is_default)
         const resolvedBaseBranch = featureWorktree.base_branch ?? defaultWt?.branch_name
@@ -186,6 +191,7 @@ export function MergeOnDoneDialog() {
           baseBranch: resolvedBaseBranch,
           ticketTitle: ticket.title,
           projectPath: project?.path ?? baseWorktree.path,
+          projectName: project?.name ?? null,
           uncommittedStats,
           baseUncommittedStats,
           baseDirty,
@@ -419,6 +425,10 @@ export function MergeOnDoneDialog() {
   // The dialog serves both the Done and the optional Merged column
   const targetLabel = pendingDoneMove?.targetColumn === 'merged' ? 'Merged' : 'Done'
 
+  // Connection tickets run this dialog once per member worktree with changes
+  const isConnectionFlow = !!pendingDoneMove?.worktreeId
+  const remainingCount = pendingDoneMove?.remainingWorktrees?.length ?? 0
+
   const stepTitle: Record<Step, string> = {
     loading: `Moving to ${targetLabel}...`,
     commit_base: 'Uncommitted changes on base',
@@ -447,6 +457,14 @@ export function MergeOnDoneDialog() {
           <DialogTitle className="flex items-center gap-2 text-sm">
             {stepIcon[step]}
             {stepTitle[step]}
+            {isConnectionFlow && resolved?.projectName && (
+              <span className="font-normal text-muted-foreground">— {resolved.projectName}</span>
+            )}
+            {isConnectionFlow && remainingCount > 0 && (
+              <span className="text-xs font-normal text-muted-foreground">
+                ({remainingCount} more project{remainingCount !== 1 ? 's' : ''})
+              </span>
+            )}
           </DialogTitle>
         </DialogHeader>
 

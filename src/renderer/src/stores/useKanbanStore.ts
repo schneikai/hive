@@ -204,6 +204,20 @@ async function loadProjectTicketsSnapshot(
   return { tickets, diagnostics }
 }
 
+/** Pending "move to done/merged" data — drives the MergeOnDoneDialog */
+export interface PendingDoneMove {
+  ticketId: string
+  projectId: string
+  sortOrder: number
+  targetColumn: 'merged' | 'done'
+  /** Connection flow: merge this worktree instead of ticket.worktree_id (which is null) */
+  worktreeId?: string
+  /** Project owning `worktreeId` — may differ from the ticket's project */
+  worktreeProjectId?: string
+  /** Connection flow: member worktrees still to merge after the current one */
+  remainingWorktrees?: { worktreeId: string; projectId: string }[]
+}
+
 // ── State interface ────────────────────────────────────────────────────
 interface KanbanState {
   /** Tickets keyed by project ID */
@@ -226,12 +240,7 @@ interface KanbanState {
   markdownDiagnostics: Map<string, MarkdownCardDiagnostic[]>
   markdownPlaceholders: Map<string, MarkdownCardPlaceholder[]>
   /** Pending "move to done/merged" data — set when a feature-branch ticket is dropped on Done or Merged, triggering the merge dialog */
-  pendingDoneMove: {
-    ticketId: string
-    projectId: string
-    sortOrder: number
-    targetColumn: 'merged' | 'done'
-  } | null
+  pendingDoneMove: PendingDoneMove | null
   /** Ephemeral board focus target used by the header Telegram toggle. */
   boardTelegramTarget: BoardTelegramTarget | null
   /** Ephemeral Cmd+F board search — NOT persisted (partialize is inclusion-based). */
@@ -286,12 +295,7 @@ interface KanbanState {
   closeBoardSearch: () => void
   setBoardSearchQuery: (query: string) => void
   setBoardSearchDescriptions: (on: boolean) => void
-  setPendingDoneMove: (data: {
-    ticketId: string
-    projectId: string
-    sortOrder: number
-    targetColumn: 'merged' | 'done'
-  }) => void
+  setPendingDoneMove: (data: PendingDoneMove) => void
   clearPendingDoneMove: () => void
   completeDoneMove: () => Promise<void>
 
@@ -1551,6 +1555,23 @@ export const useKanbanStore = create<KanbanState>()(
       completeDoneMove: async () => {
         const pending = get().pendingDoneMove
         if (!pending) return
+        // Connection flow: advance to the next member worktree before moving
+        // the ticket — the move only happens after the last worktree finishes
+        const [nextWorktree, ...restWorktrees] = pending.remainingWorktrees ?? []
+        if (nextWorktree) {
+          set({
+            pendingDoneMove: {
+              ticketId: pending.ticketId,
+              projectId: pending.projectId,
+              sortOrder: pending.sortOrder,
+              targetColumn: pending.targetColumn,
+              worktreeId: nextWorktree.worktreeId,
+              worktreeProjectId: nextWorktree.projectId,
+              remainingWorktrees: restWorktrees
+            }
+          })
+          return
+        }
         set({ pendingDoneMove: null })
         await get().moveTicket(
           pending.ticketId,

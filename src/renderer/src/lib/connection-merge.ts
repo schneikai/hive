@@ -1,0 +1,79 @@
+import { connectionApi } from '@/api/connection-api'
+import { dbApi } from '@/api/db-api'
+import { gitApi } from '@/api/git-api'
+import { useSessionStore } from '@/stores/useSessionStore'
+import type { Session, Worktree } from '../../../main/db/types'
+
+/** One connection-member worktree that needs the merge-on-done flow */
+export interface ConnectionMergeTarget {
+  worktreeId: string
+  projectId: string
+}
+
+/**
+ * Resolve the connection a ticket's session belongs to, if any.
+ * Checks the session store first (cheap), then falls back to the DB —
+ * the store map may be cold on project boards.
+ */
+export async function resolveTicketConnectionId(
+  sessionId: string | null | undefined
+): Promise<string | null> {
+  if (!sessionId) return null
+  for (const [connectionId, sessions] of useSessionStore.getState().sessionsByConnection.entries()) {
+    if (sessions.some((s) => s.id === sessionId)) return connectionId
+  }
+  const session = await dbApi.session.get<Session>(sessionId)
+  return session?.connection_id ?? null
+}
+
+/**
+ * Assess every member worktree of a connection and return the ones with work
+ * to merge (uncommitted changes or commits ahead of their base branch), using
+ * the same pre-checks as the single-project merge-on-done drop path.
+ * Members that are on their base branch, inactive, or unverifiable are skipped.
+ */
+export async function buildConnectionMergeQueue(
+  connectionId: string
+): Promise<ConnectionMergeTarget[]> {
+  const result = await connectionApi.get(connectionId)
+  const members = result.connection?.members ?? []
+  const seenWorktrees = new Set<string>()
+
+  const assessed = await Promise.all(
+    members.map(async (member): Promise<ConnectionMergeTarget | null> => {
+      if (seenWorktrees.has(member.worktree_id)) return null
+      seenWorktrees.add(member.worktree_id)
+      try {
+        const worktree = await dbApi.worktree.get<Worktree>(member.worktree_id)
+        if (!worktree || worktree.status !== 'active') return null
+
+        const activeWorktrees = await dbApi.worktree.getActiveByProject<Worktree>(
+          member.project_id
+        )
+        const defaultWt = activeWorktrees.find((w) => w.is_default)
+        const baseBranch = worktree.base_branch ?? defaultWt?.branch_name
+        if (!baseBranch || worktree.branch_name === baseBranch) return null
+
+        const baseWorktree = activeWorktrees.find(
+          (w) => w.branch_name === baseBranch && w.status === 'active'
+        )
+        if (!baseWorktree) return null
+
+        const [hasUncommitted, branchStatResult] = await Promise.all([
+          gitApi.hasUncommittedChanges(worktree.path),
+          gitApi.branchDiffShortStat(worktree.path, baseBranch)
+        ])
+        const commitsAhead = branchStatResult.success ? branchStatResult.commitsAhead : 0
+
+        if (hasUncommitted || commitsAhead > 0) {
+          return { worktreeId: worktree.id, projectId: member.project_id }
+        }
+        return null
+      } catch {
+        return null
+      }
+    })
+  )
+
+  return assessed.filter((t): t is ConnectionMergeTarget => t !== null)
+}

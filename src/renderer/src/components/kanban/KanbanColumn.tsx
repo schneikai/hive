@@ -40,6 +40,7 @@ import { useWorktreeStatusStore } from '@/stores/useWorktreeStatusStore'
 import { useUsageStore, resolveDefaultUsageProvider } from '@/stores/useUsageStore'
 import { useSettingsStore } from '@/stores/useSettingsStore'
 import { isBlockerSatisfied } from '@/lib/blocker-utils'
+import { buildConnectionMergeQueue, resolveTicketConnectionId } from '@/lib/connection-merge'
 import type {
   KanbanTicket,
   KanbanTicketColumn as ColumnType,
@@ -661,6 +662,40 @@ export function KanbanColumn({
                   // No base worktree OR nothing to commit/merge — fall through to normal move
                 }
               }
+            } catch (err) {
+              toast.warning(
+                `Could not verify merge status: ${err instanceof Error ? err.message : String(err)}`
+              )
+              return
+            }
+          } else if (draggedTicket?.current_session_id) {
+            // Connection tickets have no worktree_id — queue the merge flow
+            // once per member worktree with work to merge, then move the ticket
+            try {
+              const ticketConnectionId = await resolveTicketConnectionId(
+                draggedTicket.current_session_id
+              )
+              if (ticketConnectionId) {
+                const mergeQueue = await buildConnectionMergeQueue(ticketConnectionId)
+                if (mergeQueue.length > 0) {
+                  const [firstTarget, ...restTargets] = mergeQueue
+                  const sortOrder = store.computeSortOrder(
+                    projectTicketsForColumn(ticketProjectId),
+                    projectLocalDropIndex(ticketProjectId, targetIndex)
+                  )
+                  store.setPendingDoneMove({
+                    ticketId,
+                    projectId: ticketProjectId,
+                    sortOrder,
+                    targetColumn: column,
+                    worktreeId: firstTarget.worktreeId,
+                    worktreeProjectId: firstTarget.projectId,
+                    remainingWorktrees: restTargets
+                  })
+                  return
+                }
+              }
+              // No connection or nothing to merge — fall through to normal move
             } catch (err) {
               toast.warning(
                 `Could not verify merge status: ${err instanceof Error ? err.message : String(err)}`
