@@ -300,10 +300,12 @@ export const KanbanTicketCard = memo(function KanbanTicketCard({
 
   const conflictTargetWorktreeId = useWorktreeStatusStore(
     useCallback(
+      // Check the per-ticket map first — connection tickets have no
+      // worktree_id but still record a conflict target on failed merges
       (state) =>
-        ticket.worktree_id
-          ? (state.mergeConflictWorktreeByTicket[ticketKey(ticket.project_id, ticket.id)] ?? ticket.worktree_id)
-          : null,
+        state.mergeConflictWorktreeByTicket[ticketKey(ticket.project_id, ticket.id)] ??
+        ticket.worktree_id ??
+        null,
       [ticket.id, ticket.project_id, ticket.worktree_id]
     )
   )

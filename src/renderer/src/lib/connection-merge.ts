@@ -30,7 +30,9 @@ export async function resolveTicketConnectionId(
  * Assess every member worktree of a connection and return the ones with work
  * to merge (uncommitted changes or commits ahead of their base branch), using
  * the same pre-checks as the single-project merge-on-done drop path.
- * Members that are on their base branch, inactive, or unverifiable are skipped.
+ * Members that are on their base branch or inactive are skipped; an
+ * unverifiable member (DB/git failure) rejects so callers can abort the move
+ * instead of treating unchecked work as clean.
  */
 export async function buildConnectionMergeQueue(
   connectionId: string
@@ -43,35 +45,34 @@ export async function buildConnectionMergeQueue(
     members.map(async (member): Promise<ConnectionMergeTarget | null> => {
       if (seenWorktrees.has(member.worktree_id)) return null
       seenWorktrees.add(member.worktree_id)
-      try {
-        const worktree = await dbApi.worktree.get<Worktree>(member.worktree_id)
-        if (!worktree || worktree.status !== 'active') return null
 
-        const activeWorktrees = await dbApi.worktree.getActiveByProject<Worktree>(
-          member.project_id
+      const worktree = await dbApi.worktree.get<Worktree>(member.worktree_id)
+      if (!worktree || worktree.status !== 'active') return null
+
+      const activeWorktrees = await dbApi.worktree.getActiveByProject<Worktree>(member.project_id)
+      const defaultWt = activeWorktrees.find((w) => w.is_default)
+      const baseBranch = worktree.base_branch ?? defaultWt?.branch_name
+      if (!baseBranch || worktree.branch_name === baseBranch) return null
+
+      const baseWorktree = activeWorktrees.find(
+        (w) => w.branch_name === baseBranch && w.status === 'active'
+      )
+      if (!baseWorktree) return null
+
+      const [hasUncommitted, branchStatResult] = await Promise.all([
+        gitApi.hasUncommittedChanges(worktree.path),
+        gitApi.branchDiffShortStat(worktree.path, baseBranch)
+      ])
+      if (!branchStatResult.success) {
+        throw new Error(
+          `${worktree.branch_name}: ${branchStatResult.error ?? 'could not verify merge status'}`
         )
-        const defaultWt = activeWorktrees.find((w) => w.is_default)
-        const baseBranch = worktree.base_branch ?? defaultWt?.branch_name
-        if (!baseBranch || worktree.branch_name === baseBranch) return null
-
-        const baseWorktree = activeWorktrees.find(
-          (w) => w.branch_name === baseBranch && w.status === 'active'
-        )
-        if (!baseWorktree) return null
-
-        const [hasUncommitted, branchStatResult] = await Promise.all([
-          gitApi.hasUncommittedChanges(worktree.path),
-          gitApi.branchDiffShortStat(worktree.path, baseBranch)
-        ])
-        const commitsAhead = branchStatResult.success ? branchStatResult.commitsAhead : 0
-
-        if (hasUncommitted || commitsAhead > 0) {
-          return { worktreeId: worktree.id, projectId: member.project_id }
-        }
-        return null
-      } catch {
-        return null
       }
+
+      if (hasUncommitted || branchStatResult.commitsAhead > 0) {
+        return { worktreeId: worktree.id, projectId: member.project_id }
+      }
+      return null
     })
   )
 

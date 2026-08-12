@@ -156,25 +156,48 @@ describe('buildConnectionMergeQueue', () => {
     expect(queue).toEqual([{ worktreeId: 'wt-ahead', projectId: 'proj-1' }])
   })
 
-  it('skips members whose base worktree is missing and survives member errors', async () => {
+  it('skips members whose base worktree is missing', async () => {
     connectionApiMocks.get.mockResolvedValue({
       success: true,
       connection: {
         id: 'conn-1',
-        members: [
-          { worktree_id: 'wt-no-base', project_id: 'proj-1' },
-          { worktree_id: 'wt-error', project_id: 'proj-2' }
-        ]
+        members: [{ worktree_id: 'wt-no-base', project_id: 'proj-1' }]
       }
     })
-    dbApiMocks.worktree.get.mockImplementation(async (id: string) => {
-      if (id === 'wt-no-base') return worktree({ id: 'wt-no-base' })
-      throw new Error('db down')
-    })
+    dbApiMocks.worktree.get.mockResolvedValue(worktree({ id: 'wt-no-base' }))
     // No default/base worktree in the project
     dbApiMocks.worktree.getActiveByProject.mockResolvedValue([])
 
     expect(await buildConnectionMergeQueue('conn-1')).toEqual([])
+  })
+
+  it('rejects when a member assessment throws, so the drop can abort', async () => {
+    connectionApiMocks.get.mockResolvedValue({
+      success: true,
+      connection: {
+        id: 'conn-1',
+        members: [{ worktree_id: 'wt-error', project_id: 'proj-1' }]
+      }
+    })
+    dbApiMocks.worktree.get.mockRejectedValue(new Error('db down'))
+
+    await expect(buildConnectionMergeQueue('conn-1')).rejects.toThrow('db down')
+  })
+
+  it('rejects when branch stats cannot be verified', async () => {
+    connectionApiMocks.get.mockResolvedValue({
+      success: true,
+      connection: {
+        id: 'conn-1',
+        members: [{ worktree_id: 'wt-feature', project_id: 'proj-1' }]
+      }
+    })
+    dbApiMocks.worktree.get.mockResolvedValue(worktree())
+    dbApiMocks.worktree.getActiveByProject.mockResolvedValue([mainWorktree])
+    gitApiMocks.hasUncommittedChanges.mockResolvedValue(false)
+    gitApiMocks.branchDiffShortStat.mockResolvedValue({ success: false, error: 'git exploded' })
+
+    await expect(buildConnectionMergeQueue('conn-1')).rejects.toThrow('git exploded')
   })
 
   it('returns empty when the connection lookup fails', async () => {
