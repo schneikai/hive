@@ -36,7 +36,8 @@ import {
   Unplug,
   SquareTerminal,
   Radar,
-  Bot
+  Bot,
+  Star
 } from 'lucide-react'
 import { CheckeredFlagIcon } from './CheckeredFlagIcon'
 import { HighlightedText } from './HighlightedText'
@@ -102,6 +103,7 @@ import { useScriptStore } from '@/stores/useScriptStore'
 import { useWorktreeStatusStore } from '@/stores/useWorktreeStatusStore'
 import { useQuestionStore } from '@/stores/useQuestionStore'
 import { usePinnedStore } from '@/stores/usePinnedStore'
+import { useFavoriteTicketsStore } from '@/stores/useFavoriteTicketsStore'
 import { useFileViewerStore } from '@/stores/useFileViewerStore'
 import { useTelegramStore } from '@/stores/useTelegramStore'
 import { useSessionTimer } from '@/hooks/useSessionTimer'
@@ -850,6 +852,20 @@ export const KanbanTicketCard = memo(function KanbanTicketCard({
     ticket.goal_mode,
     ticket.goal_success_criteria
   ])
+
+  const handleAddToFavorites = useCallback(async () => {
+    try {
+      await useFavoriteTicketsStore.getState().createFavorite({
+        title: ticket.title,
+        description: ticket.description,
+        goal_mode: ticket.goal_mode,
+        goal_success_criteria: ticket.goal_success_criteria
+      })
+      toast.success('Added to favorites')
+    } catch {
+      toast.error('Failed to add to favorites')
+    }
+  }, [ticket.title, ticket.description, ticket.goal_mode, ticket.goal_success_criteria])
 
   const handleMoveToProject = useCallback(
     async (project: { id: string; name: string }) => {
@@ -1829,6 +1845,15 @@ export const KanbanTicketCard = memo(function KanbanTicketCard({
           >
             <Copy className="h-3.5 w-3.5" />
             Duplicate
+          </ContextMenuItem>
+
+          <ContextMenuItem
+            data-testid="ctx-add-to-favorites"
+            onClick={() => void handleAddToFavorites()}
+            className="gap-2"
+          >
+            <Star className="h-3.5 w-3.5" />
+            Add to favorites
           </ContextMenuItem>
 
           {!isExternalTicket && (

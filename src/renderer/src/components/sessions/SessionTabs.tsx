@@ -29,7 +29,8 @@ import {
   FileJson,
   FileSearch,
   GitPullRequest,
-  RadioTower
+  RadioTower,
+  Star
 } from 'lucide-react'
 import { KanbanIcon } from '@/components/kanban/KanbanIcon'
 import { useSessionStore, BOARD_TAB_ID } from '@/stores/useSessionStore'
@@ -47,6 +48,7 @@ import { useConnectionStore } from '@/stores/useConnectionStore'
 import { useSettingsStore } from '@/stores/useSettingsStore'
 import { useWorktreeStatusStore } from '@/stores/useWorktreeStatusStore'
 import { useKanbanStore } from '@/stores/useKanbanStore'
+import { useFavoriteTicketsStore } from '@/stores/useFavoriteTicketsStore'
 import { TicketCreateModal } from '@/components/kanban/TicketCreateModal'
 import { ImportTicketsModal } from '@/components/kanban/ImportTicketsModal'
 import { JiraImportModal } from '@/components/kanban/JiraImportModal'
@@ -660,6 +662,8 @@ export function SessionTabs(): React.JSX.Element | null {
   const selectedConnectionId = useConnectionStore((state) => state.selectedConnectionId)
   const connections = useConnectionStore((state) => state.connections)
   const isBoardViewActive = useKanbanStore((state) => state.isBoardViewActive)
+  const isFavoritesPaneOpen = useFavoriteTicketsStore((state) => state.isPaneOpen)
+  const toggleFavoritesPane = useFavoriteTicketsStore((state) => state.togglePane)
   const pinnedSessionIds = useSessionStore((state) => state.pinnedSessionIds)
   const activePinnedSessionId = useSessionStore((state) => state.activePinnedSessionId)
   const boardMode = useSettingsStore((s) => s.boardMode)
@@ -1690,6 +1694,22 @@ export function SessionTabs(): React.JSX.Element | null {
           data-testid="scroll-right"
         >
           <ChevronRight className="h-4 w-4" />
+        </button>
+      )}
+
+      {/* Favorites pane toggle — kanban mode, sits on the tab bar line */}
+      {(isBoardViewActive || isStickyBoardActive) && !isConnectionMode && (
+        <button
+          className={cn(
+            'flex items-center gap-1.5 px-3 py-1.5 text-xs text-muted-foreground hover:bg-muted hover:text-foreground transition-colors shrink-0 border-l border-border cursor-pointer select-none',
+            isFavoritesPaneOpen && 'bg-accent text-accent-foreground'
+          )}
+          data-testid="kanban-favorites-btn"
+          title={isFavoritesPaneOpen ? 'Hide favorite tickets' : 'Show favorite tickets'}
+          onClick={toggleFavoritesPane}
+        >
+          <Star className="h-3.5 w-3.5" />
+          Favorites
         </button>
       )}
 

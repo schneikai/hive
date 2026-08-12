@@ -586,6 +586,32 @@ export interface KanbanTicketUpdate {
   variant_group_id?: string | null
 }
 
+// Favorite ticket templates (global, cross-project; may contain {{placeholder.x}} tokens)
+export interface FavoriteTicket {
+  id: string
+  title: string
+  description: string | null
+  goal_mode: boolean
+  goal_success_criteria: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface FavoriteTicketCreate {
+  id?: string
+  title: string
+  description?: string | null
+  goal_mode?: boolean
+  goal_success_criteria?: string | null
+}
+
+export interface FavoriteTicketUpdate {
+  title?: string
+  description?: string | null
+  goal_mode?: boolean
+  goal_success_criteria?: string | null
+}
+
 /** Fields a caller may override on a freshly duplicated ticket; see KanbanBackend.duplicate. */
 export interface KanbanTicketDuplicateOverrides {
   column?: KanbanTicketColumn

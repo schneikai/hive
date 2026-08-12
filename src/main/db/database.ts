@@ -41,6 +41,9 @@ import type {
   ConnectionMemberCreate,
   ConnectionWithMembers,
   ConnectionHistoryEntry,
+  FavoriteTicket,
+  FavoriteTicketCreate,
+  FavoriteTicketUpdate,
   KanbanTicket,
   KanbanTicketCreate,
   KanbanTicketBatchCreate,
@@ -749,6 +752,19 @@ export class DatabaseService {
       CREATE INDEX IF NOT EXISTS idx_kanban_tickets_project ON kanban_tickets(project_id);
       CREATE INDEX IF NOT EXISTS idx_kanban_tickets_session ON kanban_tickets(current_session_id);
       CREATE INDEX IF NOT EXISTS idx_kanban_tickets_worktree ON kanban_tickets(worktree_id);
+    `)
+
+    // Favorite ticket templates (idempotent repair for v43 migration)
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS favorite_tickets (
+        id TEXT PRIMARY KEY,
+        title TEXT NOT NULL,
+        description TEXT,
+        goal_mode INTEGER NOT NULL DEFAULT 0,
+        goal_success_criteria TEXT DEFAULT NULL,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
     `)
 
     // Ticket followup messages table + index (idempotent repair for v13/v14 migrations)
@@ -2996,6 +3012,99 @@ export class DatabaseService {
       id
     )
     return this.getKanbanTicket(id)
+  }
+
+  // Favorite ticket template operations (global, cross-project)
+
+  private mapFavoriteTicketRow(row: Record<string, unknown>): FavoriteTicket {
+    return {
+      id: row.id as string,
+      title: row.title as string,
+      description: (row.description as string) ?? null,
+      goal_mode: row.goal_mode === 1,
+      goal_success_criteria: (row.goal_success_criteria as string) ?? null,
+      created_at: row.created_at as string,
+      updated_at: row.updated_at as string
+    }
+  }
+
+  getFavoriteTickets(): FavoriteTicket[] {
+    const db = this.getDb()
+    const rows = db
+      .prepare('SELECT * FROM favorite_tickets ORDER BY created_at DESC')
+      .all() as Record<string, unknown>[]
+    return rows.map((row) => this.mapFavoriteTicketRow(row))
+  }
+
+  getFavoriteTicket(id: string): FavoriteTicket | null {
+    const db = this.getDb()
+    const row = db.prepare('SELECT * FROM favorite_tickets WHERE id = ?').get(id) as
+      | Record<string, unknown>
+      | undefined
+    return row ? this.mapFavoriteTicketRow(row) : null
+  }
+
+  createFavoriteTicket(data: FavoriteTicketCreate): FavoriteTicket {
+    const db = this.getDb()
+    const now = new Date().toISOString()
+    const id = data.id ?? randomUUID()
+    const description = data.description ?? null
+    const goalMode = data.goal_mode ? 1 : 0
+    const goalSuccessCriteria = data.goal_success_criteria ?? null
+
+    db.prepare(
+      `INSERT INTO favorite_tickets (id, title, description, goal_mode, goal_success_criteria, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`
+    ).run(id, data.title, description, goalMode, goalSuccessCriteria, now, now)
+
+    return this.mapFavoriteTicketRow({
+      id,
+      title: data.title,
+      description,
+      goal_mode: goalMode,
+      goal_success_criteria: goalSuccessCriteria,
+      created_at: now,
+      updated_at: now
+    })
+  }
+
+  updateFavoriteTicket(id: string, data: FavoriteTicketUpdate): FavoriteTicket | null {
+    const db = this.getDb()
+    const existing = this.getFavoriteTicket(id)
+    if (!existing) return null
+
+    const updates: string[] = ['updated_at = ?']
+    const values: (string | number | null)[] = [new Date().toISOString()]
+
+    if (data.title !== undefined) {
+      updates.push('title = ?')
+      values.push(data.title)
+    }
+    if (data.description !== undefined) {
+      updates.push('description = ?')
+      values.push(data.description)
+    }
+    if (data.goal_mode !== undefined) {
+      updates.push('goal_mode = ?')
+      values.push(data.goal_mode ? 1 : 0)
+    }
+    if (data.goal_success_criteria !== undefined) {
+      updates.push('goal_success_criteria = ?')
+      values.push(data.goal_success_criteria)
+    }
+
+    if (updates.length === 1) return existing // Only updated_at, nothing meaningful changed
+
+    values.push(id)
+    db.prepare(`UPDATE favorite_tickets SET ${updates.join(', ')} WHERE id = ?`).run(...values)
+
+    return this.getFavoriteTicket(id)
+  }
+
+  deleteFavoriteTicket(id: string): boolean {
+    const db = this.getDb()
+    const result = db.prepare('DELETE FROM favorite_tickets WHERE id = ?').run(id)
+    return result.changes > 0
   }
 
   archiveAllDoneKanbanTickets(projectId: string, includeMerged = false): number {

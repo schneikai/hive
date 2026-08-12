@@ -1,4 +1,4 @@
-export const CURRENT_SCHEMA_VERSION = 42
+export const CURRENT_SCHEMA_VERSION = 43
 
 export const SCHEMA_SQL = `
 -- Projects table
@@ -703,5 +703,21 @@ DROP TABLE IF EXISTS diff_comments;`
          -- handled idempotently by safeAddColumn() in database.ts to avoid
          -- "duplicate column" errors.`,
     down: `-- SQLite cannot drop columns; this is a no-op for safety`
+  },
+  {
+    version: 43,
+    name: 'add_favorite_tickets',
+    up: `
+      CREATE TABLE IF NOT EXISTS favorite_tickets (
+        id TEXT PRIMARY KEY,
+        title TEXT NOT NULL,
+        description TEXT,
+        goal_mode INTEGER NOT NULL DEFAULT 0,
+        goal_success_criteria TEXT DEFAULT NULL,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+    `,
+    down: `DROP TABLE IF EXISTS favorite_tickets;`
   }
 ]

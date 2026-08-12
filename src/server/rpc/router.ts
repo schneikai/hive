@@ -61,6 +61,11 @@ import {
   type PerfDiagnosticsOpsRpcService
 } from './domains/perf-diagnostics-ops'
 import {
+  makeFavoriteTicketsRpcHandlers,
+  makeLiveFavoriteTicketsRpcService,
+  type FavoriteTicketsRpcService
+} from './domains/favorite-tickets'
+import {
   makeFileTreeOpsRpcHandlers,
   makeLiveFileTreeOpsRpcService,
   type FileTreeOpsRpcService
@@ -162,6 +167,7 @@ export interface RpcContext {
   readonly connectionOps?: ConnectionOpsRpcService
   readonly db?: DbRpcService
   readonly discordOps?: DiscordOpsRpcService
+  readonly favoriteTickets?: FavoriteTicketsRpcService
   readonly fileOps?: FileOpsRpcService
   readonly fileTreeOps?: FileTreeOpsRpcService
   readonly gitOps?: GitOpsRpcService
@@ -221,6 +227,9 @@ const makeDefaultRpcHandlers = (context: RpcContext): ReadonlyMap<string, RpcHan
     ...makeDbRpcHandlers(context.db ?? makeLiveDbRpcService()),
     ...makeDiscordOpsRpcHandlers(
       context.discordOps ?? makeLiveDiscordOpsRpcService(context.eventBus)
+    ),
+    ...makeFavoriteTicketsRpcHandlers(
+      context.favoriteTickets ?? makeLiveFavoriteTicketsRpcService()
     ),
     ...makeFileOpsRpcHandlers(context.fileOps ?? makeLiveFileOpsRpcService()),
     ...makeFileTreeOpsRpcHandlers(context.fileTreeOps ?? makeLiveFileTreeOpsRpcService()),
