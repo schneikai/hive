@@ -52,13 +52,19 @@ export function FavoriteTicketEditModal({
     if (!favorite || isTitleEmpty || isGoalCriteriaMissing || isSaving) return
     setIsSaving(true)
     try {
-      await useFavoriteTicketsStore.getState().updateFavorite(favorite.id, {
+      const updated = await useFavoriteTicketsStore.getState().updateFavorite(favorite.id, {
         title: title.trim(),
         description: description.trim() || null,
         goal_mode: goalMode,
         goal_success_criteria: goalMode ? goalCriteria.trim() : null
       })
-      toast.success('Favorite updated')
+      if (updated) {
+        toast.success('Favorite updated')
+      } else {
+        // Row was already gone — resync so the stale card disappears
+        toast.error('Favorite no longer exists')
+        void useFavoriteTicketsStore.getState().loadFavorites()
+      }
       onOpenChange(false)
     } catch {
       toast.error('Failed to update favorite')

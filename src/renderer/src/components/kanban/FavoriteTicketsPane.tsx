@@ -34,8 +34,14 @@ function FavoriteTicketCard({
 
   const handleUnfavorite = async (): Promise<void> => {
     try {
-      await useFavoriteTicketsStore.getState().deleteFavorite(favorite.id)
-      toast.success('Removed from favorites')
+      const deleted = await useFavoriteTicketsStore.getState().deleteFavorite(favorite.id)
+      if (deleted) {
+        toast.success('Removed from favorites')
+      } else {
+        // Row was already gone — resync so the stale card disappears
+        toast.error('Favorite no longer exists')
+        void useFavoriteTicketsStore.getState().loadFavorites()
+      }
     } catch {
       toast.error('Failed to remove favorite')
     }
@@ -149,15 +155,9 @@ export function FavoriteTicketsPane(): React.JSX.Element {
       <div className="flex-1 overflow-y-auto min-h-0 p-2 space-y-2">
         {favorites.length === 0 ? (
           <div className="px-2 py-8 text-center text-xs text-muted-foreground">
-            {isLoaded ? (
-              <>
-                <Star className="h-6 w-6 mx-auto mb-2 opacity-50" />
-                <p>No favorite tickets yet.</p>
-                <p className="mt-1">
-                  Right-click a ticket on the board and choose “Add to favorites”.
-                </p>
-              </>
-            ) : loadError ? (
+            {loadError ? (
+              // Check the error first: isLoaded stays true after an earlier
+              // successful load, and a failed reload must not read as "empty"
               <>
                 <p>Failed to load favorites.</p>
                 <Button
@@ -169,6 +169,14 @@ export function FavoriteTicketsPane(): React.JSX.Element {
                 >
                   Retry
                 </Button>
+              </>
+            ) : isLoaded ? (
+              <>
+                <Star className="h-6 w-6 mx-auto mb-2 opacity-50" />
+                <p>No favorite tickets yet.</p>
+                <p className="mt-1">
+                  Right-click a ticket on the board and choose “Add to favorites”.
+                </p>
               </>
             ) : (
               'Loading…'

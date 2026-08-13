@@ -62,6 +62,42 @@ describe('useFavoriteTicketsStore', () => {
     expect(useFavoriteTicketsStore.getState().isLoaded).toBe(true)
   })
 
+  it('refetches instead of applying a stale list when a mutation lands mid-load', async () => {
+    const staleList = [favorite({ id: 'fav-old' })]
+    const created = favorite({ id: 'fav-new', title: 'New favorite' })
+    const freshList = [created, ...staleList]
+
+    let listCalls = 0
+    let resolveFirstList!: (rows: FavoriteTicket[]) => void
+    request.mockImplementation((method: string) => {
+      if (method === 'favoriteTickets.list') {
+        listCalls++
+        if (listCalls === 1) {
+          return new Promise<FavoriteTicket[]>((resolve) => {
+            resolveFirstList = resolve
+          })
+        }
+        return Promise.resolve(freshList)
+      }
+      if (method === 'favoriteTickets.create') return Promise.resolve(created)
+      return Promise.resolve(null)
+    })
+
+    const loadPromise = useFavoriteTicketsStore.getState().loadFavorites()
+    // Mutation completes while the first list request is still in flight
+    await useFavoriteTicketsStore.getState().createFavorite({ title: 'New favorite' })
+    // The first list response predates the mutation — it must not be applied
+    resolveFirstList(staleList)
+    await loadPromise
+
+    expect(listCalls).toBe(2)
+    expect(useFavoriteTicketsStore.getState().favorites.map((f) => f.id)).toEqual([
+      'fav-new',
+      'fav-old'
+    ])
+    expect(useFavoriteTicketsStore.getState().isLoaded).toBe(true)
+  })
+
   it('prepends created favorites', async () => {
     useFavoriteTicketsStore.setState({ favorites: [favorite({ id: 'fav-old' })] })
     const created = favorite({ id: 'fav-new', title: 'New favorite' })

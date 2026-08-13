@@ -23,6 +23,10 @@ interface FavoriteTicketsState {
   setPaneOpen: (open: boolean) => void
 }
 
+// Bumped whenever a mutation lands so an in-flight list fetch can detect that
+// its response predates the mutation and must not clobber newer state.
+let mutationSeq = 0
+
 export const useFavoriteTicketsStore = create<FavoriteTicketsState>()(
   persist(
     (set, get) => ({
@@ -35,8 +39,15 @@ export const useFavoriteTicketsStore = create<FavoriteTicketsState>()(
       loadFavorites: async () => {
         if (get().isLoading) return
         set({ isLoading: true, loadError: null })
+        const seqAtStart = mutationSeq
         try {
           const favorites = await favoriteTicketsApi.list<FavoriteTicket>()
+          if (mutationSeq !== seqAtStart) {
+            // A create/update/delete completed while this list was in flight —
+            // the response may predate it, so fetch again instead of applying.
+            set({ isLoading: false })
+            return get().loadFavorites()
+          }
           set({ favorites, isLoaded: true, isLoading: false })
         } catch (err) {
           console.error('Failed to load favorite tickets:', err)
@@ -49,6 +60,7 @@ export const useFavoriteTicketsStore = create<FavoriteTicketsState>()(
 
       createFavorite: async (data) => {
         const created = await favoriteTicketsApi.create<FavoriteTicket, FavoriteTicketCreate>(data)
+        mutationSeq++
         set((state) => ({ favorites: [created, ...state.favorites] }))
         return created
       },
@@ -59,6 +71,7 @@ export const useFavoriteTicketsStore = create<FavoriteTicketsState>()(
           data
         )
         if (updated) {
+          mutationSeq++
           set((state) => ({
             favorites: state.favorites.map((f) => (f.id === id ? updated : f))
           }))
@@ -69,6 +82,7 @@ export const useFavoriteTicketsStore = create<FavoriteTicketsState>()(
       deleteFavorite: async (id) => {
         const deleted = await favoriteTicketsApi.delete(id)
         if (deleted) {
+          mutationSeq++
           set((state) => ({ favorites: state.favorites.filter((f) => f.id !== id) }))
         }
         return deleted
