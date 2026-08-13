@@ -14,7 +14,7 @@ import { existsSync } from 'fs'
 import { readFile } from 'fs/promises'
 import { homedir } from 'os'
 import { join } from 'path'
-import { keychainDelete, keychainRead, keychainWrite } from './keychain'
+import { keychainDelete, keychainListAccounts, keychainRead, keychainWrite } from './keychain'
 import { atomicWriteJson, readJsonFile } from './atomic-json'
 import { createLogger } from './logger'
 
@@ -72,8 +72,18 @@ export interface ClaudeStoreAccount {
 const LIST_CACHE_TTL_MS = 15_000
 let listCache: { value: ClaudeStoreAccount[]; expiresAt: number } | null = null
 
+/**
+ * Short TTL memo for the live Keychain entry's `acct` attribute (see
+ * `resolveLiveKeychainAccount`). Caches only the RESOLUTION — which item to
+ * read/write — never the secret itself, so token reads always hit the
+ * Keychain fresh. `{ value: null }` (resolved-to-nothing) is a valid cached
+ * state; the whole slot being null means "not resolved yet".
+ */
+let liveAccountCache: { value: string | null; expiresAt: number } | null = null
+
 function invalidateListCache(): void {
   listCache = null
+  liveAccountCache = null
 }
 
 /** Test-only escape hatch: forces the next `listClaudeAccounts()` call to
@@ -158,9 +168,10 @@ function nextNumber(seq: SequenceFile): number {
 
 /** Read+parse a Keychain credential blob, tolerating a missing or corrupt entry (=> null). */
 async function readKeychainBlob(
-  service: string
+  service: string,
+  account?: string
 ): Promise<{ raw: string; parsed: ClaudeOauthBlob } | null> {
-  const raw = await keychainRead(service)
+  const raw = await keychainRead(service, account)
   if (raw === null) return null
   try {
     const full = JSON.parse(raw) as ClaudeCredentialBlob
@@ -174,9 +185,84 @@ async function readKeychainBlob(
   }
 }
 
+function hasAccessToken(blob: { parsed: ClaudeOauthBlob } | null): boolean {
+  return typeof blob?.parsed.accessToken === 'string' && blob.parsed.accessToken.length > 0
+}
+
+/**
+ * The `acct` attribute of the Keychain item that actually holds the live
+ * Claude credentials, or null to fall back to first-match reads/default-acct
+ * writes.
+ *
+ * The live slot can hold DUPLICATE items (same service, different account
+ * attribute) — seen in the field when the `claude` CLI's item and an
+ * `add-generic-password -a $USER` write disagree on the account attribute.
+ * `find-generic-password -s` then always returns the first item, which may be
+ * a long-stale copy: Hive keeps refreshing with a rotated-away refresh token
+ * (invalid_grant) and flags a perfectly healthy active account as expired.
+ * When duplicates exist, pick the item whose blob parses with an access token
+ * and the latest expiresAt — the copy the CLI keeps fresh. Writes reuse the
+ * same attribute so `-U` updates that item in place instead of forking yet
+ * another duplicate.
+ */
+async function resolveLiveKeychainAccount(): Promise<string | null> {
+  if (liveAccountCache !== null && liveAccountCache.expiresAt > Date.now()) {
+    return liveAccountCache.value
+  }
+
+  let account: string | null = null
+  try {
+    const accounts = (await keychainListAccounts(LIVE_CLAUDE_KEYCHAIN_SERVICE)).filter(
+      (acct): acct is string => acct !== null
+    )
+    const unique = [...new Set(accounts)]
+
+    if (unique.length === 1) {
+      account = unique[0]
+    } else if (unique.length > 1) {
+      let best: { account: string; expiresAt: number } | null = null
+      for (const acct of unique) {
+        const blob = await readKeychainBlob(LIVE_CLAUDE_KEYCHAIN_SERVICE, acct)
+        if (!hasAccessToken(blob)) continue
+        const expiresAt = typeof blob?.parsed.expiresAt === 'number' ? blob.parsed.expiresAt : 0
+        if (best === null || expiresAt > best.expiresAt) {
+          best = { account: acct, expiresAt }
+        }
+      }
+      account = best?.account ?? null
+      log.warn('Multiple live Claude Keychain entries found; targeting the freshest', {
+        entryCount: unique.length,
+        resolved: account !== null
+      })
+    }
+  } catch (error) {
+    log.warn('Failed to enumerate live Claude Keychain entries; using first-match reads', {
+      error: error instanceof Error ? error.message : String(error)
+    })
+  }
+
+  liveAccountCache = { value: account, expiresAt: Date.now() + LIST_CACHE_TTL_MS }
+  return account
+}
+
 /** The currently-live Keychain credential blob ("Claude Code-credentials"). */
 async function readLiveBlob(): Promise<{ raw: string; parsed: ClaudeOauthBlob } | null> {
-  return readKeychainBlob(LIVE_CLAUDE_KEYCHAIN_SERVICE)
+  const account = await resolveLiveKeychainAccount()
+  return readKeychainBlob(LIVE_CLAUDE_KEYCHAIN_SERVICE, account ?? undefined)
+}
+
+/** The raw live Keychain credential blob, read via duplicate-aware resolution
+ * (see `resolveLiveKeychainAccount`). Keychain-only — no file fallback. */
+export async function readClaudeLiveKeychainRaw(): Promise<string | null> {
+  const account = await resolveLiveKeychainAccount()
+  return keychainRead(LIVE_CLAUDE_KEYCHAIN_SERVICE, account ?? undefined)
+}
+
+/** Write the live Keychain credential blob onto the item the `claude` CLI
+ * actually uses (see `resolveLiveKeychainAccount`). */
+async function writeLiveBlob(raw: string): Promise<void> {
+  const account = await resolveLiveKeychainAccount()
+  await keychainWrite(LIVE_CLAUDE_KEYCHAIN_SERVICE, raw, account ?? undefined)
 }
 
 /** The per-account backup Keychain credential blob. */
@@ -191,6 +277,11 @@ export async function readClaudeAccountBlob(
  * Effective credentials for an account: the live Keychain blob when this
  * account is currently active (its real, freshest tokens live there),
  * otherwise the per-account backup blob.
+ *
+ * A live blob that parses but carries no access token (an empty or foreign
+ * shape — e.g. a stale duplicate Keychain item) is treated as absent rather
+ * than returned: short-circuiting on it would skip the backup blob and
+ * misreport a recoverable account as "Invalid Claude credentials".
  */
 export async function readClaudeEffectiveBlob(
   num: string,
@@ -199,7 +290,7 @@ export async function readClaudeEffectiveBlob(
   const liveEmail = await readClaudeLiveEmail()
   if (liveEmail !== null && liveEmail === email.toLowerCase()) {
     const live = await readLiveBlob()
-    if (live) return live
+    if (live && hasAccessToken(live)) return live
   }
   return readClaudeAccountBlob(num, email)
 }
@@ -291,7 +382,7 @@ export async function updateClaudeTokens(
 
   const liveEmail = await readClaudeLiveEmail()
   if (liveEmail !== null && liveEmail === email.toLowerCase()) {
-    await keychainWrite(LIVE_CLAUDE_KEYCHAIN_SERVICE, raw)
+    await writeLiveBlob(raw)
   }
 }
 
@@ -305,7 +396,7 @@ interface LiveCredentialsSource {
  * would find them: Keychain first, falling back to the legacy credentials
  * file. Returns null when neither source has anything. */
 async function readLiveCredentialsSource(): Promise<LiveCredentialsSource | null> {
-  const keychainRaw = await keychainRead(LIVE_CLAUDE_KEYCHAIN_SERVICE)
+  const keychainRaw = await readClaudeLiveKeychainRaw()
   if (keychainRaw !== null) return { kind: 'keychain', raw: keychainRaw }
 
   const filePath = join(homedir(), '.claude', '.credentials.json')
@@ -376,7 +467,7 @@ export async function persistRotatedLiveClaudeTokens(
   const patchedRaw = JSON.stringify(full)
 
   if (source.kind === 'keychain') {
-    await keychainWrite(LIVE_CLAUDE_KEYCHAIN_SERVICE, patchedRaw)
+    await writeLiveBlob(patchedRaw)
   } else {
     await atomicWriteJson(source.filePath!, full, { mode: 0o600 })
   }
@@ -420,7 +511,7 @@ export async function switchClaudeAccount(num: string, email: string): Promise<v
   if (!target) {
     throw new Error(`No stored Claude credentials for account ${num} (${email})`)
   }
-  await keychainWrite(LIVE_CLAUDE_KEYCHAIN_SERVICE, target.raw)
+  await writeLiveBlob(target.raw)
 
   // 3) Merge oauthAccount identity fields into the identity file, preserving
   //    everything else. Never clobber a file we couldn't parse.

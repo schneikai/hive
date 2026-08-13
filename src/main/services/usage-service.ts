@@ -3,7 +3,7 @@ import { readFile } from 'fs/promises'
 import { join } from 'path'
 import { homedir } from 'os'
 import { createLogger } from './logger'
-import { keychainRead } from './keychain'
+import { readClaudeLiveKeychainRaw } from './account-store-claude'
 import { refreshAnthropicToken } from './oauth-anthropic'
 import type { ClaudeRefreshResult, ScopedUsageWindow, UsageData, UsageResult } from '@shared/types/usage'
 
@@ -105,10 +105,12 @@ function parseClaudeCredentials(raw: string): ClaudeUsageOverride | null {
 /**
  * Read the OAuth access token from macOS Keychain.
  * Claude Code v2.x stores credentials in the keychain under
- * service "Claude Code-credentials".
+ * service "Claude Code-credentials". Read via the account store's
+ * duplicate-aware resolution — a plain first-match read can land on a stale
+ * duplicate item and burn refresh attempts on a rotated-away token.
  */
 async function readFromKeychain(): Promise<ClaudeUsageOverride | null> {
-  const stdout = await keychainRead('Claude Code-credentials')
+  const stdout = await readClaudeLiveKeychainRaw()
   if (!stdout) return null
   return parseClaudeCredentials(stdout)
 }

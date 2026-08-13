@@ -325,18 +325,25 @@ function isAuthStatusError(message: string): boolean {
   return /\b(401|403)\b/.test(message)
 }
 
-function isOpenAIStaleError(message: string): boolean {
+// `stale` means "the user must sign in again", so only genuine auth
+// rejections qualify: an auth-status response from the usage API, an
+// `invalid_grant` from the token endpoint, or no refresh token to try.
+// Transient refresh failures (network errors, timeouts, token-endpoint 5xx)
+// also arrive prefixed "Token refresh failed:" — matching on that prefix
+// would flag healthy accounts as expired on every VPN blip, so they map to
+// `error` instead.
+export function isOpenAIStaleError(message: string): boolean {
   return (
     isAuthStatusError(message) ||
-    message.includes('Token refresh failed') ||
+    message.includes('invalid_grant') ||
     message.includes('No refresh token available')
   )
 }
 
-function isClaudeStaleError(message: string): boolean {
+export function isClaudeStaleError(message: string): boolean {
   return (
     /\b401\b/.test(message) ||
-    message.includes('Token refresh failed') ||
+    message.includes('invalid_grant') ||
     message.includes('No refresh token available')
   )
 }

@@ -19,7 +19,7 @@ function isItemNotFoundError(error: unknown): boolean {
   return /could not be found/i.test(message)
 }
 
-function runSecurity(args: string[]): Promise<string> {
+function runSecurity(args: string[], timeoutMs = 5000): Promise<string> {
   const subcommand = args[0] ?? 'security'
   return new Promise((resolve, reject) => {
     // `-w <secret>` passes the secret as an argv element, so it is briefly
@@ -33,7 +33,7 @@ function runSecurity(args: string[]): Promise<string> {
     // saved_usage_accounts.last_error column, switchAccount error results, and
     // renderer toasts. Reject instead with only the subcommand name, the exit
     // code, and security's stderr (which never echoes `-w` values).
-    execFile('security', args, { timeout: 5000 }, (error, stdout, stderr) => {
+    execFile('security', args, { timeout: timeoutMs, maxBuffer: 16 * 1024 * 1024 }, (error, stdout, stderr) => {
       if (error) {
         const rawCode = (error as ExecFileException).code
         const trimmedStderr = typeof stderr === 'string' ? stderr.trim() : ''
@@ -57,14 +57,20 @@ function runSecurity(args: string[]): Promise<string> {
 }
 
 /**
- * Read a secret from the macOS Keychain's generic password store.
- * Returns null when not on macOS, the item isn't found, or any other error
- * occurs.
+ * Read a secret from the macOS Keychain's generic password store. When
+ * `account` is given, only an item matching BOTH service and account is
+ * returned — `find-generic-password -s` alone returns the FIRST match, which
+ * is ambiguous when duplicate items share a service name (see
+ * `keychainListAccounts`). Returns null when not on macOS, the item isn't
+ * found, or any other error occurs.
  */
-export async function keychainRead(service: string): Promise<string | null> {
+export async function keychainRead(service: string, account?: string): Promise<string | null> {
   if (platform() !== 'darwin') return null
+  const args = ['find-generic-password', '-s', service]
+  if (account !== undefined) args.push('-a', account)
+  args.push('-w')
   try {
-    const stdout = await runSecurity(['find-generic-password', '-s', service, '-w'])
+    const stdout = await runSecurity(args)
     return stdout || null
   } catch {
     return null
@@ -75,19 +81,87 @@ export async function keychainRead(service: string): Promise<string | null> {
  * Write (or overwrite) a secret in the macOS Keychain's generic password
  * store. Throws on non-macOS platforms and when the underlying `security`
  * CLI call fails.
+ *
+ * `-U` only updates in place when an item matches BOTH service and account —
+ * writing with a different account attribute than an existing item's silently
+ * creates a duplicate item under the same service name. Callers that target a
+ * pre-existing item (e.g. the live Claude entry the `claude` CLI owns) must
+ * pass that item's actual `account` so the update lands on it.
  */
-export async function keychainWrite(service: string, secret: string): Promise<void> {
+export async function keychainWrite(service: string, secret: string, account?: string): Promise<void> {
   if (platform() !== 'darwin') {
     throw new Error('Keychain is only available on macOS')
   }
-  const account = process.env.USER ?? userInfo().username
+  const accountAttr = account ?? process.env.USER ?? userInfo().username
   try {
-    await runSecurity(['add-generic-password', '-U', '-s', service, '-a', account, '-w', secret])
+    await runSecurity(['add-generic-password', '-U', '-s', service, '-a', accountAttr, '-w', secret])
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
     log.warn('Keychain write failed', { service, error: message })
     throw error
   }
+}
+
+/**
+ * The `acct` attributes of every generic-password item whose service matches
+ * `service`, in keychain order (null for items with no account attribute).
+ * There is normally exactly one, but duplicates happen — e.g. Claude Code CLI
+ * and an `add-generic-password -a $USER` write disagreeing on the account
+ * attribute — and `find-generic-password` then resolves reads/updates against
+ * whichever item happens to come first. `security` has no "find all" verb, so
+ * this parses the attribute listing of `dump-keychain` (which prints item
+ * attributes only — it never touches secret data, so it cannot trigger
+ * permission prompts).
+ *
+ * Returns [] on non-macOS; throws when `security dump-keychain` itself fails
+ * so callers can distinguish "no items" from "could not enumerate".
+ */
+export async function keychainListAccounts(service: string): Promise<Array<string | null>> {
+  if (platform() !== 'darwin') return []
+  const dump = await runSecurity(['dump-keychain'], 15000)
+  return parseDumpAccounts(dump, service)
+}
+
+/** Exported for tests: parse `security dump-keychain` output into the acct
+ * attributes of generic-password items matching `service`. */
+export function parseDumpAccounts(dump: string, service: string): Array<string | null> {
+  const accounts: Array<string | null> = []
+  let itemClass: string | null = null
+  let itemService: string | null = null
+  let itemAccount: string | null = null
+
+  const flush = (): void => {
+    if (itemClass === 'genp' && itemService === service) {
+      accounts.push(itemAccount)
+    }
+    itemClass = null
+    itemService = null
+    itemAccount = null
+  }
+
+  for (const line of dump.split('\n')) {
+    if (line.startsWith('keychain: ')) {
+      flush()
+      continue
+    }
+    const classMatch = line.match(/^class: "(\w+)"/)
+    if (classMatch) {
+      itemClass = classMatch[1]
+      continue
+    }
+    const svceMatch = line.match(/^\s*"svce"<blob>="(.*)"\s*$/)
+    if (svceMatch) {
+      itemService = svceMatch[1]
+      continue
+    }
+    const acctMatch = line.match(/^\s*"acct"<blob>=(?:"(.*)"|<NULL>)\s*$/)
+    if (acctMatch) {
+      itemAccount = acctMatch[1] ?? null
+    }
+  }
+  flush()
+
+  return accounts
 }
 
 /**

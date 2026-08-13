@@ -6,11 +6,16 @@
  * a refresh that needs a human to log back in is left for the renderer
  * (Phase 6) to notice via the cached account's `stale` status.
  */
-import { listClaudeAccounts, readClaudeEffectiveBlob } from './account-store-claude'
-import { listCodexAccounts, readCodexEffectiveAuth } from './account-store-codex'
+import { getDatabase } from '../db'
+import { listClaudeAccounts, readClaudeEffectiveBlob, type ClaudeStoreAccount } from './account-store-claude'
+import { listCodexAccounts, readCodexEffectiveAuth, type CodexStoreAccount } from './account-store-codex'
 import { migrateSavedCredentialsToStores } from './credentials-migration'
 import { createLogger } from './logger'
-import { refreshAllForProvider, refreshTokensForStoreAccount } from './saved-usage-orchestrator'
+import {
+  fetchForSavedAccount,
+  refreshAllForProvider,
+  refreshTokensForStoreAccount
+} from './saved-usage-orchestrator'
 
 const log = createLogger({ component: 'AccountMaintenance' })
 
@@ -92,6 +97,86 @@ async function readCurrentCodexRefreshToken(accountKey: string): Promise<string 
   return auth?.tokens?.refresh_token
 }
 
+/**
+ * Self-heal pass for one provider: a cache row stuck on `stale` whose store
+ * credentials now carry a comfortably-unexpired access token was refreshed by
+ * another process after the failure that flagged it (typically the `claude`
+ * CLI rotating the live entry mid-session) — re-fetch usage so the flag can
+ * clear itself instead of sticking until relaunch or a manual Refresh.
+ * Genuinely-dead accounts keep an expired access token and are never
+ * retried here. Shares the watcher's backoff map (a failed heal backs off;
+ * a needsLogin outcome parks until the refresh token changes).
+ */
+async function healStaleRows(
+  backoff: Map<string, BackoffState>,
+  provider: 'anthropic' | 'openai',
+  accounts: Array<{ key: string; email: string; expiresAtMs: number | null; refreshToken: () => Promise<string | undefined> }>,
+  now: number
+): Promise<void> {
+  const rows = getDatabase().getSavedUsageAccountsByProvider(provider)
+  for (const row of rows) {
+    if (row.status !== 'stale') continue
+
+    const account = accounts.find((a) => a.email === row.email.toLowerCase())
+    if (!account) continue
+    if (account.expiresAtMs === null || account.expiresAtMs - now < EXPIRY_THRESHOLD_MS) continue
+
+    const key = `heal:${provider}:${account.key}`
+    const currentRefreshToken = await account.refreshToken()
+    if (!shouldAttempt(backoff, key, now, currentRefreshToken)) continue
+
+    log.info('Retrying stale account with fresh-looking credentials', {
+      provider,
+      email: account.email
+    })
+    const result = await fetchForSavedAccount(row.id, { caller: 'usage:fetchForAccount' }).catch(
+      (error): { success: false; error: string; status: 'error'; needsLogin?: boolean } => {
+        log.warn('Stale-account heal fetch threw', { provider, email: account.email, error: message(error) })
+        return { success: false, error: message(error), status: 'error' }
+      }
+    )
+    const outcome = result.success
+      ? ('refreshed' as const)
+      : result.needsLogin === true
+        ? ('needsLogin' as const)
+        : ('error' as const)
+    recordOutcome(backoff, key, outcome, currentRefreshToken)
+    log[outcome === 'refreshed' ? 'info' : 'warn']('Stale-account heal outcome', {
+      provider,
+      email: account.email,
+      outcome
+    })
+  }
+}
+
+function claudeHealCandidates(accounts: ClaudeStoreAccount[]): Array<{
+  key: string
+  email: string
+  expiresAtMs: number | null
+  refreshToken: () => Promise<string | undefined>
+}> {
+  return accounts.map((account) => ({
+    key: account.num,
+    email: account.email,
+    expiresAtMs: account.expiresAtMs,
+    refreshToken: () => readCurrentClaudeRefreshToken(account.num, account.email)
+  }))
+}
+
+function codexHealCandidates(accounts: CodexStoreAccount[]): Array<{
+  key: string
+  email: string
+  expiresAtMs: number | null
+  refreshToken: () => Promise<string | undefined>
+}> {
+  return accounts.map((account) => ({
+    key: account.accountKey,
+    email: account.email,
+    expiresAtMs: account.expiresAtMs,
+    refreshToken: () => readCurrentCodexRefreshToken(account.accountKey)
+  }))
+}
+
 async function tick(backoff: Map<string, BackoffState>): Promise<void> {
   const now = Date.now()
 
@@ -123,6 +208,12 @@ async function tick(backoff: Map<string, BackoffState>): Promise<void> {
     })
   }
 
+  await healStaleRows(backoff, 'anthropic', claudeHealCandidates(claudeAccounts), now).catch(
+    (error) => {
+      log.warn('Stale-account heal pass failed', { provider: 'anthropic', error: message(error) })
+    }
+  )
+
   const codexAccounts = await listCodexAccounts().catch((error) => {
     log.warn('Failed to list Codex accounts for expiry check', { error: message(error) })
     return []
@@ -152,6 +243,10 @@ async function tick(backoff: Map<string, BackoffState>): Promise<void> {
       outcome
     })
   }
+
+  await healStaleRows(backoff, 'openai', codexHealCandidates(codexAccounts), now).catch((error) => {
+    log.warn('Stale-account heal pass failed', { provider: 'openai', error: message(error) })
+  })
 }
 
 async function runLaunchMassRefresh(): Promise<void> {
