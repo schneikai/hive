@@ -44,6 +44,9 @@ export function FavoriteTicketCreateModal({
   const [isCreating, setIsCreating] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
   const firstPlaceholderRef = useRef<HTMLInputElement>(null)
+  // Bumped on every open so a create that outlives a dismiss-and-reopen can
+  // tell it is stale and must not close the newly opened dialog
+  const openSessionRef = useRef(0)
 
   const placeholderNames = useMemo(
     () =>
@@ -67,6 +70,7 @@ export function FavoriteTicketCreateModal({
   // reload while typing must not wipe entered placeholder values)
   useEffect(() => {
     if (!open) return
+    openSessionRef.current++
     setQuery('')
     setPlaceholderValues({})
     setIsCreating(false)
@@ -103,6 +107,13 @@ export function FavoriteTicketCreateModal({
   const handleSelectProject = async (project: Project): Promise<void> => {
     if (!favorite || isCreating || !allPlaceholdersFilled) return
     setIsCreating(true)
+    const session = openSessionRef.current
+    // Only close if the dialog wasn't dismissed and reopened meanwhile
+    const closeIfCurrent = (): void => {
+      if (openSessionRef.current === session) {
+        onOpenChange(false)
+      }
+    }
     try {
       const store = useKanbanStore.getState()
       const title = substitutePlaceholders(favorite.title, placeholderValues).trim()
@@ -130,12 +141,12 @@ export function FavoriteTicketCreateModal({
           toast.error(
             `Ticket created in ${project.name}, but its goal settings could not be applied`
           )
-          onOpenChange(false)
+          closeIfCurrent()
           return
         }
       }
       toast.success(`Ticket created in ${project.name}`)
-      onOpenChange(false)
+      closeIfCurrent()
     } catch {
       toast.error('Failed to create ticket')
     } finally {

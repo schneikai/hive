@@ -33,10 +33,14 @@ export function FavoriteTicketEditModal({
   const [goalCriteria, setGoalCriteria] = useState('')
   const [isSaving, setIsSaving] = useState(false)
   const titleInputRef = useRef<HTMLInputElement>(null)
+  // Bumped on every open so a save that outlives a dismiss-and-reopen can tell
+  // it is stale and must not close the newly opened dialog
+  const openSessionRef = useRef(0)
 
   // Seed fields from the favorite each time the modal opens
   useEffect(() => {
     if (!open || !favorite) return
+    openSessionRef.current++
     setTitle(favorite.title)
     setDescription(favorite.description ?? '')
     setGoalMode(favorite.goal_mode)
@@ -51,6 +55,7 @@ export function FavoriteTicketEditModal({
   const handleSave = useCallback(async () => {
     if (!favorite || isTitleEmpty || isGoalCriteriaMissing || isSaving) return
     setIsSaving(true)
+    const session = openSessionRef.current
     try {
       const updated = await useFavoriteTicketsStore.getState().updateFavorite(favorite.id, {
         title: title.trim(),
@@ -65,7 +70,10 @@ export function FavoriteTicketEditModal({
         toast.error('Favorite no longer exists')
         void useFavoriteTicketsStore.getState().loadFavorites()
       }
-      onOpenChange(false)
+      // Only close if the dialog wasn't dismissed and reopened meanwhile
+      if (openSessionRef.current === session) {
+        onOpenChange(false)
+      }
     } catch {
       toast.error('Failed to update favorite')
     } finally {
