@@ -15,7 +15,8 @@ import {
   FileDiff,
   Link,
   Paperclip,
-  Copy
+  Copy,
+  ExternalLink
 } from 'lucide-react'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { toast } from '@/lib/toast'
@@ -727,7 +728,7 @@ export function ChangesView({
                             <FileDiff className="h-3.5 w-3.5 mr-2" />
                             Open Diff
                           </ContextMenuItem>
-                          <CopyPathMenuItems file={item.file} />
+                          <FileActionMenuItems file={item.file} />
                         </ContextMenuContent>
                       }
                     />
@@ -746,7 +747,7 @@ export function ChangesView({
                             <FileDiff className="h-3.5 w-3.5 mr-2" />
                             Open Diff
                           </ContextMenuItem>
-                          <CopyPathMenuItems file={item.file} />
+                          <FileActionMenuItems file={item.file} />
                         </ContextMenuContent>
                       }
                     />
@@ -765,7 +766,7 @@ export function ChangesView({
                             <FileDiff className="h-3.5 w-3.5 mr-2" />
                             Open Diff
                           </ContextMenuItem>
-                          <CopyPathMenuItems file={item.file} />
+                          <FileActionMenuItems file={item.file} />
                           <ContextMenuSeparator />
                           <ContextMenuItem
                             onClick={() => handleDiscardFile(item.file)}
@@ -788,7 +789,7 @@ export function ChangesView({
                             <Plus className="h-3.5 w-3.5 mr-2" />
                             Stage
                           </ContextMenuItem>
-                          <CopyPathMenuItems file={item.file} />
+                          <FileActionMenuItems file={item.file} />
                           <ContextMenuSeparator />
                           <ContextMenuItem
                             onClick={() => handleDiscardFile(item.file)}
@@ -887,10 +888,14 @@ export function ChangesView({
 
 /* ---- Sub-components ---- */
 
-function CopyPathMenuItems({ file }: { file: GitFileStatus }): React.JSX.Element {
+function FileActionMenuItems({ file }: { file: GitFileStatus }): React.JSX.Element {
   return (
     <>
       <ContextMenuSeparator />
+      <ContextMenuItem onClick={() => projectApi.openPath(file.path)}>
+        <ExternalLink className="h-3.5 w-3.5 mr-2" />
+        Open
+      </ContextMenuItem>
       <ContextMenuItem onClick={() => projectApi.copyToClipboard(file.path)}>
         <Copy className="h-3.5 w-3.5 mr-2" />
         Copy Path
@@ -1225,7 +1230,7 @@ const MemberChanges = memo(function MemberChanges({
                             <FileDiff className="h-3.5 w-3.5 mr-2" />
                             Open Diff
                           </ContextMenuItem>
-                          <CopyPathMenuItems file={item.file} />
+                          <FileActionMenuItems file={item.file} />
                         </ContextMenuContent>
                       }
                     />
@@ -1242,7 +1247,7 @@ const MemberChanges = memo(function MemberChanges({
                             <Minus className="h-3.5 w-3.5 mr-2" />
                             Unstage
                           </ContextMenuItem>
-                          <CopyPathMenuItems file={item.file} />
+                          <FileActionMenuItems file={item.file} />
                         </ContextMenuContent>
                       }
                     />
@@ -1259,7 +1264,7 @@ const MemberChanges = memo(function MemberChanges({
                             <Plus className="h-3.5 w-3.5 mr-2" />
                             Stage
                           </ContextMenuItem>
-                          <CopyPathMenuItems file={item.file} />
+                          <FileActionMenuItems file={item.file} />
                           <ContextMenuSeparator />
                           <ContextMenuItem
                             onClick={() => onDiscardChanges(wp, item.file.relativePath)}
@@ -1284,7 +1289,7 @@ const MemberChanges = memo(function MemberChanges({
                             <Plus className="h-3.5 w-3.5 mr-2" />
                             Stage
                           </ContextMenuItem>
-                          <CopyPathMenuItems file={item.file} />
+                          <FileActionMenuItems file={item.file} />
                         </ContextMenuContent>
                       }
                     />

@@ -15,7 +15,8 @@ import {
   Trash2,
   AlertCircle,
   EyeOff,
-  FileDiff
+  FileDiff,
+  ExternalLink
 } from 'lucide-react'
 import { useGitStore, type GitStatusCode } from '@/stores/useGitStore'
 import { DiffModal } from '@/components/diff'
@@ -82,6 +83,12 @@ export function FileContextMenu({
     await addToGitignore(worktreePath, node.relativePath)
     onClose?.()
   }, [addToGitignore, worktreePath, node.relativePath, onClose])
+
+  // Handle open with default application
+  const handleOpen = useCallback(async () => {
+    await projectApi.openPath(node.path)
+    onClose?.()
+  }, [node.path, onClose])
 
   // Handle open in editor
   const handleOpenInEditor = useCallback(async () => {
@@ -168,6 +175,10 @@ export function FileContextMenu({
           )}
 
           {/* File actions */}
+          <ContextMenuItem onClick={handleOpen}>
+            <ExternalLink className="mr-2 h-4 w-4" />
+            Open
+          </ContextMenuItem>
           <ContextMenuItem onClick={handleOpenInEditor}>
             <FileCode className="mr-2 h-4 w-4" />
             Open in Editor
