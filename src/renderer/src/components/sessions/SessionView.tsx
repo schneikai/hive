@@ -100,7 +100,10 @@ import { snapshotTokenBaseline, computeTokenDelta } from '@/lib/token-baselines'
 import { notifyKanbanSessionSync, notifyKanbanAutoCreateTicket } from '@/stores/store-coordination'
 import { isComposingKeyboardEvent } from '@/lib/message-composer-shortcuts'
 import { copyTextToClipboard } from '@/lib/clipboard'
-import { handleSessionIdleFollowUp } from '@/lib/session-follow-up-dispatch'
+import {
+  handleSessionIdleFollowUp,
+  type SessionFollowUpDispatchResult
+} from '@/lib/session-follow-up-dispatch'
 import { shouldPreserveBlockingSessionStatus } from '@/lib/session-status-guards'
 import {
   describeOpenCodeSessionError,
@@ -626,6 +629,11 @@ function LegacySessionView({ sessionId }: SessionViewProps): React.JSX.Element {
     queuedMessagesRef.current = queuedMessages
   }, [queuedMessages])
   const [isStopping, setIsStopping] = useState(false)
+  // Set by the idle handler so steer can re-run the drain it had to skip.
+  const drainFollowUpsRef = useRef<(() => void) | null>(null)
+  // True when an idle arrived but the drain was blocked, so something else has to
+  // run it once the block clears.
+  const blockedIdleRef = useRef(false)
   // Assigned below, once reclaimQueuedMessages exists. The stream effect is
   // declared before it, so it cannot reference the callback directly.
   const reclaimQueuedMessagesRef = useRef<(() => number) | null>(null)
@@ -3001,12 +3009,16 @@ function LegacySessionView({ sessionId }: SessionViewProps): React.JSX.Element {
           if (useSessionStore.getState().getPendingPlan(sessionId)) return
 
           setIsCompacting(false)
-          const runFollowUpDrain = (): void => {
+          const runFollowUpDrain = (): Promise<SessionFollowUpDispatchResult> => {
             let optimisticMessageId: string | null = null
 
-            void handleSessionIdleFollowUp({
+            return handleSessionIdleFollowUp({
               sessionId,
               isBlocked: () => {
+                // An in-flight steer is about to inject into this turn. Draining now
+                // would submit the next queued message as a separate prompt and
+                // overlap the two. Steer re-runs this drain when it settles.
+                if (steeringGuardRef.current) return true
                 // Same guard as the background listener: a queued message must not
                 // be sent while the session waits on an approval or a question.
                 const currentStatus = useWorktreeStatusStore.getState().sessionStatuses[sessionId]
@@ -3117,7 +3129,14 @@ function LegacySessionView({ sessionId }: SessionViewProps): React.JSX.Element {
             })
           }
 
-          runFollowUpDrain()
+          // Keep the drain reachable, and remember an idle that got swallowed so
+          // whatever cleared the block can run it.
+          drainFollowUpsRef.current = () => {
+            void runFollowUpDrain()
+          }
+          void runFollowUpDrain().then((result) => {
+            blockedIdleRef.current = result === 'blocked'
+          })
         } else if (status.type === 'retry') {
           setIsStreaming(true)
           setIsSending(true)
@@ -4303,6 +4322,13 @@ function LegacySessionView({ sessionId }: SessionViewProps): React.JSX.Element {
       } finally {
         steeringGuardRef.current = false
         setSteeringMessageId(null)
+        // If an idle was swallowed while this steer was in flight, run that drain
+        // now. With an empty queue it just finalizes the turn, which is what the
+        // skipped idle would have done.
+        if (blockedIdleRef.current) {
+          blockedIdleRef.current = false
+          drainFollowUpsRef.current?.()
+        }
       }
     },
     [opencodeSessionId, refreshMessagesFromOpenCode, sessionId, worktreePath]
