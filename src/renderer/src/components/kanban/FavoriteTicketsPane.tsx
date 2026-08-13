@@ -117,6 +117,7 @@ function FavoriteTicketCard({
 export function FavoriteTicketsPane(): React.JSX.Element {
   const favorites = useFavoriteTicketsStore((s) => s.favorites)
   const isLoaded = useFavoriteTicketsStore((s) => s.isLoaded)
+  const isLoading = useFavoriteTicketsStore((s) => s.isLoading)
   const loadError = useFavoriteTicketsStore((s) => s.loadError)
   const setPaneOpen = useFavoriteTicketsStore((s) => s.setPaneOpen)
   const [createTarget, setCreateTarget] = useState<FavoriteTicket | null>(null)
@@ -155,8 +156,11 @@ export function FavoriteTicketsPane(): React.JSX.Element {
       <div className="flex-1 overflow-y-auto min-h-0 p-2 space-y-2">
         {favorites.length === 0 ? (
           <div className="px-2 py-8 text-center text-xs text-muted-foreground">
-            {loadError ? (
-              // Check the error first: isLoaded stays true after an earlier
+            {isLoading ? (
+              // An in-flight (re)load must not read as a confirmed empty list
+              'Loading…'
+            ) : loadError ? (
+              // Check the error before isLoaded: it stays true after an earlier
               // successful load, and a failed reload must not read as "empty"
               <>
                 <p>Failed to load favorites.</p>
