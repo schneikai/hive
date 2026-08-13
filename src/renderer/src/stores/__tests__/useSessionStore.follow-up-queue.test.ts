@@ -58,6 +58,33 @@ describe('removeFollowUpMessageAt', () => {
     expect(setSessionQueuedState).toHaveBeenLastCalledWith(SESSION_ID, true)
   })
 
+  it('does not drop the wrong entry when the index is stale', () => {
+    // The rendered list lags the store by a render, so an index captured before
+    // an await can point somewhere else by the time the removal runs.
+    useSessionStore.getState().setPendingFollowUpMessages(SESSION_ID, ['second', 'third'])
+
+    // index 1 was captured when the queue was ['first', 'second', 'third']
+    useSessionStore.getState().removeFollowUpMessageAt(SESSION_ID, 1, 'second')
+
+    expect(queue()).toEqual(['third'])
+  })
+
+  it('still honours the index when the content matches', () => {
+    useSessionStore.getState().setPendingFollowUpMessages(SESSION_ID, ['same', 'other', 'same'])
+
+    useSessionStore.getState().removeFollowUpMessageAt(SESSION_ID, 2, 'same')
+
+    expect(queue()).toEqual(['same', 'other'])
+  })
+
+  it('leaves the queue alone when the expected content is gone', () => {
+    useSessionStore.getState().setPendingFollowUpMessages(SESSION_ID, ['a', 'b'])
+
+    useSessionStore.getState().removeFollowUpMessageAt(SESSION_ID, 0, 'already-drained')
+
+    expect(queue()).toEqual(['a', 'b'])
+  })
+
   it('ignores out-of-range and unknown-session calls', () => {
     useSessionStore.getState().setPendingFollowUpMessages(SESSION_ID, ['a'])
 

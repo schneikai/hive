@@ -375,6 +375,11 @@ export class ClaudeCodeImplementer implements AgentSdkImplementer {
     // Reset stderr buffer so it only captures output from this prompt
     session.stderrBuffer = []
 
+    // Mirrors this turn's AbortController for the outer catch, which sits outside
+    // the try that creates it. Stays null if we fail before the turn even starts,
+    // which is how that catch tells a user stop from a real setup failure.
+    let startedTurnController: AbortController | null = null
+
     this.emitStatus(session.hiveSessionId, 'busy')
     log.info('Prompt: starting', {
       worktreePath,
@@ -485,8 +490,14 @@ export class ClaudeCodeImplementer implements AgentSdkImplementer {
         parts: syntheticParts
       })
 
-      // Fresh AbortController for this prompt turn
-      session.abortController = new AbortController()
+      // Fresh AbortController for this prompt turn. Captured in a local so the
+      // callbacks below can fence themselves to THIS turn: abort() is bounded, so
+      // a timed-out teardown can leave this stream running while a later prompt
+      // installs a new controller. Reading session.abortController would then see
+      // the new turn's un-aborted controller and let stale output merge into it.
+      const turnController = new AbortController()
+      startedTurnController = turnController
+      session.abortController = turnController
 
       // Determine permission mode from DB session mode
       // 'plan' mode uses SDK-native plan mode (ExitPlanMode blocking tool)
@@ -513,15 +524,15 @@ export class ClaudeCodeImplementer implements AgentSdkImplementer {
       // It should never reach here (the picker only offers it for claude-code-cli),
       // but if a stale default leaks it in, fall back to its xhigh equivalent so
       // the SDK never receives an invalid effort value.
-      const effortLevel = (isUltracodeEffort(requestedEffort)
-        ? 'xhigh'
-        : requestedEffort) as Options['effort']
+      const effortLevel = (
+        isUltracodeEffort(requestedEffort) ? 'xhigh' : requestedEffort
+      ) as Options['effort']
 
       // Build SDK query options
       const options: Options = {
         cwd: session.worktreePath,
         permissionMode: sdkPermissionMode,
-        abortController: session.abortController,
+        abortController: turnController,
         maxThinkingTokens: 31999,
         includePartialMessages: true,
         enableFileCheckpointing: true,
@@ -604,9 +615,9 @@ export class ClaudeCodeImplementer implements AgentSdkImplementer {
         hiveSessionId: session.hiveSessionId,
         queryIterator: queryData as unknown as AsyncIterable<unknown>,
         onMessage: async (sdkMessage) => {
-          // Break if aborted
-          if (session.abortController?.signal.aborted) {
-            log.info('Prompt: aborted, breaking loop')
+          // Break if this turn was aborted, or if it is no longer the current turn
+          if (turnController.signal.aborted || session.abortController !== turnController) {
+            log.info('Prompt: aborted or superseded, breaking loop')
             return
           }
 
@@ -979,7 +990,7 @@ export class ClaudeCodeImplementer implements AgentSdkImplementer {
 
           log.info('Prompt: async iteration loop finished', {
             totalMessages: messageIndex,
-            aborted: session.abortController?.signal.aborted ?? false
+            aborted: turnController.signal.aborted
           })
 
           // Safety net: if the SDK exited without throwing but stderr was captured
@@ -988,7 +999,7 @@ export class ClaudeCodeImplementer implements AgentSdkImplementer {
           // ends iteration normally instead of throwing.
           const stderrAfterLoop = session.stderrBuffer.join('').trim()
 
-          if (stderrAfterLoop && messageIndex === 0 && !session.abortController?.signal.aborted) {
+          if (stderrAfterLoop && messageIndex === 0 && !turnController.signal.aborted) {
             log.warn('Prompt: SDK exited silently with stderr and no messages', {
               worktreePath,
               agentSessionId,
@@ -1020,7 +1031,7 @@ export class ClaudeCodeImplementer implements AgentSdkImplementer {
           // session error paints a red banner over what the user just asked for.
           // The signal alone is proof: each prompt gets its own controller, so an
           // aborted one cannot be attributed to a later turn.
-          const stoppedByUser = session.abortController?.signal.aborted ?? false
+          const stoppedByUser = turnController.signal.aborted
 
           if (stoppedByUser) {
             log.info('Prompt: stream ended because the turn was stopped', {
@@ -1070,7 +1081,7 @@ export class ClaudeCodeImplementer implements AgentSdkImplementer {
       }
 
       // Same reasoning as in finishPromptInBackground: a stop is not an error.
-      const stoppedByUser = session.abortController?.signal.aborted ?? false
+      const stoppedByUser = startedTurnController?.signal.aborted ?? false
 
       if (stoppedByUser) {
         log.info('Prompt: setup aborted because the turn was stopped', {

@@ -273,7 +273,7 @@ interface SessionState {
   requeueFollowUpMessageFront: (sessionId: string, message: string) => void
   consumeFollowUpMessage: (sessionId: string) => string | null
   enqueueFollowUpMessage: (sessionId: string, message: string) => void
-  removeFollowUpMessageAt: (sessionId: string, index: number) => void
+  removeFollowUpMessageAt: (sessionId: string, index: number, expectedContent?: string) => void
   closeOtherSessions: (worktreeId: string, keepSessionId: string) => Promise<void>
   closeSessionsToRight: (worktreeId: string, fromSessionId: string) => Promise<void>
   // Plan approval
@@ -2049,10 +2049,21 @@ export const useSessionStore = create<SessionState>()(
 
       // Drop one queued follow-up. Index-based on purpose: two queued messages
       // can hold identical text, and removing by content would hit the wrong one.
-      removeFollowUpMessageAt: (sessionId: string, index: number) => {
+      // Pass expectedContent whenever the index came from the rendered list: that
+      // list lags the store by a render, so an index captured before an await can
+      // point at a different entry by the time this runs. The content check makes a
+      // stale index fall back to the first match instead of dropping the wrong one.
+      removeFollowUpMessageAt: (sessionId: string, index: number, expectedContent?: string) => {
         const existing = get().pendingFollowUpMessages.get(sessionId)
-        if (!existing || index < 0 || index >= existing.length) return
-        const rest = existing.filter((_, i) => i !== index)
+        if (!existing || existing.length === 0) return
+
+        let target = index
+        if (expectedContent !== undefined && existing[target] !== expectedContent) {
+          target = existing.indexOf(expectedContent)
+        }
+        if (target < 0 || target >= existing.length) return
+
+        const rest = existing.filter((_, i) => i !== target)
         set((state) => {
           const newMap = new Map(state.pendingFollowUpMessages)
           if (rest.length === 0) {

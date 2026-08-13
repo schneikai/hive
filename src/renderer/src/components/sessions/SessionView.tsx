@@ -626,12 +626,9 @@ function LegacySessionView({ sessionId }: SessionViewProps): React.JSX.Element {
     queuedMessagesRef.current = queuedMessages
   }, [queuedMessages])
   const [isStopping, setIsStopping] = useState(false)
-  // Set by the stream effect so the idle drain can also be retried from
-  // outside it. See the recovery effect further down.
-  const drainFollowUpsRef = useRef<(() => void) | null>(null)
-  // One recovery attempt per idle period, so a repeatedly failing dispatch
-  // cannot spin.
-  const drainRetryDoneRef = useRef(false)
+  // Assigned below, once reclaimQueuedMessages exists. The stream effect is
+  // declared before it, so it cannot reference the callback directly.
+  const reclaimQueuedMessagesRef = useRef<(() => number) | null>(null)
   const [attachments, setAttachments] = useState<Attachment[]>([])
   const [ticketPickerOpen, setTicketPickerOpen] = useState(false)
   const fileAttachments = useMemo(
@@ -840,46 +837,6 @@ function LegacySessionView({ sessionId }: SessionViewProps): React.JSX.Element {
 
   // Pending plan approval (ExitPlanMode blocking tool)
   const pendingPlan = useSessionStore((s) => s.pendingPlans.get(sessionId) ?? null)
-
-  // Recovery net for a queue stranded by a failed turn. session.error ends the
-  // turn without draining, so a queued message would sit there for the rest of
-  // the session: the next send goes out directly and never revisits the queue.
-  // Retry at most once per idle period, and only when the session is
-  // demonstrably free to send.
-  //
-  // This deliberately does not cover a drain that returned 'blocked'. That path
-  // leaves isStreaming true, so the guard below exits first, and the block
-  // resolving produces its own idle which drains normally.
-  useEffect(() => {
-    if (isStreaming || isSending) {
-      drainRetryDoneRef.current = false
-      return
-    }
-    if (persistedFollowUpMessages.length === 0) return
-    if (drainRetryDoneRef.current) return
-    if (activePermission || activeQuestion || pendingPlan) return
-
-    const status = useWorktreeStatusStore.getState().sessionStatuses[sessionId]
-    if (
-      shouldPreserveBlockingSessionStatus(
-        status?.status,
-        useQuestionStore.getState().getQuestions(sessionId).length > 0
-      )
-    ) {
-      return
-    }
-
-    drainRetryDoneRef.current = true
-    drainFollowUpsRef.current?.()
-  }, [
-    isStreaming,
-    isSending,
-    persistedFollowUpMessages,
-    activePermission,
-    activeQuestion,
-    pendingPlan,
-    sessionId
-  ])
 
   // Completion badge — reactive subscription to this session's status entry
   const completionEntry = useWorktreeStatusStore((state) => {
@@ -2376,6 +2333,17 @@ function LegacySessionView({ sessionId }: SessionViewProps): React.JSX.Element {
         // partials cannot leak into the next one.
         resetStreamingState()
         setIsSending(false)
+        // Hand any queued follow-ups back, same as stop does. Leaving them queued
+        // strands them: the next send goes out directly and never revisits the
+        // queue, and the stale text would surface after some later turn instead.
+        const reclaimedOnError = reclaimQueuedMessagesRef.current?.() ?? 0
+        if (reclaimedOnError > 0) {
+          toast.info(
+            reclaimedOnError === 1
+              ? 'Queued message moved back to the input.'
+              : `${reclaimedOnError} queued messages moved back to the input.`
+          )
+        }
         // Notify kanban store so errored tickets auto-move to review
         notifyKanbanSessionSync(sessionId, { type: 'session_error' })
         return
@@ -3149,9 +3117,6 @@ function LegacySessionView({ sessionId }: SessionViewProps): React.JSX.Element {
             })
           }
 
-          // Expose the drain so the recovery effect can retry it if this idle
-          // was blocked and the queue is still waiting once the block clears.
-          drainFollowUpsRef.current = runFollowUpDrain
           runFollowUpDrain()
         } else if (status.type === 'retry') {
           setIsStreaming(true)
@@ -4321,7 +4286,7 @@ function LegacySessionView({ sessionId }: SessionViewProps): React.JSX.Element {
           }
 
           if (queueIndex >= 0) {
-            useSessionStore.getState().removeFollowUpMessageAt(sessionId, queueIndex)
+            useSessionStore.getState().removeFollowUpMessageAt(sessionId, queueIndex, content)
           }
         } else {
           console.warn('Steer failed', { messageId, error: result?.error })
@@ -4340,8 +4305,9 @@ function LegacySessionView({ sessionId }: SessionViewProps): React.JSX.Element {
     (messageId: string) => {
       const queueIndex = queuedMessagesRef.current.findIndex((msg) => msg.id === messageId)
       if (queueIndex < 0) return
+      const content = queuedMessagesRef.current[queueIndex].content
       setQueuedMessages((prev) => prev.filter((msg) => msg.id !== messageId))
-      useSessionStore.getState().removeFollowUpMessageAt(sessionId, queueIndex)
+      useSessionStore.getState().removeFollowUpMessageAt(sessionId, queueIndex, content)
     },
     [sessionId]
   )
@@ -4367,6 +4333,10 @@ function LegacySessionView({ sessionId }: SessionViewProps): React.JSX.Element {
     dbApi.session.updateDraft(sessionId, next)
     return queued.length
   }, [sessionId])
+
+  useEffect(() => {
+    reclaimQueuedMessagesRef.current = reclaimQueuedMessages
+  }, [reclaimQueuedMessages])
 
   const handleForkFromAssistantMessage = useCallback(
     async (message: OpenCodeMessage) => {
@@ -5226,8 +5196,8 @@ function LegacySessionView({ sessionId }: SessionViewProps): React.JSX.Element {
           return
         }
         const setModePromise = sessionStore.setSessionMode(result.session.id, 'build', {
-        applyModeDefault: false
-      })
+          applyModeDefault: false
+        })
         registerHivePromptHandoff(sessionId, result.session.id)
         sessionStore.setPendingMessage(result.session.id, handoffPrompt)
         await useKanbanStore
