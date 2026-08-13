@@ -274,6 +274,7 @@ interface SessionState {
   consumeFollowUpMessage: (sessionId: string) => string | null
   enqueueFollowUpMessage: (sessionId: string, message: string) => void
   removeFollowUpMessageAt: (sessionId: string, index: number, expectedContent?: string) => void
+  insertFollowUpMessageAt: (sessionId: string, index: number, message: string) => void
   closeOtherSessions: (worktreeId: string, keepSessionId: string) => Promise<void>
   closeSessionsToRight: (worktreeId: string, fromSessionId: string) => Promise<void>
   // Plan approval
@@ -2074,6 +2075,20 @@ export const useSessionStore = create<SessionState>()(
           return { pendingFollowUpMessages: newMap }
         })
         pushQueuedState(sessionId, rest.length > 0)
+      },
+
+      // Put a follow-up back at a known position. Used to undo an optimistic
+      // removal, e.g. when steering claimed the entry up front and then failed.
+      insertFollowUpMessageAt: (sessionId: string, index: number, message: string) => {
+        const existing = get().pendingFollowUpMessages.get(sessionId) ?? []
+        const at = Math.max(0, Math.min(index, existing.length))
+        const next = [...existing.slice(0, at), message, ...existing.slice(at)]
+        set((state) => {
+          const newMap = new Map(state.pendingFollowUpMessages)
+          newMap.set(sessionId, next)
+          return { pendingFollowUpMessages: newMap }
+        })
+        pushQueuedState(sessionId, true)
       },
 
       // Close all sessions except the kept one

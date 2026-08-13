@@ -4251,6 +4251,21 @@ function LegacySessionView({ sessionId }: SessionViewProps): React.JSX.Element {
   const handleSteerMessage = useCallback(
     async (messageId: string, content: string) => {
       if (!worktreePath || !opencodeSessionId || steeringGuardRef.current) return
+
+      // Claim the queued entry before the request. The turn can go idle while
+      // steer is in flight, and the idle drain would then submit the same text as
+      // a fresh prompt: the message would be both steered and sent.
+      const queueIndex = queuedMessagesRef.current.findIndex((msg) => msg.id === messageId)
+      const restoreClaim = (): void => {
+        if (queueIndex >= 0) {
+          useSessionStore.getState().insertFollowUpMessageAt(sessionId, queueIndex, content)
+        }
+      }
+      if (queueIndex >= 0) {
+        useSessionStore.getState().removeFollowUpMessageAt(sessionId, queueIndex, content)
+      }
+      setQueuedMessages((prev) => prev.filter((msg) => msg.id !== messageId))
+
       steeringGuardRef.current = true
       setSteeringMessageId(messageId)
       try {
@@ -4258,12 +4273,6 @@ function LegacySessionView({ sessionId }: SessionViewProps): React.JSX.Element {
           await opencodeApi.steer(worktreePath, opencodeSessionId, content)
         )
         if (result?.success) {
-          // Resolve the queue position after the request but before the local
-          // removal below: the drain or the delete button may have shifted the
-          // queue while steer was in flight, and the ref still mirrors the store.
-          // Index-based because two queued messages can hold identical text.
-          const queueIndex = queuedMessagesRef.current.findIndex((msg) => msg.id === messageId)
-          setQueuedMessages((prev) => prev.filter((msg) => msg.id !== messageId))
           const anchorAssistantMessageId = codexStreamingMessageIdRef.current
           const insertedMessageId = result.insertedMessageId
           const steeredMessage = createLocalMessage('user', content, {
@@ -4284,15 +4293,13 @@ function LegacySessionView({ sessionId }: SessionViewProps): React.JSX.Element {
           if (!insertion.inserted) {
             void refreshMessagesFromOpenCode()
           }
-
-          if (queueIndex >= 0) {
-            useSessionStore.getState().removeFollowUpMessageAt(sessionId, queueIndex, content)
-          }
         } else {
           console.warn('Steer failed', { messageId, error: result?.error })
+          restoreClaim()
         }
       } catch (error) {
         console.warn('Steer error', { messageId, error })
+        restoreClaim()
       } finally {
         steeringGuardRef.current = false
         setSteeringMessageId(null)

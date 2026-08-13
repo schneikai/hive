@@ -977,9 +977,23 @@ export class ClaudeCodeImplementer implements AgentSdkImplementer {
       })
       session.subscription = subscription
 
+      // abort() tears down on a timeout, so this finisher can still be awaiting the
+      // old stream while a later prompt owns the session. Every side effect below
+      // is gated on still being the current turn: otherwise it would emit idle for
+      // the new turn and null out its query handle, leaving the next stop with
+      // nothing to interrupt.
+      const ownsSession = (): boolean => session.abortController === turnController
+
       const finishPromptInBackground = async () => {
         try {
           const subscriptionExit = await subscription.awaitDone()
+          if (!ownsSession()) {
+            log.info('Prompt: finisher superseded by a newer turn, skipping cleanup', {
+              worktreePath,
+              agentSessionId
+            })
+            return
+          }
           session.subscription = null
           if (
             Exit.isFailure(subscriptionExit) &&
@@ -1014,6 +1028,13 @@ export class ClaudeCodeImplementer implements AgentSdkImplementer {
 
           this.emitStatus(session.hiveSessionId, 'idle')
         } catch (error) {
+          if (!ownsSession()) {
+            log.info('Prompt: superseded finisher failed, not surfacing', {
+              worktreePath,
+              agentSessionId
+            })
+            return
+          }
           const errorMessage = error instanceof Error ? error.message : String(error)
           const stderrOutput = session.stderrBuffer.join('').trim() || undefined
 
@@ -1060,8 +1081,10 @@ export class ClaudeCodeImplementer implements AgentSdkImplementer {
           }
           this.emitStatus(session.hiveSessionId, 'idle')
         } finally {
-          session.lastQuery = session.query
-          session.query = null
+          if (ownsSession()) {
+            session.lastQuery = session.query
+            session.query = null
+          }
         }
       }
 

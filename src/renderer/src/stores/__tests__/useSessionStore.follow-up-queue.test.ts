@@ -85,6 +85,28 @@ describe('removeFollowUpMessageAt', () => {
     expect(queue()).toEqual(['a', 'b'])
   })
 
+  it('round-trips a claimed entry back to its position', () => {
+    // Steering claims the entry up front so the idle drain cannot also submit it,
+    // then restores it at the same index if the request fails.
+    useSessionStore.getState().setPendingFollowUpMessages(SESSION_ID, ['a', 'b', 'c'])
+
+    useSessionStore.getState().removeFollowUpMessageAt(SESSION_ID, 1, 'b')
+    expect(queue()).toEqual(['a', 'c'])
+
+    useSessionStore.getState().insertFollowUpMessageAt(SESSION_ID, 1, 'b')
+    expect(queue()).toEqual(['a', 'b', 'c'])
+  })
+
+  it('clamps an insert index to the current queue', () => {
+    useSessionStore.getState().setPendingFollowUpMessages(SESSION_ID, ['a'])
+
+    useSessionStore.getState().insertFollowUpMessageAt(SESSION_ID, 99, 'tail')
+    useSessionStore.getState().insertFollowUpMessageAt(SESSION_ID, -5, 'head')
+
+    expect(queue()).toEqual(['head', 'a', 'tail'])
+    expect(setSessionQueuedState).toHaveBeenLastCalledWith(SESSION_ID, true)
+  })
+
   it('ignores out-of-range and unknown-session calls', () => {
     useSessionStore.getState().setPendingFollowUpMessages(SESSION_ID, ['a'])
 
