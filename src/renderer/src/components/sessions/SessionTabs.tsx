@@ -1697,8 +1697,10 @@ export function SessionTabs(): React.JSX.Element | null {
         </button>
       )}
 
-      {/* Favorites pane toggle — kanban mode, sits on the tab bar line */}
-      {(isBoardViewActive || isStickyBoardActive) && !isConnectionMode && (
+      {/* Favorites pane toggle — kanban mode, sits on the tab bar line. Unlike
+          Import it also shows on connection boards: favorites are global and
+          the pane renders there, so its toggle must stay reachable */}
+      {(isBoardViewActive || isStickyBoardActive) && (
         <button
           className={cn(
             'flex items-center gap-1.5 px-3 py-1.5 text-xs text-muted-foreground hover:bg-muted hover:text-foreground transition-colors shrink-0 border-l border-border cursor-pointer select-none',
