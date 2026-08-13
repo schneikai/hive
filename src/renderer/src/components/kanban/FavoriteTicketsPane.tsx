@@ -187,14 +187,32 @@ export function FavoriteTicketsPane(): React.JSX.Element {
             )}
           </div>
         ) : (
-          favorites.map((favorite) => (
-            <FavoriteTicketCard
-              key={favorite.id}
-              favorite={favorite}
-              onCreate={setCreateTarget}
-              onEdit={setEditTarget}
-            />
-          ))
+          <>
+            {loadError && (
+              // A failed reload keeps the cached cards — say so instead of
+              // silently presenting a possibly stale list
+              <div
+                className="flex items-center justify-between gap-2 rounded-md border border-destructive/30 bg-destructive/10 px-2 py-1.5 text-[11px] text-destructive"
+                data-testid="favorite-tickets-reload-error"
+              >
+                <span>Refresh failed — list may be stale.</span>
+                <button
+                  className="shrink-0 underline hover:no-underline"
+                  onClick={() => void useFavoriteTicketsStore.getState().loadFavorites()}
+                >
+                  Retry
+                </button>
+              </div>
+            )}
+            {favorites.map((favorite) => (
+              <FavoriteTicketCard
+                key={favorite.id}
+                favorite={favorite}
+                onCreate={setCreateTarget}
+                onEdit={setEditTarget}
+              />
+            ))}
+          </>
         )}
       </div>
 
