@@ -56,15 +56,18 @@ export function FavoriteTicketEditModal({
     if (!favorite || isTitleEmpty || isGoalCriteriaMissing || isSaving) return
     setIsSaving(true)
     const session = openSessionRef.current
+    const savedTitle = title.trim()
     try {
       const updated = await useFavoriteTicketsStore.getState().updateFavorite(favorite.id, {
-        title: title.trim(),
+        title: savedTitle,
         description: description.trim() || null,
         goal_mode: goalMode,
         goal_success_criteria: goalMode ? goalCriteria.trim() : null
       })
       if (updated) {
-        toast.success('Favorite updated')
+        // Name the favorite so a completion from a dismissed dialog can't be
+        // mistaken for the currently open one succeeding
+        toast.success(`Favorite “${savedTitle}” updated`)
       } else {
         // Row was already gone — resync so the stale card disappears
         toast.error('Favorite no longer exists')
@@ -77,7 +80,11 @@ export function FavoriteTicketEditModal({
     } catch {
       toast.error('Failed to update favorite')
     } finally {
-      setIsSaving(false)
+      // A stale completion must not clear the busy flag of a newer session —
+      // that would drop the double-submit guard while its request is in flight
+      if (openSessionRef.current === session) {
+        setIsSaving(false)
+      }
     }
   }, [
     favorite,

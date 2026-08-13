@@ -150,7 +150,11 @@ export function FavoriteTicketCreateModal({
     } catch {
       toast.error('Failed to create ticket')
     } finally {
-      setIsCreating(false)
+      // A stale completion must not clear the busy flag of a newer session —
+      // that would drop the double-submit guard while its request is in flight
+      if (openSessionRef.current === session) {
+        setIsCreating(false)
+      }
     }
   }
 
