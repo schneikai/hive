@@ -6,11 +6,14 @@ import { useSettingsStore } from '@/stores/useSettingsStore'
 import { usePinnedStore } from '@/stores/usePinnedStore'
 import { useBoardChatStore } from '@/stores/useBoardChatStore'
 import { useSessionStore } from '@/stores/useSessionStore'
+import { useFavoriteTicketsStore } from '@/stores/useFavoriteTicketsStore'
 import { KanbanColumn } from '@/components/kanban/KanbanColumn'
 import { KanbanTicketModal } from '@/components/kanban/KanbanTicketModal'
 import { BoardChatLauncher } from '@/components/kanban/BoardChatLauncher'
 import { BoardSearchBar } from '@/components/kanban/BoardSearchBar'
+import { FavoriteTicketsPane } from '@/components/kanban/FavoriteTicketsPane'
 import { MergeOnDoneDialog } from './MergeOnDoneDialog'
+import { cn } from '@/lib/utils'
 import { toast } from '@/lib/toast'
 import { useMarkdownKanbanWatcher } from '@/hooks/useMarkdownKanbanWatcher'
 import { cardOccurrenceKeys } from '@/components/kanban/kanban-card-identity'
@@ -49,6 +52,7 @@ export function KanbanBoard({ projectId, connectionId, isPinnedMode }: KanbanBoa
     return state.snapshots[key]?.status ?? 'idle'
   })
   const showMergedColumn = useSettingsStore((state) => state.showMergedColumn)
+  const isFavoritesPaneOpen = useFavoriteTicketsStore((state) => state.isPaneOpen)
   const boardAssistantByProject = useSessionStore((state) => state.boardAssistantByProject)
   const createBoardAssistantSession = useSessionStore((s) => s.createBoardAssistantSession)
   const focusBoardAssistantSession = useSessionStore((s) => s.focusBoardAssistantSession)
@@ -350,6 +354,25 @@ export function KanbanBoard({ projectId, connectionId, isPinnedMode }: KanbanBoa
     return () => el.removeEventListener('scroll', handler)
   }, [computePaths])
 
+  // Recompute when the board resizes (window resize, favorites pane toggle).
+  // Columns animate their width for ~200ms after the resize, so recompute
+  // again once they settle.
+  useEffect(() => {
+    const el = boardRef.current
+    if (!el) return
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const observer = new ResizeObserver(() => {
+      computePaths()
+      clearTimeout(timer)
+      timer = setTimeout(() => computePaths(), 250)
+    })
+    observer.observe(el)
+    return () => {
+      observer.disconnect()
+      clearTimeout(timer)
+    }
+  }, [computePaths])
+
   // Archived merged tickets surface in Done's archive section too (the Merged
   // column has no archive UI of its own). Search-filtered like active tickets;
   // when the archive toggle is off these lists aren't rendered (or even
@@ -442,7 +465,8 @@ export function KanbanBoard({ projectId, connectionId, isPinnedMode }: KanbanBoa
           </div>
         )}
         {boardSearch.open && <BoardSearchBar inputRef={searchInputRef} matchCount={matchCount} />}
-        {/* Columns */}
+        {/* Columns row + optional favorites pane */}
+        <div className="flex flex-1 min-h-0">
         {isPinnedMode && pinnedProjectIdsArray.length === 0 ? (
           <div className="flex-1 flex items-center justify-center text-muted-foreground">
             <div className="text-center">
@@ -524,7 +548,15 @@ export function KanbanBoard({ projectId, connectionId, isPinnedMode }: KanbanBoa
             )}
           </motion.div>
         )}
-        <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 flex justify-end p-4">
+        {isFavoritesPaneOpen && <FavoriteTicketsPane />}
+        </div>
+        <div
+          className={cn(
+            'pointer-events-none absolute inset-x-0 bottom-0 z-20 flex justify-end p-4',
+            // Keep the launcher clear of the favorites pane
+            isFavoritesPaneOpen && 'pr-[19.5rem]'
+          )}
+        >
           <BoardChatLauncher
             disabled={Boolean(isPinnedMode) || !projectId}
             disabledReason={
