@@ -273,6 +273,8 @@ interface SessionState {
   requeueFollowUpMessageFront: (sessionId: string, message: string) => void
   consumeFollowUpMessage: (sessionId: string) => string | null
   enqueueFollowUpMessage: (sessionId: string, message: string) => void
+  removeFollowUpMessageAt: (sessionId: string, index: number, expectedContent?: string) => void
+  insertFollowUpMessageAt: (sessionId: string, index: number, message: string) => void
   closeOtherSessions: (worktreeId: string, keepSessionId: string) => Promise<void>
   closeSessionsToRight: (worktreeId: string, fromSessionId: string) => Promise<void>
   // Plan approval
@@ -2041,6 +2043,49 @@ export const useSessionStore = create<SessionState>()(
           const existing = state.pendingFollowUpMessages.get(sessionId) || []
           const newMap = new Map(state.pendingFollowUpMessages)
           newMap.set(sessionId, [...existing, message])
+          return { pendingFollowUpMessages: newMap }
+        })
+        pushQueuedState(sessionId, true)
+      },
+
+      // Drop one queued follow-up. Index-based on purpose: two queued messages
+      // can hold identical text, and removing by content would hit the wrong one.
+      // Pass expectedContent whenever the index came from the rendered list: that
+      // list lags the store by a render, so an index captured before an await can
+      // point at a different entry by the time this runs. The content check makes a
+      // stale index fall back to the first match instead of dropping the wrong one.
+      removeFollowUpMessageAt: (sessionId: string, index: number, expectedContent?: string) => {
+        const existing = get().pendingFollowUpMessages.get(sessionId)
+        if (!existing || existing.length === 0) return
+
+        let target = index
+        if (expectedContent !== undefined && existing[target] !== expectedContent) {
+          target = existing.indexOf(expectedContent)
+        }
+        if (target < 0 || target >= existing.length) return
+
+        const rest = existing.filter((_, i) => i !== target)
+        set((state) => {
+          const newMap = new Map(state.pendingFollowUpMessages)
+          if (rest.length === 0) {
+            newMap.delete(sessionId)
+          } else {
+            newMap.set(sessionId, rest)
+          }
+          return { pendingFollowUpMessages: newMap }
+        })
+        pushQueuedState(sessionId, rest.length > 0)
+      },
+
+      // Put a follow-up back at a known position. Used to undo an optimistic
+      // removal, e.g. when steering claimed the entry up front and then failed.
+      insertFollowUpMessageAt: (sessionId: string, index: number, message: string) => {
+        const existing = get().pendingFollowUpMessages.get(sessionId) ?? []
+        const at = Math.max(0, Math.min(index, existing.length))
+        const next = [...existing.slice(0, at), message, ...existing.slice(at)]
+        set((state) => {
+          const newMap = new Map(state.pendingFollowUpMessages)
+          newMap.set(sessionId, next)
           return { pendingFollowUpMessages: newMap }
         })
         pushQueuedState(sessionId, true)

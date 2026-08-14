@@ -31,6 +31,12 @@ import {
   type WorktreeBranchRenamedEvent
 } from '../../shared/worktree-events'
 import { emitWorktreeBranchRenamed } from './worktree-events'
+import {
+  ABORT_REPLY_FLUSH_MS,
+  STOPPED_TOOL_OUTPUT,
+  isPermissionAbortArtifact,
+  runBoundedAbortStep
+} from './claude-abort'
 
 const log = createLogger({ component: 'ClaudeCodeImplementer' })
 
@@ -369,6 +375,11 @@ export class ClaudeCodeImplementer implements AgentSdkImplementer {
     // Reset stderr buffer so it only captures output from this prompt
     session.stderrBuffer = []
 
+    // Mirrors this turn's AbortController for the outer catch, which sits outside
+    // the try that creates it. Stays null if we fail before the turn even starts,
+    // which is how that catch tells a user stop from a real setup failure.
+    let startedTurnController: AbortController | null = null
+
     this.emitStatus(session.hiveSessionId, 'busy')
     log.info('Prompt: starting', {
       worktreePath,
@@ -479,8 +490,14 @@ export class ClaudeCodeImplementer implements AgentSdkImplementer {
         parts: syntheticParts
       })
 
-      // Fresh AbortController for this prompt turn
-      session.abortController = new AbortController()
+      // Fresh AbortController for this prompt turn. Captured in a local so the
+      // callbacks below can fence themselves to THIS turn: abort() is bounded, so
+      // a timed-out teardown can leave this stream running while a later prompt
+      // installs a new controller. Reading session.abortController would then see
+      // the new turn's un-aborted controller and let stale output merge into it.
+      const turnController = new AbortController()
+      startedTurnController = turnController
+      session.abortController = turnController
 
       // Determine permission mode from DB session mode
       // 'plan' mode uses SDK-native plan mode (ExitPlanMode blocking tool)
@@ -507,15 +524,15 @@ export class ClaudeCodeImplementer implements AgentSdkImplementer {
       // It should never reach here (the picker only offers it for claude-code-cli),
       // but if a stale default leaks it in, fall back to its xhigh equivalent so
       // the SDK never receives an invalid effort value.
-      const effortLevel = (isUltracodeEffort(requestedEffort)
-        ? 'xhigh'
-        : requestedEffort) as Options['effort']
+      const effortLevel = (
+        isUltracodeEffort(requestedEffort) ? 'xhigh' : requestedEffort
+      ) as Options['effort']
 
       // Build SDK query options
       const options: Options = {
         cwd: session.worktreePath,
         permissionMode: sdkPermissionMode,
-        abortController: session.abortController,
+        abortController: turnController,
         maxThinkingTokens: 31999,
         includePartialMessages: true,
         enableFileCheckpointing: true,
@@ -598,9 +615,9 @@ export class ClaudeCodeImplementer implements AgentSdkImplementer {
         hiveSessionId: session.hiveSessionId,
         queryIterator: queryData as unknown as AsyncIterable<unknown>,
         onMessage: async (sdkMessage) => {
-          // Break if aborted
-          if (session.abortController?.signal.aborted) {
-            log.info('Prompt: aborted, breaking loop')
+          // Break if this turn was aborted, or if it is no longer the current turn
+          if (turnController.signal.aborted || session.abortController !== turnController) {
+            log.info('Prompt: aborted or superseded, breaking loop')
             return
           }
 
@@ -872,14 +889,21 @@ export class ClaudeCodeImplementer implements AgentSdkImplementer {
                         p.type === 'tool_use' &&
                         (p.toolUse as Record<string, unknown> | undefined)?.id === tr.tool_use_id
                     )
+                    // Keep the stored copy in sync with what the renderer shows:
+                    // a broken permission round-trip is a stop, not a failure.
+                    let isError = !!tr.is_error
+                    if (isError && isPermissionAbortArtifact(output)) {
+                      isError = false
+                      output = STOPPED_TOOL_OUTPUT
+                    }
                     if (toolPart) {
                       const tu = toolPart.toolUse as Record<string, unknown>
                       tu.output = output
-                      tu.error = tr.is_error ? output : undefined
-                      tu.status = tr.is_error ? 'error' : 'success'
+                      tu.error = isError ? output : undefined
+                      tu.status = isError ? 'error' : 'success'
                       log.info('TOOL_LIFECYCLE: merged tool_result into assistant tool_use', {
                         toolId: tr.tool_use_id,
-                        isError: !!tr.is_error,
+                        isError,
                         hasOutput: !!output
                       })
                     }
@@ -953,9 +977,23 @@ export class ClaudeCodeImplementer implements AgentSdkImplementer {
       })
       session.subscription = subscription
 
+      // abort() tears down on a timeout, so this finisher can still be awaiting the
+      // old stream while a later prompt owns the session. Every side effect below
+      // is gated on still being the current turn: otherwise it would emit idle for
+      // the new turn and null out its query handle, leaving the next stop with
+      // nothing to interrupt.
+      const ownsSession = (): boolean => session.abortController === turnController
+
       const finishPromptInBackground = async () => {
         try {
           const subscriptionExit = await subscription.awaitDone()
+          if (!ownsSession()) {
+            log.info('Prompt: finisher superseded by a newer turn, skipping cleanup', {
+              worktreePath,
+              agentSessionId
+            })
+            return
+          }
           session.subscription = null
           if (
             Exit.isFailure(subscriptionExit) &&
@@ -966,7 +1004,7 @@ export class ClaudeCodeImplementer implements AgentSdkImplementer {
 
           log.info('Prompt: async iteration loop finished', {
             totalMessages: messageIndex,
-            aborted: session.abortController?.signal.aborted ?? false
+            aborted: turnController.signal.aborted
           })
 
           // Safety net: if the SDK exited without throwing but stderr was captured
@@ -975,7 +1013,7 @@ export class ClaudeCodeImplementer implements AgentSdkImplementer {
           // ends iteration normally instead of throwing.
           const stderrAfterLoop = session.stderrBuffer.join('').trim()
 
-          if (stderrAfterLoop && messageIndex === 0 && !session.abortController?.signal.aborted) {
+          if (stderrAfterLoop && messageIndex === 0 && !turnController.signal.aborted) {
             log.warn('Prompt: SDK exited silently with stderr and no messages', {
               worktreePath,
               agentSessionId,
@@ -990,6 +1028,13 @@ export class ClaudeCodeImplementer implements AgentSdkImplementer {
 
           this.emitStatus(session.hiveSessionId, 'idle')
         } catch (error) {
+          if (!ownsSession()) {
+            log.info('Prompt: superseded finisher failed, not surfacing', {
+              worktreePath,
+              agentSessionId
+            })
+            return
+          }
           const errorMessage = error instanceof Error ? error.message : String(error)
           const stderrOutput = session.stderrBuffer.join('').trim() || undefined
 
@@ -1003,27 +1048,43 @@ export class ClaudeCodeImplementer implements AgentSdkImplementer {
             }
           }
 
-          log.error(
-            'Prompt streaming error',
-            error instanceof Error ? error : new Error(errorMessage),
-            {
+          // A stopped turn tears the stream down on purpose. Reporting that as a
+          // session error paints a red banner over what the user just asked for.
+          // The signal alone is proof: each prompt gets its own controller, so an
+          // aborted one cannot be attributed to a later turn.
+          const stoppedByUser = turnController.signal.aborted
+
+          if (stoppedByUser) {
+            log.info('Prompt: stream ended because the turn was stopped', {
               worktreePath,
               agentSessionId,
-              error: errorMessage,
-              stderr: stderrOutput,
-              ...(Object.keys(errorExtras).length > 0 ? { errorExtras } : {})
-            }
-          )
+              error: errorMessage
+            })
+          } else {
+            log.error(
+              'Prompt streaming error',
+              error instanceof Error ? error : new Error(errorMessage),
+              {
+                worktreePath,
+                agentSessionId,
+                error: errorMessage,
+                stderr: stderrOutput,
+                ...(Object.keys(errorExtras).length > 0 ? { errorExtras } : {})
+              }
+            )
 
-          this.sendToRenderer('opencode:stream', {
-            type: 'session.error',
-            sessionId: session.hiveSessionId,
-            data: { error: errorMessage, stderr: stderrOutput }
-          })
+            this.sendToRenderer('opencode:stream', {
+              type: 'session.error',
+              sessionId: session.hiveSessionId,
+              data: { error: errorMessage, stderr: stderrOutput }
+            })
+          }
           this.emitStatus(session.hiveSessionId, 'idle')
         } finally {
-          session.lastQuery = session.query
-          session.query = null
+          if (ownsSession()) {
+            session.lastQuery = session.query
+            session.query = null
+          }
         }
       }
 
@@ -1042,23 +1103,34 @@ export class ClaudeCodeImplementer implements AgentSdkImplementer {
         }
       }
 
-      log.error(
-        'Prompt streaming error',
-        error instanceof Error ? error : new Error(errorMessage),
-        {
+      // Same reasoning as in finishPromptInBackground: a stop is not an error.
+      const stoppedByUser = startedTurnController?.signal.aborted ?? false
+
+      if (stoppedByUser) {
+        log.info('Prompt: setup aborted because the turn was stopped', {
           worktreePath,
           agentSessionId,
-          error: errorMessage,
-          stderr: stderrOutput,
-          ...(Object.keys(errorExtras).length > 0 ? { errorExtras } : {})
-        }
-      )
+          error: errorMessage
+        })
+      } else {
+        log.error(
+          'Prompt streaming error',
+          error instanceof Error ? error : new Error(errorMessage),
+          {
+            worktreePath,
+            agentSessionId,
+            error: errorMessage,
+            stderr: stderrOutput,
+            ...(Object.keys(errorExtras).length > 0 ? { errorExtras } : {})
+          }
+        )
 
-      this.sendToRenderer('opencode:stream', {
-        type: 'session.error',
-        sessionId: session.hiveSessionId,
-        data: { error: errorMessage, stderr: stderrOutput }
-      })
+        this.sendToRenderer('opencode:stream', {
+          type: 'session.error',
+          sessionId: session.hiveSessionId,
+          data: { error: errorMessage, stderr: stderrOutput }
+        })
+      }
       this.emitStatus(session.hiveSessionId, 'idle')
       session.lastQuery = session.query
       session.query = null
@@ -1073,26 +1145,103 @@ export class ClaudeCodeImplementer implements AgentSdkImplementer {
       return false
     }
 
+    // Reply to whatever the CLI is blocked on *before* the transport goes away.
+    // Killing the stream with a permission request still in flight is what makes
+    // Claude report "Tool permission request failed: AbortError: Stream closed"
+    // as a failed tool call.
+    const denied = this.denyPendingRequests(session, 'abort')
+    if (denied > 0) {
+      await new Promise((resolve) => setTimeout(resolve, ABORT_REPLY_FLUSH_MS))
+    }
+
+    // Graceful interrupt first, while the stream is still alive. Every step is
+    // bounded: a wedged child process must not keep the stop button spinning.
+    const query = session.query
+    if (query) {
+      const interrupted = await runBoundedAbortStep(() => query.interrupt())
+      if (!interrupted) {
+        log.warn('Abort: query.interrupt() did not settle in time', {
+          worktreePath,
+          agentSessionId
+        })
+      }
+    }
+
     if (session.abortController) {
       session.abortController.abort()
     }
 
-    if (session.subscription) {
-      await session.subscription.abort()
-      session.subscription = null
-    }
-
-    if (session.query) {
-      try {
-        await session.query.interrupt()
-      } catch {
-        log.warn('Abort: query.interrupt() threw, ignoring', { worktreePath, agentSessionId })
+    const subscription = session.subscription
+    if (subscription) {
+      const closed = await runBoundedAbortStep(() => subscription.abort())
+      if (!closed) {
+        log.warn('Abort: stream teardown did not settle in time', {
+          worktreePath,
+          agentSessionId
+        })
       }
+      session.subscription = null
     }
 
     session.query = null
     this.emitStatus(session.hiveSessionId, 'idle')
     return true
+  }
+
+  /**
+   * Resolve every human-in-the-loop request this session is blocked on with a
+   * denial and clear the matching UI state. Mirrors the abort-signal listeners
+   * in `canUseTool`, but runs while the SDK transport is still open so the
+   * replies actually reach the CLI. Returns how many requests were settled.
+   */
+  private denyPendingRequests(session: ClaudeSessionState, reason: string): number {
+    let denied = 0
+
+    if (session.pendingPlanApproval) {
+      const { requestId, resolve } = session.pendingPlanApproval
+      session.pendingPlanApproval = null
+      this.pendingPlanSessions.delete(requestId)
+      this.sendToRenderer('opencode:stream', {
+        type: 'plan.resolved',
+        sessionId: session.hiveSessionId,
+        data: { approved: false, aborted: true }
+      })
+      log.info('Abort: rejecting pending plan approval', { requestId, reason })
+      resolve({ approved: false })
+      denied++
+    }
+
+    if (session.pendingQuestion) {
+      const { requestId, resolve } = session.pendingQuestion
+      session.pendingQuestion = null
+      this.pendingQuestionSessions.delete(requestId)
+      // question.rejected is what removes the prompt from the renderer's question
+      // store. Without it the store keeps a stale question, the idle that follows
+      // the abort counts as blocked, and the turn never finalizes.
+      this.sendToRenderer('opencode:stream', {
+        type: 'question.rejected',
+        sessionId: session.hiveSessionId,
+        data: { requestId, id: requestId }
+      })
+      log.info('Abort: rejecting pending question', { requestId, reason })
+      resolve({ answers: [], rejected: true })
+      denied++
+    }
+
+    for (const [requestId, pending] of [...this.pendingApprovals]) {
+      if (pending.hiveSessionId !== session.hiveSessionId) continue
+      this.pendingApprovals.delete(requestId)
+      this.sendToRenderer('opencode:stream', {
+        type: 'command.approval_replied',
+        sessionId: pending.hiveSessionId,
+        data: { requestId, id: requestId, approved: false }
+      })
+      log.info('Abort: denying pending command approval', { requestId, reason })
+      pending.resolve({ approved: false })
+      denied++
+    }
+
+    return denied
   }
 
   async getMessages(worktreePath: string, agentSessionId: string): Promise<unknown[]> {
@@ -2869,7 +3018,7 @@ export class ClaudeCodeImplementer implements AgentSdkImplementer {
             const b = block as Record<string, unknown>
             if (b.type === 'tool_result') {
               const toolId = b.tool_use_id as string
-              const isError = b.is_error as boolean | undefined
+              let isError = b.is_error as boolean | undefined
               log.info('TOOL_LIFECYCLE: tool_result received', {
                 hiveSessionId,
                 toolId,
@@ -2884,6 +3033,12 @@ export class ClaudeCodeImplementer implements AgentSdkImplementer {
                   .filter((c) => c.type === 'text')
                   .map((c) => c.text as string)
                   .join('\n')
+              }
+              // Stopping a turn can break the CLI's own permission round-trip.
+              // That is the stop, not a tool failure, so don't paint it red.
+              if (isError && isPermissionAbortArtifact(output)) {
+                isError = false
+                output = STOPPED_TOOL_OUTPUT
               }
               log.info('TOOL_LIFECYCLE: emitting tool_result to renderer', {
                 hiveSessionId,

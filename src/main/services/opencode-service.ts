@@ -20,6 +20,10 @@ import {
   type WorktreeBranchRenamedEvent
 } from '../../shared/worktree-events'
 import { emitWorktreeBranchRenamed } from './worktree-events'
+import {
+  describeOpenCodeSessionError,
+  isOpenCodeAbortedError
+} from '@shared/opencode-session-error'
 
 const log = createLogger({ component: 'OpenCodeService' })
 
@@ -1150,9 +1154,19 @@ class OpenCodeService {
 
     // Log errors, skip logging for routine events
     if (eventType === 'session.error') {
-      log.error('OpenCode session error', toError(event.properties?.error), {
-        sessionId: event.properties?.sessionID
-      })
+      const sessionError = event.properties?.error
+      if (isOpenCodeAbortedError(sessionError)) {
+        log.info('OpenCode turn stopped by user', {
+          sessionId: event.properties?.sessionID
+        })
+      } else {
+        // Describe the payload explicitly: it is a plain { name, data } object,
+        // so toError() would log a useless "Error: [object Object]".
+        log.error('OpenCode session error', new Error(describeOpenCodeSessionError(sessionError)), {
+          sessionId: event.properties?.sessionID,
+          errorName: (sessionError as { name?: string } | undefined)?.name
+        })
+      }
     }
 
     if (!eventType) {
@@ -1349,6 +1363,13 @@ class OpenCodeService {
           log.warn('Failed to persist session title from server', { err })
         }
       }
+    }
+
+    // A stopped turn arrives as session.error with MessageAbortedError. Forwarding
+    // it would paint a red error banner over something the user asked for. The
+    // separate session.idle event still clears the running state.
+    if (eventType === 'session.error' && isOpenCodeAbortedError(event.properties?.error)) {
+      return
     }
 
     // Send event to renderer

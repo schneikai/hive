@@ -3,6 +3,7 @@ import { readFile, readdir, realpath } from 'fs/promises'
 import { join } from 'path'
 import { homedir } from 'os'
 import { createLogger } from './logger'
+import { STOPPED_TOOL_OUTPUT, isPermissionAbortArtifact } from './claude-abort'
 
 const log = createLogger({ component: 'ClaudeTranscriptReader' })
 const ENCODED_PATH_MAX_LEN = 200
@@ -352,10 +353,12 @@ export async function readClaudeTranscript(
             .map((c) => c.text ?? '')
             .join('\n')
         }
-        if (tr.is_error) {
+        // A stopped turn leaves the CLI's own permission failure in the
+        // transcript. Without this it comes back as a red card on every reload.
+        if (tr.is_error && !isPermissionAbortArtifact(output)) {
           toolUseBlock._resolvedError = output
         } else {
-          toolUseBlock._resolvedOutput = output
+          toolUseBlock._resolvedOutput = tr.is_error ? STOPPED_TOOL_OUTPUT : output
         }
       }
       break

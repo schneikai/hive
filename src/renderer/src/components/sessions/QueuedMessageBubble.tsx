@@ -1,14 +1,15 @@
 import { cn } from '@/lib/utils'
-import { ShipWheel } from 'lucide-react'
+import { ShipWheel, X } from 'lucide-react'
 
 interface QueuedMessageBubbleProps {
   content: string
   canSteer?: boolean
   isLoading?: boolean
   onSteer?: () => void
+  onDelete?: () => void
 }
 
-export function QueuedMessageBubble({ content, canSteer, isLoading, onSteer }: QueuedMessageBubbleProps): React.JSX.Element {
+export function QueuedMessageBubble({ content, canSteer, isLoading, onSteer, onDelete }: QueuedMessageBubbleProps): React.JSX.Element {
   return (
     <div className="flex justify-end px-6 py-4 opacity-70" data-testid="queued-message-bubble">
       <div className={cn('max-w-[80%] rounded-2xl px-4 py-3', 'bg-primary/10 text-foreground')}>
@@ -28,6 +29,22 @@ export function QueuedMessageBubble({ content, canSteer, isLoading, onSteer }: Q
               title="Steer — inject into active turn"
             >
               <ShipWheel className={cn("w-3.5 h-3.5", isLoading && "animate-spin")} />
+            </button>
+          )}
+          {onDelete && (
+            <button
+              type="button"
+              onClick={onDelete}
+              disabled={isLoading}
+              className={cn(
+                "text-muted-foreground hover:text-destructive transition-colors",
+                isLoading && "opacity-50 cursor-not-allowed"
+              )}
+              aria-label="Remove queued message"
+              title="Remove queued message"
+              data-testid="queued-message-delete"
+            >
+              <X className="w-3.5 h-3.5" />
             </button>
           )}
         </div>
