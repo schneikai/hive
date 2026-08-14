@@ -56,6 +56,15 @@ export async function connectOpenCodeSession(
     // SDK-aware dispatch: route non-OpenCode sessions to their implementer
     if (sdkManager && dbService) {
       const session = dbService.getSession(hiveSessionId)
+      if (!session) {
+        // Usually means main opened a different database than the backend, which
+        // pins the session to OpenCode for its whole lifetime.
+        log.warn('No session row found, falling back to OpenCode', {
+          hiveSessionId,
+          worktreePath,
+          dbPath: dbService.getDbPath()
+        })
+      }
       // Terminal sessions have no AI backend — short-circuit
       if (session?.agent_sdk === 'terminal') {
         return { success: true, sessionId: hiveSessionId }
@@ -196,6 +205,15 @@ export async function promptOpenCodeSession(
         sdkId,
         route: sdkId && sdkId !== 'opencode' && !isTerminalBacked(sdkId) ? 'sdk' : 'opencode'
       })
+      if (!sdkId) {
+        // No session row: the prompt goes to OpenCode, which rejects
+        // non-OpenCode models.
+        log.warn('No agent SDK for session, falling back to OpenCode', {
+          worktreePath,
+          opencodeSessionId,
+          dbPath: dbService.getDbPath()
+        })
+      }
       if (isClaudeCli(sdkId)) {
         // Terminal-backed Claude: prompts go through the PTY (bracketed paste /
         // pending-prompt spawn), never the SDK implementer. Routing it there

@@ -65,8 +65,14 @@ import type {
   SavedUsageProvider
 } from './types'
 
+// Every other Hive process runs the server bundle as plain node
+// (ELECTRON_RUN_AS_NODE=1), so this is only true in the desktop main process.
+const isDesktopMainProcess = (): boolean =>
+  process.versions.electron !== undefined && process.env.ELECTRON_RUN_AS_NODE !== '1'
+
 export function resolveDatabasePath(options?: {
   readonly explicitPath?: string
+  readonly desktopBaseDir?: string
   readonly serverBaseDir?: string
   readonly homeDir?: string
 }): string {
@@ -80,12 +86,23 @@ export function resolveDatabasePath(options?: {
   }
 
   const serverBaseDir = options?.serverBaseDir ?? process.env.HIVE_SERVER_BASE_DIR
-  const homeDir = options?.homeDir ?? homedir()
-
   if (serverBaseDir) {
     return join(serverBaseDir, 'userdata', 'state.sqlite')
   }
 
+  // Dev/E2E data dir for the desktop app. The backend child gets it as an
+  // explicit HIVE_SERVER_DB_PATH, so main must derive the same path or the two
+  // halves of one app open different databases. Read from the environment in the
+  // desktop main process only: a server process can inherit the variable from
+  // the shell that started it, and its state belongs under its own base dir.
+  const desktopBaseDir =
+    options?.desktopBaseDir ??
+    (isDesktopMainProcess() ? process.env.HIVE_DESKTOP_BASE_DIR : undefined)
+  if (desktopBaseDir) {
+    return join(desktopBaseDir, 'hive.db')
+  }
+
+  const homeDir = options?.homeDir ?? homedir()
   return join(homeDir, '.hive', 'hive.db')
 }
 
