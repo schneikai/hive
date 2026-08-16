@@ -23,7 +23,7 @@ import {
  * `StatusIndicator.tsx` + `AgentWorkingSpinner.tsx`.
  *
  * States (orca semantics):
- * - working  → yellow-500 rotating ring, 12-step cadence (`agent-spinner-rotate`,
+ * - working  → yellow-500 rotating ring, smooth linear spin (`agent-spinner-rotate`,
  *              CSS in globals.css "Orca sidebar" block; motion-reduce fills the
  *              top border so the frozen ring reads as an intentional marker)
  * - done     → emerald-500 dot (sidebar StatusIndicator recipe — orca's sidebar

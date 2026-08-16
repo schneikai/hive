@@ -982,8 +982,9 @@
 
 /* Why: must stay a compositor-driven CSS animation — a JS clock writing
    per-element transforms blocks the renderer input thread (STA-3328: 41
-   spinners ⇒ ~490 style writes/s, keystroke p90 363ms). The component anchors
-   each animation's startTime once; steps(12) preserves the retired cadence. */
+   spinners ⇒ ~490 style writes/s, keystroke p90 363ms). Linear timing keeps
+   the ring rolling smoothly; steps() made it jump in 30° ticks and read as
+   stutter on the solid-ring glyph. */
 @keyframes agent-spinner-rotate {
   to {
     transform: rotate(360deg);
@@ -991,7 +992,7 @@
 }
 
 .agent-working-spinner {
-  animation: agent-spinner-rotate 1s steps(12, end) infinite;
+  animation: agent-spinner-rotate 1s linear infinite;
 }
 
 @media (prefers-reduced-motion: reduce) {

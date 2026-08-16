@@ -608,7 +608,7 @@ export const AGENT_SUMMARY_PANEL_EXPANDED = 'compact-agent-summary-panel-expande
 // Agent state glyphs (AgentStateDot.tsx, AgentWorkingSpinner.tsx, StatusIndicator.tsx)
 // ───────────────────────────────────────────────────────────────────────────
 
-/** AgentWorkingSpinner.tsx:44 — 12-step rotating ring (size via className). */
+/** AgentWorkingSpinner.tsx:44 — smoothly rotating ring (size via className). */
 export const AGENT_WORKING_SPINNER =
   'agent-working-spinner block rounded-full border-2 border-yellow-500 border-t-transparent motion-reduce:border-t-yellow-500'
 /** AgentStateDot.tsx:70-72 — sizes. */
