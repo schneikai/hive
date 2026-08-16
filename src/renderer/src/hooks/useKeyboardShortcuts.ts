@@ -23,6 +23,7 @@ import { useWorktreeStatusStore } from '@/stores/useWorktreeStatusStore'
 import { useTerminalTabStore } from '@/stores/useTerminalTabStore'
 import { useTerminalStore } from '@/stores/useTerminalStore'
 import { eventMatchesBinding, type KeyBinding } from '@/lib/keyboard-shortcuts'
+import { isForceBoardMode } from '@/api/hive-enterprise/client'
 import { toast } from '@/lib/toast'
 import { unwrapEnvelope } from '@/lib/ipc-envelope'
 import { systemApi } from '@/api/system-api'
@@ -101,6 +102,13 @@ function handleRunProject(): void {
  * Shared between the keyboard shortcut handler and the main-process IPC listener.
  */
 function createNewSession(): void {
+  // Org "Force board mode" policy: sessions may only be started from a board
+  // ticket, so the shortcut (and the File menu item that forwards to it) is a
+  // no-op beyond explaining why.
+  if (isForceBoardMode(useSettingsStore.getState())) {
+    toast.error('Your organization requires sessions to be started from a board ticket')
+    return
+  }
   const { selectedWorktreeId, worktreesByProject } = useWorktreeStore.getState()
   if (!selectedWorktreeId) {
     toast.error('Please select a worktree first')

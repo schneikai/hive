@@ -26,7 +26,9 @@ export function SettingsHiveEnterprise(): React.JSX.Element {
         hiveLoggedInEmail: me?.email ?? null,
         hiveOrganizationId: me?.organization?.id ?? null,
         hiveOrganizationName: me?.organization?.name ?? null,
-        hiveOrganizationStorePrompts: me?.organization?.storePrompts ?? true
+        hiveOrganizationStorePrompts: me?.organization?.storePrompts ?? true,
+        hiveOrganizationRecordQuestions: me?.organization?.recordQuestions ?? true,
+        hiveOrganizationForceBoardMode: me?.organization?.forceBoardMode ?? false
       })
       toast.success('Hive Enterprise account refreshed')
     } catch (error) {

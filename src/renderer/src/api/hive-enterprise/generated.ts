@@ -27,8 +27,20 @@ export type GqlAccountProvider =
   | 'anthropic'
   | 'openai';
 
+export type GqlAccountShare = {
+  __typename?: 'AccountShare';
+  expiresAt: Scalars['String']['output'];
+  token: Scalars['String']['output'];
+};
+
 export type GqlActiveAccountInput = {
   email: Scalars['String']['input'];
+  provider: GqlAccountProvider;
+};
+
+export type GqlClaimedAccountShare = {
+  __typename?: 'ClaimedAccountShare';
+  encryptedPayload: Scalars['String']['output'];
   provider: GqlAccountProvider;
 };
 
@@ -54,8 +66,16 @@ export type GqlMember = {
   role: GqlUserRole;
 };
 
+export type GqlModelPrices = {
+  __typename?: 'ModelPrices';
+  fetchedAt: Scalars['String']['output'];
+  pricesJson: Scalars['String']['output'];
+};
+
 export type GqlMutation = {
   __typename?: 'Mutation';
+  claimAccountShare?: Maybe<GqlClaimedAccountShare>;
+  createAccountShare: GqlAccountShare;
   createOrganization: GqlOrganization;
   inviteMember: GqlInvite;
   recordPromptIdle: GqlPromptMutationResult;
@@ -63,6 +83,18 @@ export type GqlMutation = {
   recordQuestionsAnswered: GqlQuestionAnsweredResult;
   removeMember: Scalars['Boolean']['output'];
   reportActiveAccounts: GqlReportActiveAccountsResult;
+  reportSessionUsage: GqlPromptMutationResult;
+};
+
+
+export type GqlMutationClaimAccountShareArgs = {
+  token: Scalars['String']['input'];
+};
+
+
+export type GqlMutationCreateAccountShareArgs = {
+  encryptedPayload: Scalars['String']['input'];
+  provider: GqlAccountProvider;
 };
 
 
@@ -101,8 +133,14 @@ export type GqlMutationReportActiveAccountsArgs = {
   accounts: Array<GqlActiveAccountInput>;
 };
 
+
+export type GqlMutationReportSessionUsageArgs = {
+  input: GqlSessionUsageReportInput;
+};
+
 export type GqlOrganization = {
   __typename?: 'Organization';
+  forceBoardMode: Scalars['Boolean']['output'];
   id: Scalars['InteractId']['output'];
   name: Scalars['String']['output'];
   recordQuestions: Scalars['Boolean']['output'];
@@ -119,6 +157,7 @@ export type GqlPromptIdleInput = {
 
 export type GqlPromptMutationResult = {
   __typename?: 'PromptMutationResult';
+  forceBoardMode: Scalars['Boolean']['output'];
   recordQuestions: Scalars['Boolean']['output'];
   recorded: Scalars['Boolean']['output'];
   storePrompts: Scalars['Boolean']['output'];
@@ -150,6 +189,7 @@ export type GqlPromptStartInput = {
 
 export type GqlPromptStartResult = {
   __typename?: 'PromptStartResult';
+  forceBoardMode: Scalars['Boolean']['output'];
   promptId?: Maybe<Scalars['InteractId']['output']>;
   recordQuestions: Scalars['Boolean']['output'];
   recorded: Scalars['Boolean']['output'];
@@ -164,6 +204,7 @@ export type GqlQuery = {
   listOrganizations: Array<GqlOrganization>;
   listUsers: Array<GqlMember>;
   me?: Maybe<GqlUser>;
+  modelPrices?: Maybe<GqlModelPrices>;
 };
 
 
@@ -185,6 +226,7 @@ export type GqlQuestionAnsweredInput = {
 
 export type GqlQuestionAnsweredResult = {
   __typename?: 'QuestionAnsweredResult';
+  forceBoardMode: Scalars['Boolean']['output'];
   recordQuestions: Scalars['Boolean']['output'];
   recorded: Scalars['Boolean']['output'];
   storePrompts: Scalars['Boolean']['output'];
@@ -192,9 +234,32 @@ export type GqlQuestionAnsweredResult = {
 
 export type GqlReportActiveAccountsResult = {
   __typename?: 'ReportActiveAccountsResult';
+  forceBoardMode: Scalars['Boolean']['output'];
   recordQuestions: Scalars['Boolean']['output'];
   recorded: Scalars['Boolean']['output'];
   storePrompts: Scalars['Boolean']['output'];
+};
+
+export type GqlSessionUsageReportInput = {
+  agentSdk?: InputMaybe<Scalars['String']['input']>;
+  buckets: Array<GqlUsageBucketInput>;
+  gitRemoteUrl?: InputMaybe<Scalars['String']['input']>;
+  mode?: InputMaybe<Scalars['String']['input']>;
+  projectName?: InputMaybe<Scalars['String']['input']>;
+  projectPath?: InputMaybe<Scalars['String']['input']>;
+  provider: Scalars['String']['input'];
+  sessionId: Scalars['String']['input'];
+  worktreeBranch?: InputMaybe<Scalars['String']['input']>;
+};
+
+export type GqlUsageBucketInput = {
+  bucketTs: Scalars['String']['input'];
+  cacheReadTokens: Scalars['Int']['input'];
+  cacheWriteTokens: Scalars['Int']['input'];
+  costUsd: Scalars['Float']['input'];
+  inputTokens: Scalars['Int']['input'];
+  model: Scalars['String']['input'];
+  outputTokens: Scalars['Int']['input'];
 };
 
 export type GqlUser = {
@@ -228,6 +293,7 @@ export type GqlHiveEnterpriseMeQuery = (
         | 'name'
         | 'storePrompts'
         | 'recordQuestions'
+        | 'forceBoardMode'
       >
     )> }
   )> }
@@ -248,6 +314,7 @@ export type GqlHiveEnterpriseRecordPromptStartMutation = (
       | 'promptId'
       | 'storePrompts'
       | 'recordQuestions'
+      | 'forceBoardMode'
     >
   ) }
 );
@@ -261,7 +328,13 @@ export type GqlHiveEnterpriseRecordPromptIdleMutation = (
   { __typename?: 'Mutation' }
   & { recordPromptIdle: (
     { __typename?: 'PromptMutationResult' }
-    & Pick<GqlPromptMutationResult, 'recorded' | 'storePrompts' | 'recordQuestions'>
+    & Pick<
+      GqlPromptMutationResult,
+      | 'recorded'
+      | 'storePrompts'
+      | 'recordQuestions'
+      | 'forceBoardMode'
+    >
   ) }
 );
 
@@ -274,7 +347,13 @@ export type GqlHiveEnterpriseRecordQuestionsAnsweredMutation = (
   { __typename?: 'Mutation' }
   & { recordQuestionsAnswered: (
     { __typename?: 'QuestionAnsweredResult' }
-    & Pick<GqlQuestionAnsweredResult, 'recorded' | 'storePrompts' | 'recordQuestions'>
+    & Pick<
+      GqlQuestionAnsweredResult,
+      | 'recorded'
+      | 'storePrompts'
+      | 'recordQuestions'
+      | 'forceBoardMode'
+    >
   ) }
 );
 
@@ -287,7 +366,27 @@ export type GqlHiveEnterpriseReportActiveAccountsMutation = (
   { __typename?: 'Mutation' }
   & { reportActiveAccounts: (
     { __typename?: 'ReportActiveAccountsResult' }
-    & Pick<GqlReportActiveAccountsResult, 'recorded' | 'storePrompts' | 'recordQuestions'>
+    & Pick<
+      GqlReportActiveAccountsResult,
+      | 'recorded'
+      | 'storePrompts'
+      | 'recordQuestions'
+      | 'forceBoardMode'
+    >
+  ) }
+);
+
+export type GqlHiveEnterpriseCreateAccountShareMutationVariables = Exact<{
+  provider: GqlAccountProvider;
+  encryptedPayload: Scalars['String']['input'];
+}>;
+
+
+export type GqlHiveEnterpriseCreateAccountShareMutation = (
+  { __typename?: 'Mutation' }
+  & { createAccountShare: (
+    { __typename?: 'AccountShare' }
+    & Pick<GqlAccountShare, 'token' | 'expiresAt'>
   ) }
 );
 
