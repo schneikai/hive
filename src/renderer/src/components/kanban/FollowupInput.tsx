@@ -10,7 +10,7 @@ import { MAX_ATTACHMENTS } from '@/lib/file-attachment-utils'
 import { toast } from '@/lib/toast'
 import { Tip } from '@/components/ui/Tip'
 
-type FollowUpMode = 'build' | 'plan' | 'super-plan'
+type FollowUpMode = 'build' | 'plan' | 'super-plan' | 'super-build'
 
 interface FollowupInputProps {
   text: string
@@ -100,9 +100,16 @@ export function FollowupInput({
     [onAttach, attachments.length]
   )
 
-  const ModeIcon = followUpMode === 'build' ? Hammer : followUpMode === 'plan' ? Map : Sparkles
+  const ModeIcon =
+    followUpMode === 'build' ? Hammer : followUpMode === 'plan' ? Map : Sparkles
   const modeLabel =
-    followUpMode === 'build' ? 'Build' : followUpMode === 'plan' ? 'Plan' : 'Super Plan'
+    followUpMode === 'build'
+      ? 'Build'
+      : followUpMode === 'plan'
+        ? 'Plan'
+        : followUpMode === 'super-build'
+          ? 'Super Build'
+          : 'Super Plan'
 
   return (
     <div className="space-y-1.5 flex-shrink-0">
@@ -112,7 +119,10 @@ export function FollowupInput({
           Followup
         </label>
         {!hideModeToggle && (
-          <Tip tipId="super-plan-shortcut" enabled={followUpMode === 'super-plan'}>
+          <Tip
+            tipId="super-plan-shortcut"
+            enabled={followUpMode === 'super-plan' || followUpMode === 'super-build'}
+          >
             <button
               data-testid={`${testIdPrefix}-mode-toggle`}
               data-mode={followUpMode}

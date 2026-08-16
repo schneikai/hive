@@ -104,7 +104,7 @@ function normalizeHandoffSdk(
   return 'opencode'
 }
 
-function getModeDefaultKey(mode: 'build' | 'plan' | 'super-plan' | undefined): 'build' | 'plan' {
+function getModeDefaultKey(mode: 'build' | 'plan' | 'super-plan' | 'super-build' | undefined): 'build' | 'plan' {
   return mode === 'plan' || mode === 'super-plan' ? 'plan' : 'build'
 }
 
@@ -148,7 +148,7 @@ function getWorktreeFallbackModel(worktreeId?: string): SelectedModel | null {
 function resolveSessionSelection(opts: {
   worktreeId?: string
   agentSdk?: AgentSdk
-  mode?: 'build' | 'plan' | 'super-plan'
+  mode?: 'build' | 'plan' | 'super-plan' | 'super-build'
   explicitSdk?: boolean
 }): EffectiveHandoffSelection {
   // Discord mirrors the data-driven subset of this chain in src/shared/model-resolution.ts.
@@ -422,7 +422,7 @@ export function getEffectiveHandoffSelection(opts: {
 export function resolveSessionCreationSelection(opts: {
   worktreeId?: string
   agentSdkOverride?: AgentSdk
-  initialMode?: 'build' | 'plan' | 'super-plan'
+  initialMode?: 'build' | 'plan' | 'super-plan' | 'super-build'
   modelOverride?: SelectedModel
   /** claude-code-cli only: resolve the model from this provider's declared list. */
   customProviderId?: string | null

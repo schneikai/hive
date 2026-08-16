@@ -15,19 +15,11 @@ export const SuperToggle = memo(function SuperToggle({
   const session = useSessionStore((state) => state.getSessionById(sessionId))
   const hasPendingPrompt = useSessionStore((state) => state.pendingMessages.has(sessionId))
 
-  const visible = mode === 'plan' || mode === 'super-plan'
   const disabled = session?.agent_sdk === 'claude-code-cli' && !hasPendingPrompt
-  const isOn = mode === 'super-plan'
+  const isOn = mode === 'super-plan' || mode === 'super-build'
 
   return (
-    <div
-      className={cn(
-        'transition-all duration-200 overflow-hidden',
-        visible
-          ? 'opacity-100 translate-x-0 max-w-[80px]'
-          : 'opacity-0 -translate-x-2 max-w-0 pointer-events-none'
-      )}
-    >
+    <div className="transition-all duration-200 overflow-hidden opacity-100 translate-x-0 max-w-[80px]">
       <Tip tipId="super-plan-shortcut" enabled={isOn}>
         <button
           type="button"
@@ -35,7 +27,7 @@ export const SuperToggle = memo(function SuperToggle({
           disabled={disabled}
           aria-pressed={isOn}
           aria-label={`Super mode ${isOn ? 'enabled' : 'disabled'} (Shift+Tab to toggle)`}
-          title="Toggle super-plan mode (Shift+Tab)"
+          title="Toggle super mode (Shift+Tab)"
           data-testid="super-toggle"
           className={cn(
             'flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium tracking-[0.01em] transition-colors',

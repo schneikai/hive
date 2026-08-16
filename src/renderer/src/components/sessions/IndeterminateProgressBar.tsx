@@ -74,10 +74,10 @@ export function IndeterminateProgressBar({
         ? 'bg-amber-500'
         : isReviewing
           ? 'bg-emerald-500'
-          : mode === 'build'
-            ? 'bg-blue-500'
-            : mode === 'super-plan'
-              ? 'bg-orange-500'
+          : mode === 'super-plan' || mode === 'super-build'
+            ? 'bg-orange-500'
+            : mode === 'build'
+              ? 'bg-blue-500'
               : 'bg-violet-500'
 
   return (

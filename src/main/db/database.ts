@@ -367,7 +367,7 @@ export class DatabaseService {
       sort_order: row.sort_order as number,
       current_session_id: (row.current_session_id as string) ?? null,
       worktree_id: (row.worktree_id as string) ?? null,
-      mode: (row.mode as 'build' | 'plan' | 'super-plan') ?? null,
+      mode: (row.mode as 'build' | 'plan' | 'super-plan' | 'super-build') ?? null,
       plan_ready: !!(row.plan_ready as number),
       created_at: row.created_at as string,
       updated_at: row.updated_at as string,
@@ -3407,7 +3407,7 @@ export class DatabaseService {
       ticket_id: data.ticket_id,
       content: data.content,
       role: role as 'user' | 'assistant',
-      mode: data.mode as 'build' | 'plan' | 'super-plan',
+      mode: data.mode as 'build' | 'plan' | 'super-plan' | 'super-build',
       session_id: sessionId,
       source: source as 'direct' | 'supercharge' | 'error_retry',
       created_at: now

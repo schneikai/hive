@@ -292,7 +292,7 @@ const worktreePinnedParamsSchema = z
   .object({ worktreeId: z.string(), pinned: z.boolean() })
   .strict()
 const agentSdkSchema = z.enum(['opencode', 'claude-code', 'claude-code-cli', 'codex', 'terminal'])
-const sessionModeSchema = z.enum(['build', 'plan', 'super-plan'])
+const sessionModeSchema = z.enum(['build', 'plan', 'super-plan', 'super-build'])
 const sessionTypeSchema = z.enum(['default', 'board-assistant'])
 const sessionCreateParamsSchema = z.object({
   worktree_id: z.string().nullable(),

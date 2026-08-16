@@ -75,7 +75,14 @@ import { messageSendTimes, lastSendMode, userExplicitSendTimes } from '@/lib/mes
 import { bumpWorktreeLastMessage } from '@/lib/last-message-utils'
 import { snapshotTokenBaseline } from '@/lib/token-baselines'
 import { markClaudeCliPromptStarted } from '@/lib/claude-cli-send-tracking'
-import { PLAN_MODE_PREFIX, getSuperPlanModePrefix, isPlanLike } from '@/lib/constants'
+import {
+  PLAN_MODE_PREFIX,
+  getSuperModePrefix,
+  isPlanLike,
+  isSuperMode,
+  baseMode,
+  toggleSuper
+} from '@/lib/constants'
 import { buildSdkPlanImplementationPrompt } from '@/lib/proposedPlan'
 import { toast } from '@/lib/toast'
 import {
@@ -123,7 +130,7 @@ import { terminalApi } from '@/api/terminal-api'
 
 // ── Types ───────────────────────────────────────────────────────────
 type ModalMode = 'edit' | 'plan_review' | 'review' | 'error' | 'question'
-type FollowUpMode = 'build' | 'plan' | 'super-plan'
+type FollowUpMode = 'build' | 'plan' | 'super-plan' | 'super-build'
 type ResolvedModalWorktree = Pick<Worktree, 'id' | 'path' | 'branch_name' | 'project_id'> &
   Partial<Pick<Worktree, 'base_branch'>>
 
@@ -436,18 +443,17 @@ async function sendFollowupToSession(opts: {
 
   // Claude Code & Codex handle plan mode via the SDK — don't prepend the text prefix
   const skipPrefix = session.agent_sdk === 'claude-code' || session.agent_sdk === 'codex'
-  const modePrefix =
-    opts.followUpMode === 'super-plan'
-      ? getSuperPlanModePrefix(session.agent_sdk)
-      : opts.followUpMode === 'plan' && !skipPrefix
-        ? PLAN_MODE_PREFIX
-        : ''
+  const modePrefix = isSuperMode(opts.followUpMode)
+    ? getSuperModePrefix(opts.followUpMode, session.agent_sdk)
+    : opts.followUpMode === 'plan' && !skipPrefix
+      ? PLAN_MODE_PREFIX
+      : ''
   const fullPrompt = modePrefix + opts.prompt
 
-  // Auto-revert super-plan → plan immediately (one-shot mode).
+  // Auto-revert super modes to their base mode immediately (one-shot mode).
   // The prefix is already captured in fullPrompt above.
-  if (opts.followUpMode === 'super-plan') {
-    useSessionStore.getState().setSessionMode(opts.sessionId, 'plan')
+  if (isSuperMode(opts.followUpMode)) {
+    useSessionStore.getState().setSessionMode(opts.sessionId, baseMode(opts.followUpMode))
   }
 
   if (!opts.skipSendBookkeeping) {
@@ -2097,14 +2103,16 @@ function PlanReviewModeContent({
   const { isDragging } = useDropZone({ onDrop: handleDropFiles, containerRef: dropZoneRef })
 
   const toggleMode = useCallback(() => {
-    setFollowUpMode((prev) => (prev === 'build' ? 'plan' : 'build'))
+    setFollowUpMode((prev) =>
+      prev === 'build' ? 'plan' : prev === 'super-build' ? 'super-plan' : 'build'
+    )
   }, [])
 
   const toggleSuperMode = useCallback(() => {
-    setFollowUpMode((prev) => (prev === 'super-plan' ? 'plan' : 'super-plan'))
+    setFollowUpMode((prev) => toggleSuper(prev) as FollowUpMode)
   }, [])
 
-  // Tab key toggles mode, Shift+Tab toggles super-plan
+  // Tab key toggles mode, Shift+Tab toggles super
   useEffect(() => {
     if (isClaudeCliPlanSession) return
     const handler = (e: KeyboardEvent): void => {
@@ -3274,14 +3282,16 @@ function ReviewModeContent({
   }, [dualPane, resolvedWorktree?.path, resolvedBaseBranch])
 
   const toggleMode = useCallback(() => {
-    setFollowUpMode((prev) => (prev === 'build' ? 'plan' : 'build'))
+    setFollowUpMode((prev) =>
+      prev === 'build' ? 'plan' : prev === 'super-build' ? 'super-plan' : 'build'
+    )
   }, [])
 
   const toggleSuperMode = useCallback(() => {
-    setFollowUpMode((prev) => (prev === 'super-plan' ? 'plan' : 'super-plan'))
+    setFollowUpMode((prev) => toggleSuper(prev) as FollowUpMode)
   }, [])
 
-  // Tab key toggles mode, Shift+Tab toggles super-plan.
+  // Tab key toggles mode, Shift+Tab toggles super.
   // Claude CLI sessions manage plan/build inside the terminal — leave
   // Tab/Shift+Tab alone so the embedded terminal receives them.
   useEffect(() => {
@@ -3674,14 +3684,16 @@ function ErrorModeContent({
   const { isDragging } = useDropZone({ onDrop: handleDropFiles, containerRef: dropZoneRef })
 
   const toggleMode = useCallback(() => {
-    setFollowUpMode((prev) => (prev === 'build' ? 'plan' : 'build'))
+    setFollowUpMode((prev) =>
+      prev === 'build' ? 'plan' : prev === 'super-build' ? 'super-plan' : 'build'
+    )
   }, [])
 
   const toggleSuperMode = useCallback(() => {
-    setFollowUpMode((prev) => (prev === 'super-plan' ? 'plan' : 'super-plan'))
+    setFollowUpMode((prev) => toggleSuper(prev) as FollowUpMode)
   }, [])
 
-  // Tab key toggles mode, Shift+Tab toggles super-plan
+  // Tab key toggles mode, Shift+Tab toggles super
   useEffect(() => {
     const handler = (e: KeyboardEvent): void => {
       if (e.key === 'Tab' && !e.ctrlKey && !e.metaKey && !e.altKey) {

@@ -205,7 +205,7 @@ export interface KanbanRpcService {
 }
 
 const ticketColumnSchema = z.enum(['todo', 'in_progress', 'review', 'merged', 'done'])
-const sessionModeSchema = z.enum(['build', 'plan', 'super-plan'])
+const sessionModeSchema = z.enum(['build', 'plan', 'super-plan', 'super-build'])
 const ticketMarkSchema = z.enum(['common', 'rare', 'epic', 'legendary'])
 
 const kanbanTicketCreateSchema = z

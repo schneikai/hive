@@ -12,7 +12,7 @@ import { canonicalizeModelSlug, canonicalizeTicketTitle } from '@shared/types/br
 import { FALLBACK_MODELS } from '@shared/model-resolution'
 import { dbApi } from '@/api/db-api'
 
-type LaunchMode = 'build' | 'plan' | 'super-plan'
+type LaunchMode = 'build' | 'plan' | 'super-plan' | 'super-build'
 
 export interface MultiModelLaunchPlan {
   /** The original ticket — becomes entries[0]'s ticket. */
