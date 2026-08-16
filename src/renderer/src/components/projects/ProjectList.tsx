@@ -11,7 +11,7 @@ import {
   useConnectionStore
 } from '@/stores'
 import { ProjectItem } from './ProjectItem'
-import { subsequenceMatch } from '@/lib/subsequence-match'
+import { filterProjects } from '@/lib/project-filter'
 import {
   assignHints,
   buildNormalModeTargets,
@@ -99,41 +99,11 @@ export function ProjectList({
   const activeSpaceId = useSpaceStore((s) => s.activeSpaceId)
   const projectSpaceMap = useSpaceStore((s) => s.projectSpaceMap)
 
-  const filteredProjects = useMemo(() => {
-    // First filter by active space
-    let spaceFiltered = projects
-    if (activeSpaceId !== null) {
-      const allowedIds = new Set(
-        Object.entries(projectSpaceMap)
-          .filter(([, spaceIds]) => spaceIds.includes(activeSpaceId))
-          .map(([projectId]) => projectId)
-      )
-      spaceFiltered = projects.filter((p) => allowedIds.has(p.id))
-    }
-
-    // Then filter by active languages
-    let langFiltered = spaceFiltered
-    if (activeLanguages.length > 0) {
-      const langSet = new Set(activeLanguages)
-      langFiltered = spaceFiltered.filter((p) => p.language && langSet.has(p.language))
-    }
-
-    if (!filterQuery.trim())
-      return langFiltered.map((p) => ({ project: p, nameMatch: null, pathMatch: null }))
-
-    return langFiltered
-      .map((project) => ({
-        project,
-        nameMatch: subsequenceMatch(filterQuery, project.name),
-        pathMatch: subsequenceMatch(filterQuery, project.path)
-      }))
-      .filter(({ nameMatch, pathMatch }) => nameMatch.matched || pathMatch.matched)
-      .sort((a, b) => {
-        const aScore = a.nameMatch.matched ? a.nameMatch.score : a.pathMatch.score + 1000
-        const bScore = b.nameMatch.matched ? b.nameMatch.score : b.pathMatch.score + 1000
-        return aScore - bScore
-      })
-  }, [projects, filterQuery, activeSpaceId, projectSpaceMap, activeLanguages])
+  const filteredProjects = useMemo(
+    () =>
+      filterProjects(projects, { filterQuery, activeLanguages, activeSpaceId, projectSpaceMap }),
+    [projects, filterQuery, activeSpaceId, projectSpaceMap, activeLanguages]
+  )
 
   // Build hint assignments when filter is active
   const { hintMap: computedHintMap, hintTargetMap: computedHintTargetMap } = useMemo(() => {
