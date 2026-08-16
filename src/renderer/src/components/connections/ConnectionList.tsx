@@ -40,7 +40,8 @@ export function ConnectionList(): React.JSX.Element | null {
   const projects = useProjectStore((s) => s.projects)
   const activeSpaceId = useSpaceStore((s) => s.activeSpaceId)
   const projectSpaceMap = useSpaceStore((s) => s.projectSpaceMap)
-  const filterActive = !!filterQuery.trim() || activeLanguages.length > 0
+  const filterActive =
+    !!filterQuery.trim() || activeLanguages.length > 0 || activeSpaceId !== null
 
   const visibleConnections = useMemo(() => {
     if (!filterActive) return connections
