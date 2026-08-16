@@ -4,6 +4,7 @@ import { useProjectStore, useConnectionStore, useFilterStore, useSpaceStore } fr
 import { useSettingsStore } from '@/stores/useSettingsStore'
 import { useKanbanStore } from '@/stores/useKanbanStore'
 import { useFileViewerStore } from '@/stores/useFileViewerStore'
+import { useWorktreeStatusStore } from '@/stores/useWorktreeStatusStore'
 import { ResizeHandle } from './ResizeHandle'
 import { KanbanSquare, Link, Loader2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -23,6 +24,7 @@ import { UpdatePill } from './UpdatePill'
 import { PinnedList } from './PinnedList'
 import { RecentList } from './RecentList'
 import {
+  AgentStateDot,
   LIST_CONTAINER,
   LIST_SCROLL,
   NAV_ICON,
@@ -95,6 +97,16 @@ export function LeftSidebar(): React.JSX.Element {
 
   // Connection mode state
   const connectionModeActive = useConnectionStore((s) => s.connectionModeActive)
+  // Number of sessions currently streaming ('working'/'planning'), same
+  // definition useKeepAwake uses. Drives the yellow spinner + counter next to
+  // the "Projects" title.
+  const workingSessionCount = useWorktreeStatusStore((state) => {
+    let count = 0
+    for (const entry of Object.values(state.sessionStatuses)) {
+      if (entry && (entry.status === 'working' || entry.status === 'planning')) count++
+    }
+    return count
+  })
   const connectionModeSelectedIds = useConnectionStore((s) => s.connectionModeSelectedIds)
   const connectionModeSubmitting = useConnectionStore((s) => s.connectionModeSubmitting)
   const exitConnectionMode = useConnectionStore((s) => s.exitConnectionMode)
@@ -242,6 +254,16 @@ export function LeftSidebar(): React.JSX.Element {
           <div className={SIDEBAR_HEADER}>
             <div className={SIDEBAR_HEADER_LEFT}>
               <span className={SIDEBAR_HEADER_LABEL}>Projects</span>
+              {workingSessionCount > 0 && (
+                <span
+                  className="flex shrink-0 items-center gap-1 text-xs font-semibold tabular-nums text-yellow-500"
+                  data-testid="working-session-indicator"
+                  title={`${workingSessionCount} active ${workingSessionCount === 1 ? 'session' : 'sessions'}`}
+                >
+                  <AgentStateDot state="working" size="md" />
+                  <span data-testid="working-session-count">{workingSessionCount}</span>
+                </span>
+              )}
             </div>
             <div className={SIDEBAR_HEADER_ACTIONS}>
               <ConnectionsButton />
