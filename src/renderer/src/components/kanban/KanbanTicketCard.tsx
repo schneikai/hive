@@ -86,7 +86,8 @@ import {
   AlertDialogAction,
   AlertDialogCancel
 } from '@/components/ui/alert-dialog'
-import { WorktreePickerModal } from '@/components/kanban/WorktreePickerModal'
+import { WorktreePickerModal, quickLaunchTicket } from '@/components/kanban/WorktreePickerModal'
+import { useRightButtonDrag } from '@/components/kanban/useRightButtonDrag'
 import { Popover, PopoverAnchor } from '@/components/ui/popover'
 import { AttachPRPopover } from '@/components/kanban/AttachPRPopover'
 import { useGitStore } from '@/stores/useGitStore'
@@ -779,9 +780,29 @@ export const KanbanTicketCard = memo(function KanbanTicketCard({
     [ticket.id, ticket.worktree_id, ticket.project_id, isArchived, isPinnedMode, connectionId, connectionSession, recordBoardTelegramTarget, blockingDiagnostic]
   )
 
+  // ── Right-button drag into In Progress — start immediately with the
+  // picker's defaults (new worktree, build mode, default SDK/model), no modal
+  const handleRightDrop = useCallback(
+    (column: string | null) => {
+      if (column !== 'in_progress' || ticket.column === 'in_progress') return
+      if (isBlocked) {
+        toast.warning('Ticket is blocked — resolve its dependencies first')
+        return
+      }
+      void quickLaunchTicket(ticket)
+    },
+    [ticket, isBlocked]
+  )
+  const { onMouseDown: rightDragMouseDown, onContextMenuCapture: rightDragContextMenuCapture } =
+    useRightButtonDrag({
+      enabled: !isArchived && !blockingDiagnostic && !connectionId,
+      onDrop: handleRightDrop
+    })
+
   // ── Middle-click — select attached worktree (same as sidebar) ─
   const handleMouseDown = useCallback(
     (e: React.MouseEvent) => {
+      rightDragMouseDown(e)
       if (e.button !== 1) return            // only middle-click
       if (!ticket.worktree_id) return        // no-op for unassigned tickets
       if (isArchived) return                 // no-op for archived tickets
@@ -794,7 +815,14 @@ export const KanbanTicketCard = memo(function KanbanTicketCard({
       useProjectStore.getState().selectProject(ticket.project_id, selectionOptions)
       useWorktreeStatusStore.getState().clearWorktreeUnread(ticket.worktree_id)
     },
-    [ticket.worktree_id, ticket.project_id, isArchived, isPinnedMode, recordBoardTelegramTarget]
+    [
+      ticket.worktree_id,
+      ticket.project_id,
+      isArchived,
+      isPinnedMode,
+      recordBoardTelegramTarget,
+      rightDragMouseDown
+    ]
   )
 
   const handleMouseEnter = useCallback(() => {
@@ -1095,6 +1123,7 @@ export const KanbanTicketCard = memo(function KanbanTicketCard({
                 onDragEnd={handleDragEnd}
                 onClick={handleClick}
                 onMouseDown={handleMouseDown}
+                onContextMenuCapture={rightDragContextMenuCapture}
                 onMouseEnter={handleMouseEnter}
                 onMouseLeave={handleMouseLeave}
                 className={cn(
