@@ -5,6 +5,8 @@ import { useSettingsStore } from '@/stores/useSettingsStore'
 import { useKanbanStore } from '@/stores/useKanbanStore'
 import { useFileViewerStore } from '@/stores/useFileViewerStore'
 import { useWorktreeStatusStore } from '@/stores/useWorktreeStatusStore'
+import { useShortcutStore } from '@/stores/useShortcutStore'
+import { formatBinding, getShortcutDefinition } from '@/lib/keyboard-shortcuts'
 import { ResizeHandle } from './ResizeHandle'
 import { KanbanSquare, Link, Loader2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -51,13 +53,15 @@ function SidebarNavRow({
   label,
   active,
   onClick,
-  testId
+  testId,
+  shortcut
 }: {
   icon: typeof KanbanSquare
   label: string
   active: boolean
   onClick: () => void
   testId: string
+  shortcut?: string
 }): React.JSX.Element {
   return (
     <button
@@ -66,12 +70,25 @@ function SidebarNavRow({
       aria-current={active ? 'page' : undefined}
       className={cn(NAV_ROW, active ? NAV_ROW_ACTIVE : NAV_ROW_INACTIVE)}
       data-testid={testId}
+      title={shortcut ? `${label} (${shortcut})` : undefined}
     >
       <Icon
         className={cn(NAV_ICON, !active && NAV_ICON_INACTIVE)}
         strokeWidth={active ? NAV_ICON_STROKE_ACTIVE : NAV_ICON_STROKE_INACTIVE}
       />
       <span className={NAV_LABEL}>{label}</span>
+      {shortcut && (
+        <kbd
+          className={cn(
+            'shrink-0 font-sans text-[11px] font-medium tracking-wide',
+            active
+              ? 'text-worktree-sidebar-accent-foreground/50'
+              : 'text-worktree-sidebar-foreground/35'
+          )}
+        >
+          {shortcut}
+        </kbd>
+      )}
     </button>
   )
 }
@@ -116,6 +133,12 @@ export function LeftSidebar(): React.JSX.Element {
   // button: clear file/diff overlays before showing the board, then toggle).
   const isPinnedBoardActive = useKanbanStore((s) => s.isPinnedBoardActive)
   const togglePinnedBoard = useKanbanStore((s) => s.togglePinnedBoard)
+
+  // Effective Cmd+P binding (respects user overrides), shown on the nav row
+  const pinnedBoardBinding =
+    useShortcutStore((s) => s.customBindings['nav:toggle-pinned-board']) ??
+    getShortcutDefinition('nav:toggle-pinned-board')?.defaultBinding
+  const pinnedBoardShortcut = pinnedBoardBinding ? formatBinding(pinnedBoardBinding) : undefined
 
   const handlePinnedBoardClick = useCallback((): void => {
     if (!isPinnedBoardActive) {
@@ -206,6 +229,7 @@ export function LeftSidebar(): React.JSX.Element {
             active={isPinnedBoardActive}
             onClick={handlePinnedBoardClick}
             testId="sidebar-nav-pinned-board"
+            shortcut={pinnedBoardShortcut}
           />
           {projectCount > 1 && <ProjectFilter value={filterQuery} onChange={setFilterQuery} />}
           {activeLanguages.length > 0 && (

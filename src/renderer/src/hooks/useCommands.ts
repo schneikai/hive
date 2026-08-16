@@ -237,6 +237,24 @@ export function useCommands() {
         },
         isVisible: () => true
       },
+      {
+        id: 'kanban:toggle-pinned',
+        label: 'Toggle Pinned Board',
+        description: 'Show or hide the pinned board',
+        category: 'navigation',
+        icon: 'KanbanIcon',
+        shortcut: getDisplayString('nav:toggle-pinned-board'),
+        keywords: ['kanban', 'board', 'pinned', 'pinboard', 'toggle'],
+        action: () => {
+          const kanban = useKanbanStore.getState()
+          if (!kanban.isPinnedBoardActive) {
+            useFileViewerStore.getState().clearActiveViews()
+          }
+          kanban.togglePinnedBoard()
+          closeCommandPalette()
+        },
+        isVisible: () => true
+      },
 
       // =====================
       // ACTION COMMANDS

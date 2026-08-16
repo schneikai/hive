@@ -132,6 +132,13 @@ export const DEFAULT_SHORTCUTS: ShortcutDefinition[] = [
     label: 'Open Command Palette',
     description: 'Open the command palette',
     category: 'navigation',
+    defaultBinding: { key: 'o', modifiers: ['meta'] }
+  },
+  {
+    id: 'nav:toggle-pinned-board',
+    label: 'Toggle Pinned Board',
+    description: 'Show or hide the pinned board',
+    category: 'navigation',
     defaultBinding: { key: 'p', modifiers: ['meta'] }
   },
   {
