@@ -445,12 +445,12 @@ export function QuickActions(): React.JSX.Element | null {
   )
 
   return (
-    <div className="flex items-center gap-3" data-testid="quick-actions">
+    <div className="flex items-center gap-1" data-testid="quick-actions">
       {isSwiftProject && xcworkspacePath && !isConnectionMode && (
         <Button
           variant="ghost"
           size="sm"
-          className="h-7 px-2 gap-1.5 text-xs cursor-pointer"
+          className="h-6 px-2 gap-1.5 text-[12px] font-medium rounded-md text-muted-foreground hover:bg-accent hover:text-foreground cursor-pointer"
           disabled={disabled}
           onClick={() => {
             projectApi.openPath(xcworkspacePath).catch(console.error)
@@ -466,7 +466,7 @@ export function QuickActions(): React.JSX.Element | null {
         <Button
           variant="ghost"
           size="sm"
-          className="h-7 px-2 gap-1.5 text-xs cursor-pointer"
+          className="h-6 px-2 gap-1.5 text-[12px] font-medium rounded-md text-muted-foreground hover:bg-accent hover:text-foreground cursor-pointer"
           disabled={disabled}
           onClick={() => {
             const openPath = activePath || selectedProject?.path
@@ -482,7 +482,7 @@ export function QuickActions(): React.JSX.Element | null {
       <Button
         variant="ghost"
         size="sm"
-        className="h-7 px-2 gap-1.5 text-xs cursor-pointer"
+        className="h-6 px-2 gap-1.5 text-[12px] font-medium rounded-md text-muted-foreground hover:bg-accent hover:text-foreground cursor-pointer"
         disabled={disabled}
         onClick={() => handleAction('editor')}
         title={`Open in ${editorLabel}`}
@@ -498,7 +498,7 @@ export function QuickActions(): React.JSX.Element | null {
       <Button
         variant="ghost"
         size="sm"
-        className="h-7 px-2 gap-1.5 text-xs cursor-pointer"
+        className="h-6 px-2 gap-1.5 text-[12px] font-medium rounded-md text-muted-foreground hover:bg-accent hover:text-foreground cursor-pointer"
         disabled={disabled}
         onClick={() => handleAction('terminal')}
         title={`Open in ${terminalLabel}`}
@@ -510,7 +510,7 @@ export function QuickActions(): React.JSX.Element | null {
       <Button
         variant="ghost"
         size="sm"
-        className="h-7 px-2 gap-1.5 text-xs cursor-pointer"
+        className="h-6 px-2 gap-1.5 text-[12px] font-medium rounded-md text-muted-foreground hover:bg-accent hover:text-foreground cursor-pointer"
         disabled={disabled}
         onClick={() => handleAction('copy-path')}
         title="Copy Path"
@@ -526,7 +526,7 @@ export function QuickActions(): React.JSX.Element | null {
       <Button
         variant="ghost"
         size="sm"
-        className="h-7 px-2 gap-1.5 text-xs cursor-pointer"
+        className="h-6 px-2 gap-1.5 text-[12px] font-medium rounded-md text-muted-foreground hover:bg-accent hover:text-foreground cursor-pointer"
         disabled={disabled}
         onClick={() => handleAction('finder')}
         title={`Reveal in ${fileManagerName()}`}
@@ -539,7 +539,7 @@ export function QuickActions(): React.JSX.Element | null {
         <Button
           variant="ghost"
           size="sm"
-          className="h-7 px-2 gap-1.5 text-xs cursor-pointer"
+          className="h-6 px-2 gap-1.5 text-[12px] font-medium rounded-md text-muted-foreground hover:bg-accent hover:text-foreground cursor-pointer"
           onClick={() => handleAction('copy-branch')}
           title="Copy branch name"
           data-testid="quick-action-copy-branch"

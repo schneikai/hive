@@ -131,7 +131,7 @@ export function DiffCommentToolbar({
   const PanelIcon = sidePanelOpen ? PanelRightClose : PanelRightOpen
 
   return (
-    <div className="absolute bottom-3 right-3 z-10 flex items-center gap-1 px-2 py-1 bg-background/95 backdrop-blur-sm border border-border rounded-lg shadow-sm">
+    <div className="absolute bottom-3 right-3 z-10 flex items-center gap-1 px-2 py-1 bg-background/95 backdrop-blur-sm border border-border rounded-lg">
       {/* Comment count */}
       <MessageSquare className="h-3.5 w-3.5 text-muted-foreground" />
       <span className="text-xs text-muted-foreground tabular-nums">

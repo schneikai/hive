@@ -16,7 +16,7 @@ export function CheckeredFlagIcon({ className, size = 24 }: CheckeredFlagIconPro
       height={size}
       aria-hidden="true"
     >
-      <line x1="5" y1="3" x2="5" y2="21" stroke="black" strokeWidth="1.5" strokeLinecap="round" />
+      <line x1="5" y1="3" x2="5" y2="21" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
       <rect x="5" y="4" width="15" height="9" fill="white" />
       <rect x="5" y="4" width="3.75" height="3" fill="black" />
       <rect x="12.5" y="4" width="3.75" height="3" fill="black" />

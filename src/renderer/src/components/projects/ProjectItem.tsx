@@ -1,7 +1,7 @@
 import { memo, useState, useRef, useEffect, useCallback } from 'react'
 import { revealLabel } from '@/lib/platform'
 import {
-  ChevronRight,
+  ChevronDown,
   Plus,
   Loader2,
   Pencil,
@@ -51,6 +51,26 @@ import { HintBadge } from '@/components/ui/HintBadge'
 import { WorktreeList, BranchPickerDialog } from '@/components/worktrees'
 import { LanguageIcon } from './LanguageIcon'
 import { HighlightedText } from './HighlightedText'
+import {
+  SECTION_HEADER_ACTIONS,
+  SECTION_HEADER_ACTION_BUTTON,
+  SECTION_HEADER_CHEVRON,
+  SECTION_HEADER_CHEVRON_BOX,
+  SECTION_HEADER_CHEVRON_COLLAPSED,
+  SECTION_HEADER_ICON_BOX,
+  SECTION_HEADER_LABEL,
+  SECTION_HEADER_LABEL_ROW,
+  SECTION_HEADER_LABEL_WRAP,
+  SECTION_HEADER_ROW,
+  SECTION_HEADER_ROW_CLICKABLE,
+  SECTION_HEADER_TITLE_SURFACE,
+  SECTION_HEADER_WRAPPER_STICKY,
+  SECTION_HEADER_WRAPPER_STICKY_TOP,
+  SECTION_HEADER_WRAPPER_TOP_SPACING,
+  SECTION_TONE_NEUTRAL,
+  SidebarCountPill,
+  getProjectGroupHeaderPaddingLeft
+} from '@/components/sidebar'
 import { gitToast } from '@/lib/toast'
 import { projectApi } from '@/api/project-api'
 import { worktreeApi } from '@/api/worktree-api'
@@ -77,6 +97,8 @@ interface ProjectItemProps {
   project: Project
   nameMatchIndices?: number[]
   pathMatchIndices?: number[]
+  /** First group in the list gets no top spacer (orca: firstHeaderIndex has no pt-1). */
+  isFirst?: boolean
   isDraggable?: boolean
   isDragging?: boolean
   isDragOver?: boolean
@@ -90,6 +112,7 @@ export const ProjectItem = memo(function ProjectItem({
   project,
   nameMatchIndices,
   pathMatchIndices,
+  isFirst,
   isDraggable,
   isDragging,
   isDragOver,
@@ -113,6 +136,7 @@ export const ProjectItem = memo(function ProjectItem({
   const createWorktree = useWorktreeStore((s) => s.createWorktree)
   const isCreatingWorktree = useWorktreeStore((s) => s.creatingForProjectId === project.id)
   const syncWorktrees = useWorktreeStore((s) => s.syncWorktrees)
+  const worktreeCount = useWorktreeStore((s) => s.worktreesByProject.get(project.id)?.length ?? 0)
 
   const spaces = useSpaceStore((s) => s.spaces)
   const projectSpaceMap = useSpaceStore((s) => s.projectSpaceMap)
@@ -341,209 +365,257 @@ export const ProjectItem = memo(function ProjectItem({
     [project, autoPullBeforeWorktree]
   )
 
+  const showProjectHint = !isEditing && !!projectHint && vimModeEnabled && vimMode === 'normal'
+  const showPlusHint =
+    !isEditing && !!plusHint && (inputFocused || (vimModeEnabled && vimMode === 'normal'))
+  // Header actions are hover-revealed (orca ProjectHeaderActions); force them
+  // visible while a hint badge targets the plus button or a worktree is being created.
+  const forceActionsVisible = showPlusHint || isCreatingWorktree
 
   return (
-    <div>
-      <ContextMenu>
-        <ContextMenuTrigger asChild>
-          <div
-            className={cn(
-              'group flex items-center gap-1 px-2 py-1.5 rounded-md cursor-pointer transition-colors',
-              isSelected ? 'bg-accent text-accent-foreground' : 'hover:bg-accent/50',
-              isDragging && 'opacity-50',
-              isDragOver && 'border-t-2 border-primary'
-            )}
-            draggable={!!isDraggable && !isEditing && !connectionModeActive}
-            onDragStart={
-              connectionModeActive || !onDragStart ? undefined : (e) => onDragStart(e, project.id)
-            }
-            onDragOver={
-              connectionModeActive || !onDragOver ? undefined : (e) => onDragOver(e, project.id)
-            }
-            onDrop={connectionModeActive || !onDrop ? undefined : (e) => onDrop(e, project.id)}
-            onDragEnd={connectionModeActive ? undefined : onDragEnd}
-            onClick={handleClick}
-            data-testid={`project-item-${project.id}`}
-          >
-            {/* Project Hint Badge (visible in vim normal mode, left of chevron) */}
-            {!isEditing && projectHint && vimModeEnabled && vimMode === 'normal' && (
-              <HintBadge
-                code={projectHint}
-                mode={hintMode}
-                pendingChar={hintPendingChar}
-                actionMode={hintActionMode}
-              />
-            )}
-
-            {/* Expand/Collapse Chevron */}
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-5 w-5 p-0 hover:bg-transparent"
-              onClick={handleToggleExpand}
+    // Orca group section (virtual-rows.ts): every non-first header carries the
+    // 4px 'pt-1' top spacer; the header itself pins to the top of the scroll
+    // container on the sidebar fill; ROW_GAP (6px) between header and cards.
+    <div
+      className={cn('flex flex-col gap-1.5', !isFirst && SECTION_HEADER_WRAPPER_TOP_SPACING)}
+      data-project-group={project.id}
+    >
+      <div className={cn(SECTION_HEADER_WRAPPER_STICKY, SECTION_HEADER_WRAPPER_STICKY_TOP)}>
+        <ContextMenu>
+          <ContextMenuTrigger asChild>
+            <div
+              className={cn(
+                // orca SectionHeader.tsx:227 — h-7 row, gap-1.5, 10px left / 8px right inset
+                SECTION_HEADER_ROW,
+                SECTION_HEADER_ROW_CLICKABLE,
+                isSelected &&
+                  'rounded-md bg-worktree-sidebar-accent text-worktree-sidebar-accent-foreground',
+                isDragging && 'opacity-50',
+                isDragOver && 'border-t border-ring'
+              )}
+              style={{ paddingLeft: getProjectGroupHeaderPaddingLeft(0) }}
+              draggable={!!isDraggable && !isEditing && !connectionModeActive}
+              onDragStart={
+                connectionModeActive || !onDragStart ? undefined : (e) => onDragStart(e, project.id)
+              }
+              onDragOver={
+                connectionModeActive || !onDragOver ? undefined : (e) => onDragOver(e, project.id)
+              }
+              onDrop={connectionModeActive || !onDrop ? undefined : (e) => onDrop(e, project.id)}
+              onDragEnd={connectionModeActive ? undefined : onDragEnd}
+              onClick={handleClick}
+              data-testid={`project-item-${project.id}`}
             >
-              <ChevronRight
-                className={cn(
-                  'h-3.5 w-3.5 text-muted-foreground transition-transform',
-                  isExpanded && 'rotate-90'
-                )}
-              />
-            </Button>
-
-            {/* Language Icon */}
-            <LanguageIcon
-              language={project.language}
-              customIcon={project.custom_icon}
-              detectedIcon={project.detected_icon}
-            />
-
-            {/* Project Name */}
-            {isEditing ? (
-              <Input
-                ref={inputRef}
-                autoFocus
-                value={editName}
-                onChange={(e) => setEditName(e.target.value)}
-                onBlur={handleSaveEdit}
-                onKeyDown={handleKeyDown}
-                className="h-6 py-0 px-1 text-sm"
-                onClick={(e) => e.stopPropagation()}
-              />
-            ) : (
-              <div className="flex-1 min-w-0">
-                {nameMatchIndices ? (
-                  <HighlightedText
-                    text={project.name}
-                    indices={nameMatchIndices}
-                    className="text-sm truncate block"
-                  />
-                ) : (
-                  <span className="text-sm truncate block" title={project.path}>
-                    {project.name}
-                  </span>
-                )}
-                {pathMatchIndices && (
-                  <HighlightedText
-                    text={project.path}
-                    indices={pathMatchIndices}
-                    className="text-[10px] text-muted-foreground truncate block"
-                  />
-                )}
-              </div>
-            )}
-
-            {/* Plus Hint Badge (visible when filter is active and search field is focused) */}
-            {!isEditing &&
-              plusHint &&
-              (inputFocused || (vimModeEnabled && vimMode === 'normal')) && (
+              {/* Project Hint Badge (visible in vim normal mode, leading the title) */}
+              {showProjectHint && projectHint && (
                 <HintBadge
-                  code={plusHint}
+                  code={projectHint}
                   mode={hintMode}
                   pendingChar={hintPendingChar}
                   actionMode={hintActionMode}
                 />
               )}
 
-            {/* Create Worktree Button */}
-            {!isEditing && (
-              <Button
-                variant="ghost"
-                size="icon"
-                className={cn('h-5 w-5 p-0 cursor-pointer', 'hover:bg-accent')}
-                onClick={handleCreateWorktree}
-                onContextMenu={(e) => {
-                  e.preventDefault()
-                  e.stopPropagation()
-                  setBranchPickerOpen(true)
-                }}
-                disabled={isCreatingWorktree}
-              >
-                {isCreatingWorktree ? (
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              {/* Title surface: 16px icon box + 13px semibold label (+ count pill) */}
+              <div className={SECTION_HEADER_TITLE_SURFACE}>
+                <div className={cn(SECTION_HEADER_ICON_BOX, SECTION_TONE_NEUTRAL)}>
+                  <LanguageIcon
+                    language={project.language}
+                    customIcon={project.custom_icon}
+                    detectedIcon={project.detected_icon}
+                  />
+                </div>
+
+                {isEditing ? (
+                  <Input
+                    ref={inputRef}
+                    autoFocus
+                    value={editName}
+                    onChange={(e) => setEditName(e.target.value)}
+                    onBlur={handleSaveEdit}
+                    onKeyDown={handleKeyDown}
+                    className="h-6 px-1 py-0 text-[13px] font-semibold"
+                    onClick={(e) => e.stopPropagation()}
+                  />
                 ) : (
-                  <Plus className="h-3.5 w-3.5" />
+                  <div className={SECTION_HEADER_LABEL_WRAP}>
+                    <div className={SECTION_HEADER_LABEL_ROW}>
+                      {nameMatchIndices ? (
+                        <HighlightedText
+                          text={project.name}
+                          indices={nameMatchIndices}
+                          className={SECTION_HEADER_LABEL}
+                        />
+                      ) : (
+                        <span className={SECTION_HEADER_LABEL} title={project.path}>
+                          {project.name}
+                        </span>
+                      )}
+                      {worktreeCount > 0 && (
+                        <SidebarCountPill
+                          count={worktreeCount}
+                          className="tabular-nums"
+                          aria-label={`${worktreeCount} ${worktreeCount === 1 ? 'worktree' : 'worktrees'}`}
+                          data-testid={`project-worktree-count-${project.id}`}
+                        />
+                      )}
+                    </div>
+                    {pathMatchIndices && (
+                      <HighlightedText
+                        text={project.path}
+                        indices={pathMatchIndices}
+                        className="mt-1 block truncate text-[10px] leading-none text-muted-foreground"
+                      />
+                    )}
+                  </div>
                 )}
-              </Button>
-            )}
-          </div>
-        </ContextMenuTrigger>
+              </div>
 
-        {!connectionModeActive && (
-          <ContextMenuContent className="w-48">
-            <ContextMenuItem onClick={handleStartEdit}>
-              <Pencil className="h-4 w-4 mr-2" />
-              Edit Name
-            </ContextMenuItem>
-            <ContextMenuItem onClick={handleOpenInFinder}>
-              <ExternalLink className="h-4 w-4 mr-2" />
-              {revealLabel(true)}
-            </ContextMenuItem>
-            <ContextMenuItem onClick={handleCopyPath}>
-              <Copy className="h-4 w-4 mr-2" />
-              Copy Path
-            </ContextMenuItem>
-            <ContextMenuItem onClick={() => refreshLanguage(project.id)}>
-              <RefreshCw className="h-4 w-4 mr-2" />
-              Refresh Language
-            </ContextMenuItem>
-            <ContextMenuItem onClick={handleRefreshProject}>
-              <RefreshCw className="h-4 w-4 mr-2" />
-              Refresh Project
-            </ContextMenuItem>
-            <ContextMenuItem onClick={() => setBranchPickerOpen(true)}>
-              <GitBranch className="h-4 w-4 mr-2" />
-              New Workspace From...
-            </ContextMenuItem>
-            <ContextMenuItem
-              onClick={() => useProjectStore.getState().openProjectSettings(project.id)}
-            >
-              <Settings className="h-4 w-4 mr-2" />
-              Project Settings
-            </ContextMenuItem>
-            {spaces.length > 0 && (
-              <>
-                <ContextMenuSub>
-                  <ContextMenuSubTrigger>
-                    <FolderHeart className="h-4 w-4 mr-2" />
-                    Assign to Space
-                  </ContextMenuSubTrigger>
-                  <ContextMenuSubContent className="w-40">
-                    {spaces.map((space) => {
-                      const isAssigned = projectSpaceIds.includes(space.id)
-                      return (
-                        <ContextMenuCheckboxItem
-                          key={space.id}
-                          checked={isAssigned}
-                          onSelect={(e) => {
-                            e.preventDefault()
-                            if (isAssigned) {
-                              removeProjectFromSpace(project.id, space.id)
-                            } else {
-                              assignProjectToSpace(project.id, space.id)
-                            }
-                          }}
-                        >
-                          {space.name}
-                        </ContextMenuCheckboxItem>
-                      )
-                    })}
-                  </ContextMenuSubContent>
-                </ContextMenuSub>
-              </>
-            )}
-            <ContextMenuSeparator />
-            <ContextMenuItem
-              onClick={() => setRemoveConfirmOpen(true)}
-              className="text-destructive focus:text-destructive focus:bg-destructive/10"
-            >
-              <Trash2 className="h-4 w-4 mr-2" />
-              Remove from Hive
-            </ContextMenuItem>
-          </ContextMenuContent>
-        )}
-      </ContextMenu>
+              {/* Header actions — orca ProjectHeaderActions: hover-revealed overlay on the
+                  right edge (chevron + create), painted on the header fill so it can
+                  cover a long title without reserving width. */}
+              {!isEditing && (
+                <div
+                  data-project-header-actions=""
+                  className={cn(
+                    SECTION_HEADER_ACTIONS,
+                    isSelected && 'can-hover:bg-worktree-sidebar-accent',
+                    forceActionsVisible && 'can-hover:pointer-events-auto can-hover:opacity-100'
+                  )}
+                >
+                  {/* Plus Hint Badge (filter mode with the search field focused, or vim normal) */}
+                  {showPlusHint && plusHint && (
+                    <HintBadge
+                      code={plusHint}
+                      mode={hintMode}
+                      pendingChar={hintPendingChar}
+                      actionMode={hintActionMode}
+                    />
+                  )}
 
-      {/* Worktree List - shown when project is expanded */}
+                  {/* Expand/Collapse affordance (orca SectionHeader.tsx:337) */}
+                  <button
+                    type="button"
+                    className={SECTION_HEADER_CHEVRON_BOX}
+                    aria-label={isExpanded ? 'Collapse project' : 'Expand project'}
+                    aria-expanded={isExpanded}
+                    onClick={handleToggleExpand}
+                  >
+                    <ChevronDown
+                      className={cn(
+                        SECTION_HEADER_CHEVRON,
+                        !isExpanded && SECTION_HEADER_CHEVRON_COLLAPSED
+                      )}
+                    />
+                  </button>
+
+                  {/* Create Worktree Button (orca RepoHeaderCreateWorkspaceButton) */}
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-xs"
+                    className={cn(
+                      SECTION_HEADER_ACTION_BUTTON,
+                      forceActionsVisible && 'ml-0 max-w-5 opacity-100'
+                    )}
+                    aria-label={`New worktree in ${project.name}`}
+                    onClick={handleCreateWorktree}
+                    onContextMenu={(e) => {
+                      e.preventDefault()
+                      e.stopPropagation()
+                      setBranchPickerOpen(true)
+                    }}
+                    disabled={isCreatingWorktree}
+                  >
+                    {isCreatingWorktree ? (
+                      <Loader2 className="size-3 animate-spin" />
+                    ) : (
+                      <Plus className="size-3" />
+                    )}
+                  </Button>
+                </div>
+              )}
+            </div>
+          </ContextMenuTrigger>
+
+          {!connectionModeActive && (
+            <ContextMenuContent className="w-48">
+              <ContextMenuItem onClick={handleStartEdit}>
+                <Pencil className="h-4 w-4 mr-2" />
+                Edit Name
+              </ContextMenuItem>
+              <ContextMenuItem onClick={handleOpenInFinder}>
+                <ExternalLink className="h-4 w-4 mr-2" />
+                {revealLabel(true)}
+              </ContextMenuItem>
+              <ContextMenuItem onClick={handleCopyPath}>
+                <Copy className="h-4 w-4 mr-2" />
+                Copy Path
+              </ContextMenuItem>
+              <ContextMenuItem onClick={() => refreshLanguage(project.id)}>
+                <RefreshCw className="h-4 w-4 mr-2" />
+                Refresh Language
+              </ContextMenuItem>
+              <ContextMenuItem onClick={handleRefreshProject}>
+                <RefreshCw className="h-4 w-4 mr-2" />
+                Refresh Project
+              </ContextMenuItem>
+              <ContextMenuItem onClick={() => setBranchPickerOpen(true)}>
+                <GitBranch className="h-4 w-4 mr-2" />
+                New Workspace From...
+              </ContextMenuItem>
+              <ContextMenuItem
+                onClick={() => useProjectStore.getState().openProjectSettings(project.id)}
+              >
+                <Settings className="h-4 w-4 mr-2" />
+                Project Settings
+              </ContextMenuItem>
+              {spaces.length > 0 && (
+                <>
+                  <ContextMenuSub>
+                    <ContextMenuSubTrigger>
+                      <FolderHeart className="h-4 w-4 mr-2" />
+                      Assign to Space
+                    </ContextMenuSubTrigger>
+                    <ContextMenuSubContent className="w-40">
+                      {spaces.map((space) => {
+                        const isAssigned = projectSpaceIds.includes(space.id)
+                        return (
+                          <ContextMenuCheckboxItem
+                            key={space.id}
+                            checked={isAssigned}
+                            onSelect={(e) => {
+                              e.preventDefault()
+                              if (isAssigned) {
+                                removeProjectFromSpace(project.id, space.id)
+                              } else {
+                                assignProjectToSpace(project.id, space.id)
+                              }
+                            }}
+                          >
+                            {space.name}
+                          </ContextMenuCheckboxItem>
+                        )
+                      })}
+                    </ContextMenuSubContent>
+                  </ContextMenuSub>
+                </>
+              )}
+              <ContextMenuSeparator />
+              <ContextMenuItem
+                onClick={() => setRemoveConfirmOpen(true)}
+                className="text-destructive focus:text-destructive focus:bg-destructive/10"
+              >
+                <Trash2 className="h-4 w-4 mr-2" />
+                Remove from Hive
+              </ContextMenuItem>
+            </ContextMenuContent>
+          )}
+        </ContextMenu>
+      </div>
+
+      {/* Worktree list — orca surface inset for a depth-0 project group is 0;
+          the 6px header→card gap comes from the group's flex gap. */}
       {isExpanded && <WorktreeList project={project} />}
 
       {/* Branch Picker Dialog */}

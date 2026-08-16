@@ -64,86 +64,86 @@ export function FileSidebar({
 
   return (
     <div className={cn('flex flex-col h-full', className)}>
-      <div className="flex items-center border-b border-border px-2 pt-1.5 pb-0">
+      <div className="flex items-center h-[30px] px-1 border-b border-border">
         <button
           className={cn(
-            'px-3 py-1.5 text-xs font-medium transition-colors relative',
+            'h-full px-2.5 text-[11px] font-medium rounded-none transition-colors relative',
             activeTab === 'changes'
-              ? 'text-foreground'
+              ? 'text-foreground bg-[color-mix(in_srgb,var(--foreground)_6%,var(--card))]'
               : 'text-muted-foreground hover:text-foreground'
           )}
           onClick={() => setActiveTab('changes')}
         >
           {vimModeEnabled ? (
             <>
-              <span className="text-primary">C</span>hanges
+              <span className="text-foreground">C</span>hanges
             </>
           ) : (
             'Changes'
           )}
           {activeTab === 'changes' && (
-            <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary" />
+            <div className="absolute bottom-0 left-2 right-2 h-0.5 bg-[color-mix(in_srgb,var(--foreground)_60%,var(--card))]" />
           )}
         </button>
         <button
           className={cn(
-            'px-3 py-1.5 text-xs font-medium transition-colors relative',
+            'h-full px-2.5 text-[11px] font-medium rounded-none transition-colors relative',
             activeTab === 'files'
-              ? 'text-foreground'
+              ? 'text-foreground bg-[color-mix(in_srgb,var(--foreground)_6%,var(--card))]'
               : 'text-muted-foreground hover:text-foreground'
           )}
           onClick={() => setActiveTab('files')}
         >
           {vimModeEnabled ? (
             <>
-              <span className="text-primary">F</span>iles
+              <span className="text-foreground">F</span>iles
             </>
           ) : (
             'Files'
           )}
           {activeTab === 'files' && (
-            <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary" />
+            <div className="absolute bottom-0 left-2 right-2 h-0.5 bg-[color-mix(in_srgb,var(--foreground)_60%,var(--card))]" />
           )}
         </button>
         <button
           className={cn(
-            'px-3 py-1.5 text-xs font-medium transition-colors relative',
+            'h-full px-2.5 text-[11px] font-medium rounded-none transition-colors relative',
             activeTab === 'diffs'
-              ? 'text-foreground'
+              ? 'text-foreground bg-[color-mix(in_srgb,var(--foreground)_6%,var(--card))]'
               : 'text-muted-foreground hover:text-foreground'
           )}
           onClick={() => setActiveTab('diffs')}
         >
           {vimModeEnabled ? (
             <>
-              <span className="text-primary">D</span>iffs
+              <span className="text-foreground">D</span>iffs
             </>
           ) : (
             'Diffs'
           )}
           {activeTab === 'diffs' && (
-            <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary" />
+            <div className="absolute bottom-0 left-2 right-2 h-0.5 bg-[color-mix(in_srgb,var(--foreground)_60%,var(--card))]" />
           )}
         </button>
         {hasAttachedPR && (
           <button
             className={cn(
-              'px-3 py-1.5 text-xs font-medium transition-colors relative',
+              'h-full px-2.5 text-[11px] font-medium rounded-none transition-colors relative',
               activeTab === 'comments'
-                ? 'text-foreground'
+                ? 'text-foreground bg-[color-mix(in_srgb,var(--foreground)_6%,var(--card))]'
                 : 'text-muted-foreground hover:text-foreground'
             )}
             onClick={() => setActiveTab('comments')}
           >
             {vimModeEnabled ? (
               <>
-                C<span className="text-primary">o</span>mments
+                C<span className="text-foreground">o</span>mments
               </>
             ) : (
               'Comments'
             )}
             {activeTab === 'comments' && (
-              <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary" />
+              <div className="absolute bottom-0 left-2 right-2 h-0.5 bg-[color-mix(in_srgb,var(--foreground)_60%,var(--card))]" />
             )}
           </button>
         )}

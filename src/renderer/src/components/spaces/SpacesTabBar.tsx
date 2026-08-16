@@ -7,6 +7,14 @@ import { SpaceIconPicker } from './SpaceIconPicker'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import {
+  FOOTER_TOOLBAR,
+  FOOTER_TOOLBAR_BUTTON,
+  FOOTER_TOOLBAR_ICON,
+  FOOTER_TOOLBAR_LEFT,
+  FOOTER_TOOLBAR_OUTER,
+  FOOTER_TOOLBAR_RIGHT
+} from '@/components/sidebar'
+import {
   ContextMenu,
   ContextMenuContent,
   ContextMenuItem,
@@ -124,87 +132,92 @@ export function SpacesTabBar(): React.JSX.Element {
 
   return (
     <>
-      <div
-        className="border-t flex items-center gap-0.5 px-1.5 py-1 overflow-x-auto scrollbar-none"
-        data-testid="spaces-tab-bar"
-      >
-        {/* "All" tab */}
-        <button
-          type="button"
-          className={cn(
-            'flex items-center justify-center h-6 w-6 rounded-md transition-colors cursor-pointer shrink-0',
-            activeSpaceId === null
-              ? 'bg-accent text-accent-foreground'
-              : 'text-muted-foreground hover:bg-accent/50 hover:text-foreground'
-          )}
-          onClick={() => setActiveSpace(null)}
-          title="All projects"
-          data-testid="space-tab-all"
-        >
-          <LayoutGrid className="h-3 w-3" />
-        </button>
+      {/* Orca SidebarToolbar (SidebarToolbar.tsx:71-124): hairline top border,
+          px-2 py-1.5, icon-xs ghost buttons ('secondary' while active). */}
+      <div className={FOOTER_TOOLBAR_OUTER} data-testid="spaces-tab-bar">
+        <div className={FOOTER_TOOLBAR}>
+          <div className={cn(FOOTER_TOOLBAR_LEFT, 'overflow-x-auto scrollbar-none')}>
+            {/* "All" tab */}
+            <Button
+              type="button"
+              variant={activeSpaceId === null ? 'secondary' : 'ghost'}
+              size="icon-xs"
+              className={FOOTER_TOOLBAR_BUTTON}
+              onClick={() => setActiveSpace(null)}
+              title="All projects"
+              aria-pressed={activeSpaceId === null}
+              data-testid="space-tab-all"
+            >
+              <LayoutGrid className={FOOTER_TOOLBAR_ICON} />
+            </Button>
 
-        {/* Space tabs */}
-        {spaces.map((space, index) => {
-          const Icon = getSpaceIcon(space.icon_value)
-          const isActive = activeSpaceId === space.id
-          return (
-            <ContextMenu key={space.id}>
-              <ContextMenuTrigger asChild>
-                <button
-                  type="button"
-                  className={cn(
-                    'flex items-center justify-center h-6 w-6 rounded-md transition-colors cursor-pointer shrink-0',
-                    isActive
-                      ? 'bg-accent text-accent-foreground'
-                      : 'text-muted-foreground hover:bg-accent/50 hover:text-foreground',
-                    draggedIndex === index && 'opacity-50',
-                    dragOverIndex === index && 'ring-1 ring-primary'
-                  )}
-                  onClick={() => setActiveSpace(space.id)}
-                  draggable
-                  onDragStart={(e) => handleDragStart(e, index)}
-                  onDragOver={(e) => handleDragOver(e, index)}
-                  onDrop={(e) => handleDrop(e, index)}
-                  onDragEnd={handleDragEnd}
-                  title={space.name}
-                  data-testid={`space-tab-${space.id}`}
-                >
-                  <Icon className="h-3 w-3" />
-                </button>
-              </ContextMenuTrigger>
-              <ContextMenuContent className="w-40">
-                <ContextMenuItem onClick={() => handleOpenEdit(space)}>
-                  <Pencil className="h-4 w-4 mr-2" />
-                  Rename
-                </ContextMenuItem>
-                <ContextMenuItem onClick={() => handleOpenEdit(space)}>
-                  <Palette className="h-4 w-4 mr-2" />
-                  Change Icon
-                </ContextMenuItem>
-                <ContextMenuSeparator />
-                <ContextMenuItem
-                  onClick={() => handleDelete(space.id)}
-                  className="text-destructive focus:text-destructive focus:bg-destructive/10"
-                >
-                  <Trash2 className="h-4 w-4 mr-2" />
-                  Delete
-                </ContextMenuItem>
-              </ContextMenuContent>
-            </ContextMenu>
-          )
-        })}
+            {/* Space tabs */}
+            {spaces.map((space, index) => {
+              const Icon = getSpaceIcon(space.icon_value)
+              const isActive = activeSpaceId === space.id
+              return (
+                <ContextMenu key={space.id}>
+                  <ContextMenuTrigger asChild>
+                    <Button
+                      type="button"
+                      variant={isActive ? 'secondary' : 'ghost'}
+                      size="icon-xs"
+                      className={cn(
+                        FOOTER_TOOLBAR_BUTTON,
+                        draggedIndex === index && 'opacity-50',
+                        dragOverIndex === index && 'ring-1 ring-worktree-sidebar-ring'
+                      )}
+                      onClick={() => setActiveSpace(space.id)}
+                      draggable
+                      onDragStart={(e) => handleDragStart(e, index)}
+                      onDragOver={(e) => handleDragOver(e, index)}
+                      onDrop={(e) => handleDrop(e, index)}
+                      onDragEnd={handleDragEnd}
+                      title={space.name}
+                      aria-pressed={isActive}
+                      data-testid={`space-tab-${space.id}`}
+                    >
+                      <Icon className={FOOTER_TOOLBAR_ICON} />
+                    </Button>
+                  </ContextMenuTrigger>
+                  <ContextMenuContent className="w-40">
+                    <ContextMenuItem onClick={() => handleOpenEdit(space)}>
+                      <Pencil className="h-4 w-4 mr-2" />
+                      Rename
+                    </ContextMenuItem>
+                    <ContextMenuItem onClick={() => handleOpenEdit(space)}>
+                      <Palette className="h-4 w-4 mr-2" />
+                      Change Icon
+                    </ContextMenuItem>
+                    <ContextMenuSeparator />
+                    <ContextMenuItem
+                      onClick={() => handleDelete(space.id)}
+                      className="text-destructive focus:text-destructive focus:bg-destructive/10"
+                    >
+                      <Trash2 className="h-4 w-4 mr-2" />
+                      Delete
+                    </ContextMenuItem>
+                  </ContextMenuContent>
+                </ContextMenu>
+              )
+            })}
+          </div>
 
-        {/* Add space button */}
-        <button
-          type="button"
-          className="flex items-center justify-center h-6 w-6 rounded-md text-muted-foreground hover:bg-accent/50 hover:text-foreground transition-colors cursor-pointer shrink-0"
-          onClick={() => setCreateOpen(true)}
-          title="Create space"
-          data-testid="space-add-button"
-        >
-          <Plus className="h-3 w-3" />
-        </button>
+          <div className={FOOTER_TOOLBAR_RIGHT}>
+            {/* Add space button */}
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-xs"
+              className={FOOTER_TOOLBAR_BUTTON}
+              onClick={() => setCreateOpen(true)}
+              title="Create space"
+              data-testid="space-add-button"
+            >
+              <Plus className={FOOTER_TOOLBAR_ICON} strokeWidth={2.25} />
+            </Button>
+          </div>
+        </div>
       </div>
 
       {/* Create Space Dialog */}

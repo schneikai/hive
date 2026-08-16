@@ -229,7 +229,7 @@ export function TicketCreateModal({
     <Dialog open={open} onOpenChange={handleDialogOpenChange}>
       <DialogContent
         data-testid="ticket-create-modal"
-        className={cn('sm:max-w-lg', isDragOver && 'ring-2 ring-primary ring-offset-2')}
+        className={cn('sm:max-w-lg', isDragOver && 'ring-[3px] ring-ring/50 border-ring')}
         onKeyDown={handleKeyDown}
         onPaste={handlePaste}
         onDragOver={handleDragOver}
@@ -252,7 +252,7 @@ export function TicketCreateModal({
               <select
                 value={selectedProjectId}
                 onChange={(e) => setSelectedProjectId(e.target.value)}
-                className="w-full rounded-md border border-border/60 bg-background px-3 py-2 text-sm"
+                className="w-full rounded-md border border-input bg-background px-3 py-2 text-[13px] outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
               >
                 {availableProjects.map((p) => (
                   <option key={p.id} value={p.id}>

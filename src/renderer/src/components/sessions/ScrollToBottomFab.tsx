@@ -18,10 +18,10 @@ export function ScrollToBottomFab({
       className={cn(
         'absolute right-4 z-10',
         bottomClass,
-        'h-8 w-8 rounded-full',
-        'bg-muted/80 backdrop-blur-sm border border-border',
+        'h-8 w-8 rounded-md',
+        'bg-secondary backdrop-blur-sm border border-border',
         'flex items-center justify-center',
-        'shadow-md hover:bg-muted transition-all duration-200',
+        'shadow-[0_1px_2px_rgba(0,0,0,0.18)] hover:bg-accent transition-all duration-200',
         'cursor-pointer',
         visible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2 pointer-events-none'
       )}

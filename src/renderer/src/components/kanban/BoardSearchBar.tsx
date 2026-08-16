@@ -61,10 +61,10 @@ export function BoardSearchBar({ inputRef, matchCount }: BoardSearchBarProps): R
   return (
     <div
       data-testid="board-search-bar"
-      className="flex shrink-0 items-center gap-3 px-3 pt-3 pb-0 animate-in fade-in slide-in-from-top-2 duration-150"
+      className="flex shrink-0 items-center gap-3 px-4 pt-2.5 pb-0 animate-in fade-in slide-in-from-top-2 duration-150"
     >
-      <div className="relative w-[320px]">
-        <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+      <div className="relative w-60">
+        <Search className="absolute left-2.5 top-1/2 h-3 w-3 -translate-y-1/2 text-muted-foreground" />
         <input
           ref={inputRef}
           type="text"
@@ -85,7 +85,7 @@ export function BoardSearchBar({ inputRef, matchCount }: BoardSearchBarProps): R
               setBoardSearchQuery(inputValue)
             }
           }}
-          className="w-full rounded-md border border-border bg-muted/50 py-1.5 pl-8 pr-8 text-sm placeholder:text-muted-foreground/60 focus:outline-none focus:ring-1 focus:ring-ring"
+          className="h-7 w-full rounded-md border border-input bg-input/30 pl-8 pr-8 text-[12px] placeholder:text-muted-foreground/60 focus-visible:outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
         />
         <button
           data-testid="board-search-close"
@@ -100,9 +100,9 @@ export function BoardSearchBar({ inputRef, matchCount }: BoardSearchBarProps): R
               closeBoardSearch()
             }
           }}
-          className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-0.5 text-muted-foreground transition-colors hover:bg-accent"
+          className="absolute right-1 top-1/2 -translate-y-1/2 rounded-md p-1 text-muted-foreground transition-colors hover:bg-accent"
         >
-          <X className="h-3.5 w-3.5" />
+          <X className="h-3 w-3" />
         </button>
       </div>
       <label className="flex cursor-pointer select-none items-center gap-1.5 text-xs text-muted-foreground">

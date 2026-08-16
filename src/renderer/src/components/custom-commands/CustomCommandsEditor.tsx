@@ -109,7 +109,7 @@ export function CustomCommandsEditor({
                 onChange={(event) => updateCommand(command.id, { name: event.target.value })}
                 onFocus={() => setActiveCommandId(command.id)}
                 placeholder="Command name"
-                className="h-8 min-w-0 flex-1 rounded-md border border-input bg-background px-2 text-sm outline-none focus:border-ring focus:ring-2 focus:ring-ring/20"
+                className="h-8 min-w-0 flex-1 rounded-md border border-input bg-background px-2 text-sm outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:border-ring"
               />
               <Button
                 type="button"

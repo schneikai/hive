@@ -30,6 +30,7 @@ import {
   ChevronDown,
   Hammer,
   Map as MapIcon,
+  MessageCircleQuestion,
   FolderInput,
   FastForward,
   RadioTower,
@@ -41,11 +42,11 @@ import {
 } from 'lucide-react'
 import { CheckeredFlagIcon } from './CheckeredFlagIcon'
 import { HighlightedText } from './HighlightedText'
+import { ticketPillBaseClass, ticketPillClass } from './pill'
 import { TicketModelBadge } from './TicketModelBadge'
 import { UpdateStatusModal } from './UpdateStatusModal'
 import { RemoteTerminalDialog } from './RemoteTerminalDialog'
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip'
-import { Button } from '@/components/ui/button'
 import { NoteEditorModal } from './NoteEditorModal'
 import { MoveToProjectModal } from './MoveToProjectModal'
 import { cn, parseColorQuad } from '@/lib/utils'
@@ -99,6 +100,7 @@ import { useSettingsStore } from '@/stores/useSettingsStore'
 import { isBlockerSatisfied } from '@/lib/blocker-utils'
 import { useConnectionStore } from '@/stores/useConnectionStore'
 import { useProjectStore } from '@/stores/useProjectStore'
+import { useProjectIconUrl } from '@/components/projects/LanguageIcon'
 import { useScriptStore } from '@/stores/useScriptStore'
 import { useWorktreeStatusStore } from '@/stores/useWorktreeStatusStore'
 import { useQuestionStore } from '@/stores/useQuestionStore'
@@ -118,15 +120,17 @@ import { terminalApi } from '@/api/terminal-api'
 import type { KanbanTicket, TicketMark } from '../../../../main/db/types'
 
 // ── Project tag color palette ──────────────────────────────────────
+// Desaturated identity hues (orca mockup) — no violet/indigo so brand-ish
+// purple never appears as chrome next to the plan-mode violet pills.
 const PROJECT_TAG_COLORS = [
-  '#3b82f6', // blue
-  '#8b5cf6', // violet
-  '#ec4899', // pink
-  '#f59e0b', // amber
-  '#10b981', // emerald
-  '#06b6d4', // cyan
-  '#f97316', // orange
-  '#6366f1', // indigo
+  '#6ea8dc', // blue
+  '#d4b962', // gold
+  '#c98ba8', // rose
+  '#e08a5e', // orange
+  '#7cc4a0', // sage
+  '#6ec4c4', // teal
+  '#d49a7c', // clay
+  '#9a9a9a', // neutral
 ]
 
 /** Deterministic color for a project within a connection's project list. */
@@ -192,6 +196,7 @@ export const KanbanTicketCard = memo(function KanbanTicketCard({
       ? extractSnippet(stripMarkdown(ticket.description), normQuery)
       : null
   const dragCloneRef = useRef<HTMLElement | null>(null)
+  const dragActiveRef = useRef(false)
   const currentTicketKey = ticketKey(ticket.project_id, ticket.id)
   const domTicketKey = cardIdentityKey ?? currentTicketKey
 
@@ -359,24 +364,39 @@ export const KanbanTicketCard = memo(function KanbanTicketCard({
     )
   )
 
+  // Pinned board only (not connection boards): when the project's icon was
+  // customized, the tag shows that icon instead of the generated color dot.
+  const projectCustomIcon = useProjectStore(
+    useCallback(
+      (state) => {
+        if (!isPinnedMode || connectionId) return null
+        return state.projects.find((p) => p.id === ticket.project_id)?.custom_icon ?? null
+      },
+      [isPinnedMode, connectionId, ticket.project_id]
+    )
+  )
+  const projectCustomIconUrl = useProjectIconUrl(projectCustomIcon)
+
   const projectTag = useMemo(() => {
     if (!projectName) return null
     if (connectionId) {
       const connectionProjectIds = useKanbanStore.getState().getConnectionProjectIds(connectionId)
       return {
         name: projectName,
-        color: getProjectColor(ticket.project_id, connectionProjectIds)
+        color: getProjectColor(ticket.project_id, connectionProjectIds),
+        iconUrl: null as string | null
       }
     }
     if (isPinnedMode) {
       const pinnedProjectIds = useKanbanStore.getState().getPinnedProjectIdsArray()
       return {
         name: projectName,
-        color: getProjectColor(ticket.project_id, pinnedProjectIds)
+        color: getProjectColor(ticket.project_id, pinnedProjectIds),
+        iconUrl: projectCustomIconUrl
       }
     }
     return null
-  }, [connectionId, isPinnedMode, projectName, ticket.project_id])
+  }, [connectionId, isPinnedMode, projectName, projectCustomIconUrl, ticket.project_id])
 
   // ── Detect connection session on project board ──────────────────
   // Selector returns a primitive (string | null) to avoid Zustand infinite
@@ -685,13 +705,21 @@ export const KanbanTicketCard = memo(function KanbanTicketCard({
         })
       })
 
-      setIsDragging(true)
+      // Hide the source only after Chromium has begun the OS drag session:
+      // making it visibility:hidden synchronously inside dragstart aborts the
+      // drag (dragstart→dragend, no drop). Deferring by a macrotask lets the
+      // browser capture the drag image and start the session first.
+      dragActiveRef.current = true
+      setTimeout(() => {
+        if (dragActiveRef.current) setIsDragging(true)
+      }, 0)
     },
     [ticket.project_id, ticket.id, ticket.column, index]
   )
 
   const handleDragEnd = useCallback(() => {
     // Safety cleanup
+    dragActiveRef.current = false
     if (dragCloneRef.current) {
       dragCloneRef.current.remove()
       dragCloneRef.current = null
@@ -1070,26 +1098,27 @@ export const KanbanTicketCard = memo(function KanbanTicketCard({
                 onMouseEnter={handleMouseEnter}
                 onMouseLeave={handleMouseLeave}
                 className={cn(
-                  'group cursor-pointer rounded-md border bg-card shadow-sm p-2 transition-all duration-200',
-                  'hover:bg-muted/40',
+                  'group cursor-pointer rounded-md border bg-card px-2.5 pt-2.5 pb-2 transition-[border-color,background-color] duration-150',
+                  'hover:border-muted-foreground/35',
                   isDragging && 'invisible',
                   isArchived && 'opacity-50 cursor-default',
                   (isBlocked || blockingDiagnostic) && 'opacity-60',
                   // Highlighted as a blocker of the currently hovered ticket
                   isHighlightedAsBlocker && 'border-dashed !border-amber-500/70 ring-1 ring-amber-500/30',
-                  !isHighlightedAsBlocker && borderState === 'default' && 'border-border/60',
-                  !isHighlightedAsBlocker && borderState === 'blue' && 'border-blue-500/60',
-                  !isHighlightedAsBlocker && borderState === 'violet' && 'border-violet-500/60',
+                  !isHighlightedAsBlocker && borderState === 'default' && 'border-border',
+                  // Mode cue lives in a 2px left rail; the perimeter stays neutral
+                  !isHighlightedAsBlocker && borderState === 'blue' && 'border-border border-l-2 !border-l-blue-500/60',
+                  !isHighlightedAsBlocker && borderState === 'violet' && 'border-border border-l-2 !border-l-violet-500/60',
                   // Left accent stripe for marks
-                  ticket.mark === 'common' && 'border-l-4 !border-l-green-500',
-                  ticket.mark === 'rare' && 'border-l-4 !border-l-blue-500',
-                  ticket.mark === 'epic' && 'border-l-4 !border-l-purple-500',
-                  ticket.mark === 'legendary' && 'border-l-4 !border-l-orange-500'
+                  ticket.mark === 'common' && 'border-l-2 !border-l-green-500',
+                  ticket.mark === 'rare' && 'border-l-2 !border-l-blue-500',
+                  ticket.mark === 'epic' && 'border-l-2 !border-l-pink-500',
+                  ticket.mark === 'legendary' && 'border-l-2 !border-l-orange-500'
                 )}
               >
             {/* Title + top-right indicators */}
             <div className="flex items-start justify-between gap-2">
-              <p className="text-sm font-medium leading-snug text-foreground min-w-0 flex-1 break-words">
+              <p className="text-[13px] font-medium leading-[1.4] text-foreground min-w-0 flex-1 break-words">
                 <HighlightedText text={ticket.title} normQuery={normQuery} />
               </p>
               <div className="flex items-center gap-1.5 shrink-0">
@@ -1101,7 +1130,7 @@ export const KanbanTicketCard = memo(function KanbanTicketCard({
                   {transitionAgeText}
                 </span>
                 {tokenText && (
-                  <span className="text-[11px] tabular-nums text-muted-foreground">
+                  <span className="text-[10px] tabular-nums text-muted-foreground">
                     {tokenText}
                   </span>
                 )}
@@ -1138,11 +1167,11 @@ export const KanbanTicketCard = memo(function KanbanTicketCard({
             {descriptionSnippet && (
               <p
                 data-testid="board-search-snippet"
-                className="mt-1.5 truncate border-l-2 border-primary/40 pl-2 text-[11px] leading-snug text-muted-foreground"
+                className="mt-1.5 truncate border-l-2 border-border pl-2 text-[11px] leading-snug text-muted-foreground"
               >
                 {descriptionSnippet.prefixEllipsis && '…'}
                 {descriptionSnippet.before}
-                <mark className="bg-primary/25 text-foreground rounded-[3px] px-px">
+                <mark className="bg-foreground/12 text-foreground rounded-[3px] px-px">
                   {descriptionSnippet.match}
                 </mark>
                 {descriptionSnippet.after}
@@ -1155,8 +1184,8 @@ export const KanbanTicketCard = memo(function KanbanTicketCard({
               <div className="mt-1.5 flex flex-wrap items-center gap-1">
                 {/* Archived badge */}
                 {isArchived && (
-                  <span className="inline-flex items-center gap-1 rounded-full bg-muted/40 px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
-                    <Archive className="h-3 w-3" />
+                  <span className={cn(ticketPillClass, 'italic')}>
+                    <Archive className="h-2.5 w-2.5" />
                     Archived
                   </span>
                 )}
@@ -1164,30 +1193,30 @@ export const KanbanTicketCard = memo(function KanbanTicketCard({
                 {activeRemoteLaunch && (
                   <span
                     data-testid="ticket-remote-badge"
-                    className="inline-flex items-center gap-1 rounded-full border border-sky-500/30 bg-sky-500/10 px-2 py-0.5 text-[11px] font-medium text-sky-500"
+                    className={cn(ticketPillBaseClass, 'border-sky-500/30 bg-sky-500/10 text-sky-500')}
                   >
-                    <RadioTower className="h-3 w-3" />
+                    <RadioTower className="h-2.5 w-2.5" />
                     Remote
                   </span>
                 )}
                 {isForwardedToTelegram && (
                   <span
                     title="Forwarding to Telegram"
-                    className="inline-flex items-center rounded-full bg-[#229ED9]/10 border border-[#229ED9]/30 px-1.5 py-0.5 text-[#229ED9]"
+                    className={cn(ticketPillBaseClass, 'border-[#229ED9]/30 bg-[#229ED9]/10 text-[#229ED9]')}
                   >
-                    <Send className="h-3 w-3" />
+                    <Send className="h-2.5 w-2.5" />
                   </span>
                 )}
                 {blockingDiagnostic && (
-                  <span className="inline-flex items-center gap-1 rounded-full bg-destructive/10 border border-destructive/30 px-2 py-0.5 text-[11px] font-medium text-destructive">
-                    <AlertTriangle className="h-3 w-3" />
+                  <span className={cn(ticketPillBaseClass, 'border-destructive/30 bg-destructive/10 text-destructive')}>
+                    <AlertTriangle className="h-2.5 w-2.5" />
                     Markdown
                   </span>
                 )}
                 {/* Blocked badge */}
                 {isBlocked && (
-                  <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/10 border border-amber-500/30 px-2 py-0.5 text-[11px] font-medium text-amber-500">
-                    <Lock className="h-3 w-3" />
+                  <span className={cn(ticketPillBaseClass, 'border-amber-500/30 bg-amber-500/10 text-amber-500')}>
+                    <Lock className="h-2.5 w-2.5" />
                     {unresolvedBlockerCount}
                   </span>
                 )}
@@ -1195,9 +1224,9 @@ export const KanbanTicketCard = memo(function KanbanTicketCard({
                 {queuedBranchLabel && (
                   <span
                     data-testid="ticket-queued-branch"
-                    className="inline-flex items-center gap-1 rounded-full bg-muted/40 px-2 py-0.5 text-[11px] font-medium text-muted-foreground"
+                    className={ticketPillClass}
                   >
-                    <GitBranch className="h-3 w-3" />
+                    <GitBranch className="h-2.5 w-2.5" />
                     {queuedBranchLabel}
                   </span>
                 )}
@@ -1207,9 +1236,9 @@ export const KanbanTicketCard = memo(function KanbanTicketCard({
                     <TooltipTrigger asChild>
                       <span
                         data-testid="kanban-ticket-running-subagents"
-                        className="inline-flex items-center gap-1 rounded-full bg-violet-500/10 border border-violet-500/30 px-2 py-0.5 text-[11px] font-medium text-violet-500 cursor-help"
+                        className={cn(ticketPillBaseClass, 'border-violet-500/30 bg-violet-500/10 text-violet-500 cursor-help')}
                       >
-                        <Bot className="h-3 w-3" />
+                        <Bot className="h-2.5 w-2.5" />
                         {backgroundWork.runningSubagents}
                       </span>
                     </TooltipTrigger>
@@ -1226,9 +1255,9 @@ export const KanbanTicketCard = memo(function KanbanTicketCard({
                     <TooltipTrigger asChild>
                       <span
                         data-testid="kanban-ticket-running-shells"
-                        className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 px-2 py-0.5 text-[11px] font-medium text-emerald-500 cursor-help"
+                        className={cn(ticketPillBaseClass, 'border-emerald-500/30 bg-emerald-500/10 text-emerald-500 cursor-help')}
                       >
-                        <SquareTerminal className="h-3 w-3" />
+                        <SquareTerminal className="h-2.5 w-2.5" />
                         {backgroundWork.runningShells}
                       </span>
                     </TooltipTrigger>
@@ -1245,9 +1274,9 @@ export const KanbanTicketCard = memo(function KanbanTicketCard({
                     <TooltipTrigger asChild>
                       <span
                         data-testid="kanban-ticket-running-monitors"
-                        className="inline-flex items-center gap-1 rounded-full bg-cyan-500/10 border border-cyan-500/30 px-2 py-0.5 text-[11px] font-medium text-cyan-500 cursor-help"
+                        className={cn(ticketPillBaseClass, 'border-cyan-500/30 bg-cyan-500/10 text-cyan-500 cursor-help')}
                       >
-                        <Radar className="h-3 w-3" />
+                        <Radar className="h-2.5 w-2.5" />
                         {backgroundWork.runningMonitors}
                       </span>
                     </TooltipTrigger>
@@ -1262,9 +1291,9 @@ export const KanbanTicketCard = memo(function KanbanTicketCard({
                 {hasAttachments && (
                   <span
                     data-testid="kanban-ticket-attachments"
-                    className="inline-flex items-center gap-1 rounded-full bg-muted/40 px-2 py-0.5 text-[11px] font-medium text-muted-foreground"
+                    className={ticketPillClass}
                   >
-                    <Paperclip className="h-3 w-3" />
+                    <Paperclip className="h-2.5 w-2.5" />
                     {ticket.attachments.length}
                   </span>
                 )}
@@ -1274,9 +1303,9 @@ export const KanbanTicketCard = memo(function KanbanTicketCard({
                     <TooltipTrigger asChild>
                       <span
                         data-testid="kanban-ticket-note"
-                        className="inline-flex items-center gap-1 rounded-full bg-muted/40 px-2 py-0.5 text-[11px] font-medium text-muted-foreground cursor-help"
+                        className={cn(ticketPillClass, 'cursor-help')}
                       >
-                        <StickyNote className="h-3 w-3" />
+                        <StickyNote className="h-2.5 w-2.5" />
                       </span>
                     </TooltipTrigger>
                     <TooltipContent className="max-w-xs whitespace-pre-wrap break-words">
@@ -1290,12 +1319,25 @@ export const KanbanTicketCard = memo(function KanbanTicketCard({
 
                 {/* Project tag (connection mode) or worktree name badge */}
                 {projectTag ? (
-                  <span className="inline-flex items-center gap-1 rounded-full bg-muted/40 px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
-                    <span className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: projectTag.color }} />
+                  <span className={ticketPillClass}>
+                    {projectTag.iconUrl ? (
+                      <img
+                        src={projectTag.iconUrl}
+                        alt=""
+                        aria-hidden="true"
+                        data-testid="kanban-ticket-project-icon"
+                        className="h-3 w-3 shrink-0 object-contain rounded-sm"
+                      />
+                    ) : (
+                      <span
+                        className="h-2 w-2 rounded-full shrink-0"
+                        style={{ backgroundColor: projectTag.color }}
+                      />
+                    )}
                     {projectTag.name}
                   </span>
                 ) : worktreeName ? (
-                  <span className="inline-flex items-center rounded-full bg-muted/40 px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
+                  <span className={ticketPillClass}>
                     {worktreeName}
                   </span>
                 ) : null}
@@ -1306,7 +1348,7 @@ export const KanbanTicketCard = memo(function KanbanTicketCard({
                     <TooltipTrigger asChild>
                       <span
                         data-testid="kanban-ticket-connection"
-                        className="inline-flex items-center rounded-full bg-muted/40 px-2 py-0.5 cursor-help"
+                        className={cn(ticketPillClass, 'cursor-help')}
                       >
                         {connectionColor ? (
                           <span
@@ -1315,7 +1357,7 @@ export const KanbanTicketCard = memo(function KanbanTicketCard({
                             aria-hidden="true"
                           />
                         ) : (
-                          <LinkIcon className="h-3 w-3 text-muted-foreground" />
+                          <LinkIcon className="h-2.5 w-2.5 text-muted-foreground" />
                         )}
                       </span>
                     </TooltipTrigger>
@@ -1331,29 +1373,29 @@ export const KanbanTicketCard = memo(function KanbanTicketCard({
                       systemApi.openInChrome(ticket.github_pr_url!)
                     }}
                     title={`Open PR #${ticket.github_pr_number} in browser`}
-                    className="inline-flex items-center gap-1 rounded-full bg-muted/40 px-2 py-0.5 text-[11px] font-medium text-muted-foreground hover:bg-muted/60 transition-colors"
+                    className={cn(ticketPillClass, 'hover:border-muted-foreground/35 hover:text-foreground transition-colors')}
                   >
-                    <GitPullRequest className="h-3 w-3" />
+                    <GitPullRequest className="h-2.5 w-2.5" />
                     #{ticket.github_pr_number}
                   </button>
                 )}
 
                 {/* Creating PR indicator */}
                 {isCreatingPR && (
-                  <span className="inline-flex items-center gap-1 rounded-full bg-muted/40 px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
-                    <Loader2 className="h-3 w-3 animate-spin" />
+                  <span className={ticketPillClass}>
+                    <Loader2 className="h-2.5 w-2.5 animate-spin" />
                     Creating PR...
                   </span>
                 )}
 
                 {/* Run process alive indicator */}
                 {isRunProcessAlive && (
-                  <PulseAnimation className="h-3 w-3 text-green-500 shrink-0" />
+                  <PulseAnimation className="h-3 w-3 text-emerald-500 shrink-0" />
                 )}
 
                 {/* Plan ready badge */}
                 {ticket.plan_ready && (
-                  <span className="inline-flex items-center rounded-full bg-violet-500/10 border border-violet-500/30 px-2 py-0.5 text-[11px] font-medium text-violet-500">
+                  <span className={cn(ticketPillBaseClass, 'border-violet-500/30 bg-violet-500/10 text-violet-500')}>
                     Plan ready
                   </span>
                 )}
@@ -1364,9 +1406,9 @@ export const KanbanTicketCard = memo(function KanbanTicketCard({
                     <TooltipTrigger asChild>
                       <span
                         data-testid="kanban-ticket-auto-approve"
-                        className="inline-flex items-center rounded-full bg-violet-500/10 border border-violet-500/30 px-1.5 py-0.5 text-violet-500 cursor-help"
+                        className={cn(ticketPillBaseClass, 'border-violet-500/30 bg-violet-500/10 text-violet-500 cursor-help')}
                       >
-                        <FastForward className="h-3 w-3" />
+                        <FastForward className="h-2.5 w-2.5" />
                       </span>
                     </TooltipTrigger>
                     <TooltipContent>
@@ -1377,8 +1419,8 @@ export const KanbanTicketCard = memo(function KanbanTicketCard({
 
                 {/* Error badge */}
                 {isError && (
-                  <span className="inline-flex items-center gap-1 rounded-full bg-red-500/10 border border-red-500/30 px-2 py-0.5 text-[11px] font-medium text-red-500">
-                    <AlertCircle className="h-3 w-3" />
+                  <span className={cn(ticketPillBaseClass, 'border-red-500/30 bg-red-500/10 text-red-500')}>
+                    <AlertCircle className="h-2.5 w-2.5" />
                     Error
                   </span>
                 )}
@@ -1414,16 +1456,14 @@ export const KanbanTicketCard = memo(function KanbanTicketCard({
                           <span className="ml-auto" onClick={(e) => e.stopPropagation()}>
                             <DropdownMenu>
                               <DropdownMenuTrigger asChild>
-                                <Button
-                                  size="sm"
-                                  variant="destructive"
-                                  className="h-6 px-2 text-xs font-semibold"
+                                <button
+                                  className="inline-flex items-center rounded-[5px] border border-destructive/30 bg-destructive/8 px-2 py-0.5 text-[11px] font-medium text-destructive hover:bg-destructive/15 transition-colors"
                                   data-testid="kanban-ticket-fix-conflicts"
                                 >
-                                  <AlertTriangle className="h-3.5 w-3.5 mr-1" />
+                                  <AlertTriangle className="h-3 w-3 mr-1" />
                                   Fix conflicts
                                   <ChevronDown className="h-3 w-3 ml-1" />
-                                </Button>
+                                </button>
                               </DropdownMenuTrigger>
                               <DropdownMenuContent align="end">
                                 <DropdownMenuItem
@@ -1451,19 +1491,17 @@ export const KanbanTicketCard = memo(function KanbanTicketCard({
                       }
 
                       return (
-                        <Button
-                          size="sm"
-                          variant="destructive"
-                          className="ml-auto h-6 px-2 text-xs font-semibold"
+                        <button
+                          className="ml-auto inline-flex items-center rounded-[5px] border border-destructive/30 bg-destructive/8 px-2 py-0.5 text-[11px] font-medium text-destructive hover:bg-destructive/15 transition-colors"
                           data-testid="kanban-ticket-fix-conflicts"
                           onClick={(e) => {
                             e.stopPropagation()
                             void startFixFlow()
                           }}
                         >
-                          <AlertTriangle className="h-3.5 w-3.5 mr-1" />
+                          <AlertTriangle className="h-3 w-3 mr-1" />
                           Fix conflicts
-                        </Button>
+                        </button>
                       )
                     }
                     case 'busy':
@@ -1471,9 +1509,9 @@ export const KanbanTicketCard = memo(function KanbanTicketCard({
                         <span data-testid="kanban-ticket-progress" className="ml-auto flex items-center gap-1.5">
                           {timerText && (
                             <span className={cn(
-                              'text-[11px] tabular-nums font-semibold',
+                              'text-[10px] tabular-nums font-normal',
                               isAsking
-                                ? 'text-amber-500'
+                                ? 'text-orange-500'
                                 : ticket.mode === 'build'
                                   ? 'text-blue-500'
                                   : 'text-violet-500'
@@ -1483,7 +1521,8 @@ export const KanbanTicketCard = memo(function KanbanTicketCard({
                           )}
                           <IndeterminateProgressBar mode={ticket.mode!} isAsking={isAsking} className="w-20" />
                           {isAsking && (
-                            <span className="text-[11px] font-semibold text-amber-500">
+                            <span className="inline-flex items-center gap-1 text-[11px] font-medium text-orange-500">
+                              <MessageCircleQuestion className="h-3 w-3" />
                               Question
                             </span>
                           )}
@@ -1500,8 +1539,9 @@ export const KanbanTicketCard = memo(function KanbanTicketCard({
                         <button
                           data-testid="kanban-ticket-go-to-review"
                           onClick={(e) => { e.stopPropagation(); handleGoToReview() }}
-                          className="ml-auto text-green-500 hover:text-green-400 text-xs cursor-pointer"
+                          className="ml-auto inline-flex items-center gap-1 text-[11px] font-medium text-emerald-500 hover:underline cursor-pointer"
                         >
+                          <Check className="h-3 w-3" />
                           Go to review
                         </button>
                       )
@@ -1521,7 +1561,7 @@ export const KanbanTicketCard = memo(function KanbanTicketCard({
                       data-testid="kanban-ticket-goal"
                       onContextMenu={isPaused ? (e) => e.stopPropagation() : undefined}
                       className={cn(
-                        'inline-flex items-center rounded-full border border-black/20 bg-white px-1.5 py-0.5 text-black shadow-sm',
+                        'inline-flex items-center rounded-full border border-border bg-secondary px-1.5 py-0.5 text-foreground',
                         isPaused ? 'cursor-context-menu' : 'cursor-help',
                         !hasRightAlignedStatus && 'ml-auto'
                       )}
@@ -1529,12 +1569,12 @@ export const KanbanTicketCard = memo(function KanbanTicketCard({
                       <span className="relative inline-flex h-3 w-3 items-center justify-center">
                         <CheckeredFlagIcon className="h-3 w-3" />
                         {isComplete && (
-                          <span className="absolute -right-1 -top-1 inline-flex h-2.5 w-2.5 items-center justify-center rounded-full bg-emerald-500 text-white ring-1 ring-white">
+                          <span className="absolute -right-1 -top-1 inline-flex h-2.5 w-2.5 items-center justify-center rounded-full bg-emerald-500 text-white ring-1 ring-background">
                             <Check className="h-2 w-2 stroke-[3]" />
                           </span>
                         )}
                         {isPaused && (
-                          <span className="absolute -right-1 -top-1 inline-flex h-2.5 w-2.5 items-center justify-center rounded-full bg-amber-500 text-white ring-1 ring-white">
+                          <span className="absolute -right-1 -top-1 inline-flex h-2.5 w-2.5 items-center justify-center rounded-full bg-amber-500 text-white ring-1 ring-background">
                             <Pause className="h-1.5 w-1.5 fill-current stroke-[3]" />
                           </span>
                         )}
@@ -1694,7 +1734,7 @@ export const KanbanTicketCard = memo(function KanbanTicketCard({
               <ContextMenuItem
                 data-testid="ctx-stop-remote-session"
                 onClick={() => setShowStopRemoteConfirm(true)}
-                className="gap-2 text-red-500 focus:text-red-500"
+                className="gap-2 text-destructive focus:text-destructive"
               >
                 <Unplug className="h-3.5 w-3.5" />
                 Stop remote session
@@ -1788,7 +1828,7 @@ export const KanbanTicketCard = memo(function KanbanTicketCard({
                   Rare
                 </ContextMenuRadioItem>
                 <ContextMenuRadioItem value="epic">
-                  <span className="h-2 w-2 rounded-full bg-purple-500 inline-block mr-2" />
+                  <span className="h-2 w-2 rounded-full bg-pink-500 inline-block mr-2" />
                   Epic
                 </ContextMenuRadioItem>
                 <ContextMenuRadioItem value="legendary">
@@ -1894,7 +1934,7 @@ export const KanbanTicketCard = memo(function KanbanTicketCard({
             <ContextMenuItem
               data-testid="ctx-delete-ticket"
               onClick={() => setShowDeleteConfirm(true)}
-              className="gap-2 text-red-500 focus:text-red-500"
+              className="gap-2 text-destructive focus:text-destructive"
             >
               <Trash2 className="h-3.5 w-3.5" />
               Delete

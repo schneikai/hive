@@ -9,8 +9,8 @@ interface HintBadgeProps {
 
 const matchColorsByAction = {
   select: {
-    bg: 'bg-primary/20 border-primary/60',
-    text: 'text-primary'
+    bg: 'bg-foreground/15 border-foreground/50',
+    text: 'text-foreground'
   },
   pin: {
     bg: 'bg-green-500/20 border-green-500/60',

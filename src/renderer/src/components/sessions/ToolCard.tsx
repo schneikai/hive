@@ -126,10 +126,10 @@ function StatusIndicator({ status }: { status: ToolStatus }): React.JSX.Element 
     case 'pending':
     case 'running':
       return (
-        <Loader2 className="h-3.5 w-3.5 animate-spin text-blue-500" data-testid="tool-spinner" />
+        <Loader2 className="h-3.5 w-3.5 animate-spin text-yellow-500" data-testid="tool-spinner" />
       )
     case 'success':
-      return <Check className="h-3.5 w-3.5 text-green-500" data-testid="tool-success" />
+      return <Check className="h-3.5 w-3.5 text-emerald-500" data-testid="tool-success" />
     case 'error':
       return <X className="h-3.5 w-3.5 text-red-500" data-testid="tool-error" />
   }
@@ -139,19 +139,6 @@ function formatDuration(ms: number): string {
   if (ms < 1000) return `${Math.round(ms)}ms`
   if (ms < 60000) return `${(ms / 1000).toFixed(1)}s`
   return `${(ms / 60000).toFixed(1)}m`
-}
-
-function getLeftBorderColor(status: ToolStatus): string {
-  switch (status) {
-    case 'pending':
-      return 'var(--muted-foreground)'
-    case 'running':
-      return '#3b82f6' // blue-500
-    case 'success':
-      return '#22c55e' // green-500
-    case 'error':
-      return '#ef4444' // red-500
-  }
 }
 
 // Map tool names to rich renderers
@@ -239,7 +226,7 @@ function CollapsedContent({
         </span>
         <span className="font-medium text-foreground shrink-0">Bash</span>
         <span className="font-mono text-muted-foreground truncate min-w-0">
-          <span className="text-green-500">$</span> {truncCmd}
+          <span className="text-emerald-400">$</span> {truncCmd}
         </span>
       </>
     )
@@ -764,14 +751,7 @@ export const ToolCard = memo(function ToolCard({
     return (
       <ToolCallContextMenu toolUse={toolUse}>
         <div
-          className={cn(
-            compact
-              ? 'my-1 rounded-md border border-l-2 text-xs'
-              : 'my-1 rounded-md border border-l-2 text-xs',
-            toolUse.status === 'running' && 'animate-pulse',
-            'border-border bg-muted/30'
-          )}
-          style={{ borderLeftColor: getLeftBorderColor(toolUse.status) }}
+          className="my-1 rounded-lg border border-border bg-card text-xs"
           data-testid="tool-card"
           data-tool-name={toolUse.name}
           data-tool-status={toolUse.status}
@@ -825,12 +805,9 @@ export const ToolCard = memo(function ToolCard({
         <div>
           <div
             className={cn(
-              compact
-                ? 'my-1 rounded-md border border-l-2 text-xs'
-                : 'my-1 rounded-md border border-l-2 text-xs',
-              planRejected ? 'border-red-500/30 bg-red-500/5' : 'border-border bg-primary/[0.04]'
+              'my-1 rounded-lg border text-xs',
+              planRejected ? 'border-red-500/30 bg-red-500/5' : 'border-border bg-card'
             )}
-            style={{ borderLeftColor: getLeftBorderColor(toolUse.status) }}
             data-testid="tool-card"
             data-tool-name={toolUse.name}
             data-tool-status={toolUse.status}
@@ -876,16 +853,16 @@ export const ToolCard = memo(function ToolCard({
           {/* Fake user message after plan acceptance */}
           {planAccepted && (
             <div className="flex justify-end px-6 py-4" data-testid="plan-accepted-message">
-              <div className="max-w-[80%] rounded-2xl px-4 py-3 bg-primary/10 text-foreground">
-                <p className="text-sm whitespace-pre-wrap leading-relaxed">Implement the plan</p>
+              <div className="max-w-[80%] rounded-[10px] border border-border bg-secondary px-3 py-2 text-foreground">
+                <p className="text-[13px] whitespace-pre-wrap leading-[1.55]">Implement the plan</p>
               </div>
             </div>
           )}
           {/* Fake user message after plan rejection with feedback */}
           {planRejected && toolUse.error && (
             <div className="flex justify-end px-6 py-4" data-testid="plan-rejected-message">
-              <div className="max-w-[80%] rounded-2xl px-4 py-3 bg-primary/10 text-foreground">
-                <p className="text-sm whitespace-pre-wrap leading-relaxed">{toolUse.error}</p>
+              <div className="max-w-[80%] rounded-[10px] border border-border bg-secondary px-3 py-2 text-foreground">
+                <p className="text-[13px] whitespace-pre-wrap leading-[1.55]">{toolUse.error}</p>
               </div>
             </div>
           )}
@@ -898,17 +875,9 @@ export const ToolCard = memo(function ToolCard({
     <ToolCallContextMenu toolUse={toolUse}>
       <div
         className={cn(
-          compact
-            ? 'my-1 rounded-md border border-l-2 text-xs'
-            : 'my-1 rounded-md border border-l-2 text-xs',
-          toolUse.status === 'running' && 'animate-pulse',
-          toolUse.status === 'error'
-            ? 'border-red-500/30 bg-red-500/5'
-            : 'border-border bg-muted/30'
+          'my-1 rounded-lg border text-xs',
+          toolUse.status === 'error' ? 'border-red-500/30 bg-red-500/5' : 'border-border bg-card'
         )}
-        style={{
-          borderLeftColor: getLeftBorderColor(toolUse.status)
-        }}
         data-testid="tool-card"
         data-tool-name={toolUse.name}
         data-tool-status={toolUse.status}

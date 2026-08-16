@@ -24,7 +24,10 @@ export function HeaderDiscordToggle(): React.JSX.Element {
         }
         setOpen(true)
       }}
-      className={cn(enabled && 'bg-primary/10 text-primary hover:bg-primary/15 hover:text-primary')}
+      className={cn(
+        'size-6 rounded-md text-muted-foreground hover:bg-accent hover:text-foreground',
+        enabled && 'bg-accent text-foreground hover:bg-accent'
+      )}
       title={configured ? 'Discord provisioning' : 'Configure Discord in Settings'}
       data-testid="discord-provision-toggle"
     >

@@ -16,6 +16,7 @@ import {
   DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu'
 import { Textarea } from '@/components/ui/textarea'
+import { ticketPillClass } from './pill'
 import { useSessionStream } from '@/hooks/useSessionStream'
 import { parseBoardAssistantDraftSet } from '@/lib/board-assistant-drafts'
 import { toast } from '@/lib/toast'
@@ -408,10 +409,10 @@ function BoardChatHeader({
       : null
 
   return (
-    <div className="flex items-start justify-between gap-3 border-b border-border/70 px-4 py-3">
+    <div className="flex items-start justify-between gap-3 border-b border-border px-4 py-3">
       <div className="min-w-0 space-y-2">
         <div className="flex items-center gap-2">
-          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/12 text-primary">
+          <div className="flex h-7 w-7 items-center justify-center rounded-md bg-secondary text-foreground">
             <Bot className="h-4 w-4" />
           </div>
           <div className="min-w-0">
@@ -421,20 +422,20 @@ function BoardChatHeader({
         </div>
 
         {scope.kind === 'project' && (
-          <div className="inline-flex rounded-full border border-border/70 bg-muted/40 px-2.5 py-1 text-xs text-muted-foreground">
+          <div className="inline-flex h-7 items-center rounded-md border border-border bg-secondary/40 px-2.5 text-[12px] text-muted-foreground">
             {scope.projectName}
           </div>
         )}
 
         {scope.kind === 'connection' && (
           <div className="flex flex-wrap items-center gap-2">
-            <div className="inline-flex rounded-full border border-border/70 bg-muted/40 px-2.5 py-1 text-xs text-muted-foreground">
+            <div className="inline-flex h-7 items-center rounded-md border border-border bg-secondary/40 px-2.5 text-[12px] text-muted-foreground">
               {scope.connectionName}
             </div>
             <select
               value={selectedTargetProjectId ?? ''}
               onChange={(event) => onSelectTargetProject(event.target.value)}
-              className="h-8 rounded-full border border-border/70 bg-background px-3 text-xs text-foreground outline-none focus:ring-1 focus:ring-ring"
+              className="h-7 rounded-md border border-border bg-secondary/40 px-2.5 text-[12px] text-foreground outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
             >
               {scope.availableProjects.map((project) => (
                 <option key={project.id} value={project.id}>
@@ -455,7 +456,7 @@ function BoardChatHeader({
             <DropdownMenuTrigger asChild>
               <button
                 type="button"
-                className="flex items-center gap-1 rounded-full border border-border/70 bg-muted/40 px-3 py-1.5 text-xs text-foreground transition-colors hover:bg-muted/70"
+                className="flex h-7 items-center gap-1 rounded-md border border-border bg-secondary/40 px-2.5 text-[12px] text-foreground transition-colors hover:bg-secondary"
               >
                 <span>{getAgentSdkLabel(agentSdk)}</span>
               </button>
@@ -508,7 +509,7 @@ function BoardChatDraftProposalCard({
   onToggle: (draftId: string) => void
 }): React.JSX.Element {
   return (
-    <div className="rounded-2xl border border-border/70 bg-background/80 p-3 shadow-sm">
+    <div className="rounded-lg border border-border bg-card p-3">
       <div className="flex items-start gap-3">
         <Checkbox
           checked={draft.selected || Boolean(draft.createdAt)}
@@ -519,11 +520,11 @@ function BoardChatDraftProposalCard({
         <div className="min-w-0 flex-1 space-y-2">
           <div className="flex flex-wrap items-center gap-2">
             <p className="text-sm font-semibold text-foreground">{draft.title}</p>
-            <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-medium text-primary">
+            <span className={ticketPillClass}>
               {draft.projectName}
             </span>
             {draft.createdAt && (
-              <span className="rounded-full border border-border/70 bg-muted/40 px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
+              <span className={ticketPillClass}>
                 Created
               </span>
             )}
@@ -535,11 +536,11 @@ function BoardChatDraftProposalCard({
           )}
           {draft.resolvedDependsOnTitles.length > 0 && (
             <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-              <span className="font-medium uppercase tracking-[0.14em]">Depends on</span>
+              <span className="text-[11px] font-semibold uppercase tracking-[0.05em] text-muted-foreground">Depends on</span>
               {draft.resolvedDependsOnTitles.map((dependency) => (
                 <span
                   key={`${draft.id}-${dependency}`}
-                  className="rounded-full border border-border/70 bg-muted/30 px-2 py-0.5"
+                  className={ticketPillClass}
                 >
                   {dependency}
                 </span>
@@ -547,7 +548,7 @@ function BoardChatDraftProposalCard({
             </div>
           )}
           {draft.warnings.length > 0 && (
-            <div className="space-y-1 rounded-xl border border-border/70 bg-muted/30 px-3 py-2">
+            <div className="space-y-1 rounded-md border border-border bg-muted/30 px-3 py-2">
               {draft.warnings.map((warning) => (
                 <p key={warning} className="text-xs text-muted-foreground">
                   {warning}
@@ -556,7 +557,7 @@ function BoardChatDraftProposalCard({
             </div>
           )}
           {draft.validationIssues.length > 0 && (
-            <div className="space-y-1 rounded-xl border border-destructive/30 bg-destructive/10 px-3 py-2">
+            <div className="space-y-1 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2">
               {draft.validationIssues.map((issue) => (
                 <p key={issue} className="text-xs text-destructive">
                   {issue}
@@ -646,7 +647,7 @@ function BoardChatMessageList({
           return (
             <div
               key={message.id}
-              className="rounded-2xl border border-border/70 bg-muted/35 px-3 py-2 text-xs text-muted-foreground"
+              className="rounded-md border border-border bg-secondary/50 px-3 py-2 text-[11px] text-muted-foreground"
             >
               {message.content}
             </div>
@@ -671,8 +672,8 @@ function BoardChatMessageList({
             )}
 
             {message.id === draftSourceMessageId && drafts.length > 0 && parsedDrafts && (
-              <div className="space-y-3 rounded-3xl border border-border/70 bg-muted/20 p-3">
-                <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
+              <div className="space-y-3 rounded-lg border border-border bg-secondary/30 p-2">
+                <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.05em] text-muted-foreground">
                   <Sparkles className="h-3.5 w-3.5" />
                   Draft proposals
                 </div>
@@ -694,7 +695,7 @@ function BoardChatMessageList({
                     />
                   ))}
                 </div>
-                <div className="flex flex-wrap items-center gap-2 border-t border-border/70 pt-3">
+                <div className="flex flex-wrap items-center gap-2 border-t border-border pt-3">
                   <Button type="button" size="sm" onClick={onCreateAll} disabled={hasInvalidDrafts}>
                     Create all
                   </Button>
@@ -776,8 +777,8 @@ function BoardChatComposer({
   onSend: () => void
 }): React.JSX.Element {
   return (
-    <div className="border-t border-border/70 px-4 py-3">
-      <div className="rounded-3xl border border-border/70 bg-muted/20 p-2 shadow-sm">
+    <div className="border-t border-border px-4 py-3">
+      <div className="rounded-lg border border-border bg-secondary/30 p-2">
         <Textarea
           ref={textareaRef}
           value={value}

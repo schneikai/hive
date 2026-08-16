@@ -79,7 +79,7 @@ export function MoveToProjectModal({
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Search projects..."
-            className="h-8 w-full text-sm px-2 pl-8 pr-8 rounded-md border border-input bg-transparent placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+            className="h-8 w-full text-sm px-2 pl-8 pr-8 rounded-md border border-input bg-transparent placeholder:text-muted-foreground focus-visible:outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
             data-testid="move-to-project-search"
           />
           {query && (

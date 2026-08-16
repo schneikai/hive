@@ -219,9 +219,10 @@ export function JiraImportModal({ open, onOpenChange, projectId }: JiraImportMod
   }
 
   const stateBadgeClass = (state: RemoteIssue['state']) => {
-    if (state === 'open') return 'bg-green-500/10 text-green-500'
-    if (state === 'in_progress') return 'bg-amber-500/10 text-amber-500'
-    return 'bg-purple-500/10 text-purple-500'
+    if (state === 'open') return 'border border-emerald-500/30 bg-emerald-500/10 text-emerald-500'
+    if (state === 'in_progress') return 'border border-amber-500/30 bg-amber-500/10 text-amber-500'
+    // Done — neutral outline so it stays distinguishable from open/emerald
+    return 'border border-border bg-transparent text-muted-foreground'
   }
 
   const stateLabel = (state: RemoteIssue['state']) => {
@@ -268,7 +269,7 @@ export function JiraImportModal({ open, onOpenChange, projectId }: JiraImportMod
                   onKeyDown={handleTextareaKeyDown}
                   placeholder={`e.g., project = PROJ AND sprint in openSprints()`}
                   rows={2}
-                  className="w-full resize-none rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="w-full resize-none rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50"
                 />
                 <div className="flex items-center justify-between">
                   <span className="text-[11px] text-muted-foreground">

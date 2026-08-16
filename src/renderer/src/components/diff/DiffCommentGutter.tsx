@@ -641,7 +641,7 @@ export function DiffCommentGutter({
       {showPlusButton && (
         <button
           ref={buttonRef}
-          className="absolute z-20 flex items-center justify-center w-5 h-5 rounded-sm bg-violet-600 hover:bg-violet-500 text-white cursor-pointer transition-colors"
+          className="absolute z-20 flex items-center justify-center w-5 h-5 rounded-sm bg-foreground hover:bg-foreground/90 text-background cursor-pointer transition-colors"
           style={{
             top: buttonTop,
             left: gutterLeft,
@@ -733,7 +733,7 @@ function CommentEditorZone({
 
   return (
     <div
-      className="mx-1 my-0.5 rounded-md border border-violet-500/30 bg-violet-950/30 text-xs"
+      className="mx-1 my-0.5 rounded-md border border-border bg-secondary text-xs"
       onMouseDown={(e) => {
         e.preventDefault()
         e.stopPropagation()
@@ -742,11 +742,11 @@ function CommentEditorZone({
     >
       <div className="px-3 py-1.5">
         <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground mb-1">
-          <MessageSquare className="h-3 w-3 text-violet-400 shrink-0" />
+          <MessageSquare className="h-3 w-3 text-muted-foreground shrink-0" />
           <span>{isSingleLine ? `Line ${lineStart}` : `Lines ${lineStart}-${lineEnd}`}</span>
         </div>
         <textarea
-          className="w-full bg-transparent border border-border/50 rounded px-2 py-1 text-xs text-foreground resize-none font-mono focus:outline-none focus:border-violet-500/50"
+          className="w-full bg-transparent border border-border rounded px-2 py-1 text-xs text-foreground resize-none font-mono outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:border-ring"
           rows={3}
           autoFocus
           placeholder="Write a comment..."
@@ -780,7 +780,7 @@ function CommentEditorZone({
           <Button
             variant="default"
             size="sm"
-            className="h-6 px-2 text-[11px] bg-violet-600 hover:bg-violet-500"
+            className="h-6 px-2 text-[11px]"
             disabled={!body.trim()}
             onClick={() => onSave(body.trim())}
           >
@@ -833,7 +833,7 @@ function SavedCommentCard({
         "mx-1 my-0.5 rounded-md text-xs",
         comment.is_outdated
           ? "border border-yellow-500/40 bg-yellow-950/20"
-          : "border border-violet-500/30 bg-violet-950/30"
+          : "border border-border bg-secondary"
       )}
       onMouseDown={(e) => {
         e.preventDefault()
@@ -845,7 +845,7 @@ function SavedCommentCard({
         {/* Header */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-1.5 text-[11px]">
-            <MessageSquare className="h-3 w-3 text-violet-400 shrink-0" />
+            <MessageSquare className="h-3 w-3 text-muted-foreground shrink-0" />
             <span className="text-muted-foreground">
               {isSingleLine
                 ? `Line ${comment.line_start}`
@@ -894,7 +894,7 @@ function SavedCommentCard({
         {editing ? (
           <div className="mt-1">
             <textarea
-              className="w-full bg-transparent border border-border/50 rounded px-2 py-1 text-xs text-foreground resize-none font-mono focus:outline-none focus:border-violet-500/50"
+              className="w-full bg-transparent border border-border rounded px-2 py-1 text-xs text-foreground resize-none font-mono outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:border-ring"
               rows={3}
               autoFocus
               value={editBody}
@@ -925,7 +925,7 @@ function SavedCommentCard({
               <Button
                 variant="default"
                 size="sm"
-                className="h-6 px-2 text-[11px] bg-violet-600 hover:bg-violet-500"
+                className="h-6 px-2 text-[11px]"
                 disabled={!editBody.trim()}
                 onClick={handleSaveEdit}
               >

@@ -60,7 +60,7 @@ export function QuestionToolView({ input, output, error }: ToolViewProps) {
                 <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">
                   {q.header}
                 </span>
-                {answer && <Check className="h-3 w-3 text-green-500 shrink-0" />}
+                {answer && <Check className="h-3 w-3 text-emerald-500 shrink-0" />}
               </div>
 
               {/* Question text */}

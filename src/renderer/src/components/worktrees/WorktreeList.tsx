@@ -106,7 +106,10 @@ export function WorktreeList({ project }: WorktreeListProps): React.JSX.Element 
   }, [])
 
   return (
-    <div className="pl-4" data-testid={`worktree-list-${project.id}`}>
+    // Orca item rows under a depth-0 project group: surface inset 0 (the card
+    // itself carries the ml-1 + padding-left ladder) and ROW_GAP (6px) between
+    // every card row (virtualizer gap).
+    <div className="flex flex-col gap-1.5" data-testid={`worktree-list-${project.id}`}>
       {worktrees.map((worktree, index) => (
         <WorktreeItem
           key={worktree.id}

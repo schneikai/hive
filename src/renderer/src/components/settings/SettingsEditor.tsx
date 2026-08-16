@@ -79,7 +79,7 @@ export function SettingsEditor(): React.JSX.Element {
                 className={cn(
                   'w-full flex items-center justify-between px-3 py-2.5 rounded-md text-sm transition-colors text-left',
                   defaultEditor === opt.id
-                    ? 'bg-primary/10 border border-primary/30'
+                    ? 'bg-accent border border-border'
                     : 'hover:bg-accent/50 border border-transparent',
                   !available && opt.id !== 'custom' && 'opacity-50 cursor-not-allowed'
                 )}
@@ -91,7 +91,7 @@ export function SettingsEditor(): React.JSX.Element {
                     <span className="text-xs text-muted-foreground">(not found)</span>
                   )}
                 </div>
-                {defaultEditor === opt.id && <Check className="h-4 w-4 text-primary" />}
+                {defaultEditor === opt.id && <Check className="h-4 w-4 text-foreground" />}
               </button>
             )
           })}

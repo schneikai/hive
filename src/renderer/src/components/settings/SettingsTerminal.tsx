@@ -187,7 +187,7 @@ export function SettingsTerminal(): React.JSX.Element {
                 className={cn(
                   'w-full flex items-start justify-between px-3 py-2.5 rounded-md text-sm transition-colors text-left',
                   isSelected
-                    ? 'bg-primary/10 border border-primary/30'
+                    ? 'bg-accent border border-border'
                     : 'hover:bg-accent/50 border border-transparent'
                 )}
                 data-testid={`terminal-position-${opt.id}`}
@@ -198,7 +198,7 @@ export function SettingsTerminal(): React.JSX.Element {
                   </div>
                   <p className="text-xs text-muted-foreground mt-0.5">{opt.description}</p>
                 </div>
-                {isSelected && <Check className="h-4 w-4 text-primary mt-0.5 shrink-0" />}
+                {isSelected && <Check className="h-4 w-4 text-foreground mt-0.5 shrink-0" />}
               </button>
             )
           })}
@@ -229,7 +229,7 @@ export function SettingsTerminal(): React.JSX.Element {
                 className={cn(
                   'w-full flex items-start justify-between px-3 py-2.5 rounded-md text-sm transition-colors text-left',
                   isSelected
-                    ? 'bg-primary/10 border border-primary/30'
+                    ? 'bg-accent border border-border'
                     : 'hover:bg-accent/50 border border-transparent',
                   !selectable && 'opacity-50 cursor-not-allowed'
                 )}
@@ -247,7 +247,7 @@ export function SettingsTerminal(): React.JSX.Element {
                   </div>
                   <p className="text-xs text-muted-foreground mt-0.5">{opt.description}</p>
                 </div>
-                {isSelected && <Check className="h-4 w-4 text-primary mt-0.5 shrink-0" />}
+                {isSelected && <Check className="h-4 w-4 text-foreground mt-0.5 shrink-0" />}
               </button>
             )
           })}
@@ -346,7 +346,7 @@ export function SettingsTerminal(): React.JSX.Element {
                   className={cn(
                     'w-full flex items-center justify-between px-3 py-2.5 rounded-md text-sm transition-colors text-left',
                     defaultTerminal === opt.id
-                      ? 'bg-primary/10 border border-primary/30'
+                      ? 'bg-accent border border-border'
                       : 'hover:bg-accent/50 border border-transparent',
                     !available && opt.id !== 'custom' && 'opacity-50 cursor-not-allowed'
                   )}
@@ -358,7 +358,7 @@ export function SettingsTerminal(): React.JSX.Element {
                       <span className="text-xs text-muted-foreground">(not found)</span>
                     )}
                   </div>
-                  {defaultTerminal === opt.id && <Check className="h-4 w-4 text-primary" />}
+                  {defaultTerminal === opt.id && <Check className="h-4 w-4 text-foreground" />}
                 </button>
               )
             })}

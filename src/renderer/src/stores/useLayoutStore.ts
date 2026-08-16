@@ -4,9 +4,9 @@ import { persist, createJSONStorage } from 'zustand/middleware'
 export type BottomPanelTab = 'setup' | 'run' | 'terminal'
 export type CollapsedPanel = 'none' | 'top' | 'bottom'
 
-const LEFT_SIDEBAR_DEFAULT = 240
-const LEFT_SIDEBAR_MIN = 200
-const LEFT_SIDEBAR_MAX = 400
+const LEFT_SIDEBAR_DEFAULT = 280
+const LEFT_SIDEBAR_MIN = 220
+const LEFT_SIDEBAR_MAX = 500
 const RIGHT_SIDEBAR_DEFAULT = 280
 const SPLIT_FRACTION_DEFAULT = 0.5
 const SPLIT_FRACTION_MIN = 0.15

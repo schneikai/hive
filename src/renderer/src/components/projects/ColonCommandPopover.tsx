@@ -82,7 +82,7 @@ export function ColonCommandPopover({
     >
       <div
         ref={listRef}
-        className="rounded-lg border bg-popover text-popover-foreground shadow-md max-h-64 overflow-y-auto"
+        className="rounded-[11px] border border-black/14 dark:border-white/14 bg-[rgba(255,255,255,0.82)] dark:bg-[rgba(0,0,0,0.72)] text-popover-foreground backdrop-blur-2xl shadow-[0_16px_36px_rgba(0,0,0,0.24),inset_0_1px_0_rgba(255,255,255,0.04)] max-h-64 overflow-y-auto p-1"
       >
         {displayed.length === 0 ? (
           <div className="px-3 py-2 text-xs text-muted-foreground">{emptyMessage}</div>
@@ -93,7 +93,7 @@ export function ColonCommandPopover({
               data-colon-item
               data-testid={`colon-item-${item.key}`}
               className={cn(
-                'flex items-center gap-2 px-3 py-1.5 cursor-pointer text-sm',
+                'flex items-center gap-2 px-2.5 py-1.5 cursor-pointer text-[13px] rounded-md',
                 index === selectedIndex && 'bg-accent text-accent-foreground'
               )}
               onMouseEnter={() => onSelectedIndexChange(index)}

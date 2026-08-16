@@ -278,7 +278,10 @@ export function AppLayout({ children }: AppLayoutProps): React.JSX.Element {
             <ErrorBoundary
               componentName="LeftSidebar"
               fallback={
-                <div className="w-60 border-r bg-muted/50 flex items-center justify-center">
+                <div
+                  className="border-r border-worktree-sidebar-border bg-worktree-sidebar flex items-center justify-center"
+                  style={{ width: useLayoutStore.getState().leftSidebarWidth }}
+                >
                   <ErrorFallback compact title="Sidebar Error" />
                 </div>
               }
@@ -290,7 +293,7 @@ export function AppLayout({ children }: AppLayoutProps): React.JSX.Element {
             </ErrorBoundary>
             <ErrorBoundary
               componentName="RightSidebar"
-              fallback={<div className="border-l bg-muted/50" />}
+              fallback={<div className="border-l border-border bg-sidebar" />}
             >
               <RightSidebar />
             </ErrorBoundary>

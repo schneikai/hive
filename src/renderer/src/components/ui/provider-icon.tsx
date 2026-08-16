@@ -14,8 +14,8 @@ interface ProviderConfig {
 const PROVIDER_CONFIG: Record<string, ProviderConfig> = {
   github: {
     Icon: Github,
-    bg: 'bg-zinc-200 dark:bg-zinc-700',
-    color: 'text-zinc-700 dark:text-zinc-200',
+    bg: 'bg-neutral-200 dark:bg-neutral-700',
+    color: 'text-neutral-700 dark:text-neutral-200',
     label: 'GitHub',
   },
   jira: {
@@ -28,8 +28,8 @@ const PROVIDER_CONFIG: Record<string, ProviderConfig> = {
 
 const FALLBACK_CONFIG: ProviderConfig = {
   Icon: Github,
-  bg: 'bg-zinc-200 dark:bg-zinc-700',
-  color: 'text-zinc-700 dark:text-zinc-200',
+  bg: 'bg-neutral-200 dark:bg-neutral-700',
+  color: 'text-neutral-700 dark:text-neutral-200',
   label: 'External',
 }
 

@@ -1923,13 +1923,13 @@ export function WorktreePickerModal({
                     'flex w-full items-center gap-3 px-3.5 py-2.5 text-sm transition-colors',
                     'border-b border-border/40',
                     'hover:bg-muted/30',
-                    isNewWorktree && 'bg-primary/8 ring-1 ring-inset ring-primary/20'
+                    isNewWorktree && 'bg-secondary ring-1 ring-inset ring-border'
                   )}
                 >
                   <span
                     className={cn(
                       'flex h-7 w-7 shrink-0 items-center justify-center rounded-md',
-                      'bg-primary/10 text-primary'
+                      'bg-secondary text-foreground'
                     )}
                   >
                     <Plus className="h-3.5 w-3.5" />
@@ -1996,7 +1996,7 @@ export function WorktreePickerModal({
                                   <span className="text-[10px] text-muted-foreground">remote</span>
                                 )}
                                 {branch.isCheckedOut && (
-                                  <span className="text-[10px] text-primary">active</span>
+                                  <span className="text-[10px] text-foreground">active</span>
                                 )}
                               </button>
                             ))
@@ -2027,7 +2027,7 @@ export function WorktreePickerModal({
                         'flex w-full items-center gap-3 px-3.5 py-2.5 text-sm transition-colors',
                         'border-b border-border/40 last:border-b-0',
                         'hover:bg-muted/30',
-                        isSelected && 'bg-primary/8 ring-1 ring-inset ring-primary/20'
+                        isSelected && 'bg-secondary ring-1 ring-inset ring-border'
                       )}
                     >
                       <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-muted/40 text-muted-foreground">

@@ -28,7 +28,7 @@ function getPermissionDisplay(permission: string): {
       return { icon: Search, label: 'Search Files', color: 'text-blue-400' }
     case 'webfetch':
     case 'websearch':
-      return { icon: Globe, label: 'Web Access', color: 'text-purple-400' }
+      return { icon: Globe, label: 'Web Access', color: 'text-sky-400' }
     case 'external_directory':
       return { icon: Shield, label: 'External Directory', color: 'text-red-400' }
     case 'task':
@@ -65,7 +65,7 @@ function BashPatternView({
           {single}
         </div>
         {isSubApproved(single) && (
-          <CheckCircle className="h-3.5 w-3.5 text-green-500 mt-1.5 shrink-0" />
+          <CheckCircle className="h-3.5 w-3.5 text-emerald-500 mt-1.5 shrink-0" />
         )}
       </div>
     )
@@ -90,7 +90,7 @@ function BashPatternView({
               {part}
             </div>
             {isSubApproved(part) && (
-              <CheckCircle className="h-3.5 w-3.5 text-green-500 mt-1.5 shrink-0" />
+              <CheckCircle className="h-3.5 w-3.5 text-emerald-500 mt-1.5 shrink-0" />
             )}
           </div>
           {idx < parts.length - 1 && (
@@ -146,11 +146,11 @@ export function PermissionPrompt({ request, onReply }: PermissionPromptProps) {
 
   return (
     <div
-      className="rounded-md border border-border bg-zinc-900/50 overflow-hidden"
+      className="rounded-lg border border-border bg-card overflow-hidden"
       data-testid="permission-prompt"
     >
       {/* Header */}
-      <div className="flex items-center gap-2 px-3 py-2 border-b border-border bg-muted/30">
+      <div className="flex items-center gap-2 px-3 py-2 border-b border-border bg-secondary">
         <Shield className={cn('h-4 w-4 shrink-0', color)} />
         <span className="text-xs font-medium text-foreground">Permission Required</span>
         <span className="text-xs text-muted-foreground">—</span>

@@ -99,7 +99,7 @@ export function TerminalTabEntry({
               onChange={(e) => setEditValue(e.target.value)}
               onKeyDown={handleKeyDown}
               onBlur={commitRename}
-              className="flex-1 min-w-0 h-4 px-0.5 text-xs bg-background border border-border rounded focus:outline-none focus:ring-1 focus:ring-ring"
+              className="flex-1 min-w-0 h-4 px-0.5 text-xs bg-background border border-border rounded-md outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:border-ring"
             />
           ) : (
             <span

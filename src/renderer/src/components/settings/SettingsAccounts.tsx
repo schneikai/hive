@@ -156,7 +156,7 @@ function ProviderAccountsCard({ provider }: { provider: UsageProvider }): React.
                   </div>
                   <div className="mt-1 flex flex-wrap items-center gap-1.5">
                     {isActive && (
-                      <span className="rounded-full bg-primary/15 px-1.5 py-0.5 text-[10px] font-medium text-primary">
+                      <span className="rounded-md bg-emerald-500/15 px-1.5 py-0.5 text-[10px] font-medium text-emerald-500">
                         Active
                       </span>
                     )}

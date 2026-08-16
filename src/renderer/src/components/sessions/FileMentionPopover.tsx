@@ -75,7 +75,7 @@ export function FileMentionPopover({
       <div
         ref={listRef}
         role="listbox"
-        className="mx-3 rounded-lg border bg-popover text-popover-foreground shadow-md max-h-48 overflow-y-auto"
+        className="mx-3 p-1 rounded-[11px] border border-black/14 dark:border-white/14 bg-[rgba(255,255,255,0.82)] dark:bg-[rgba(0,0,0,0.72)] backdrop-blur-2xl shadow-[0_10px_38px_rgba(0,0,0,0.35),0_2px_8px_rgba(0,0,0,0.22)] max-h-48 overflow-y-auto"
       >
         {suggestions.length === 0 ? (
           <div className="px-3 py-2 text-xs text-muted-foreground">No files found</div>
@@ -88,8 +88,8 @@ export function FileMentionPopover({
               role="option"
               aria-selected={index === selectedIndex}
               className={cn(
-                'flex items-center gap-2 px-3 py-1.5 cursor-pointer text-sm overflow-hidden',
-                index === selectedIndex && 'bg-accent text-accent-foreground'
+                'flex items-center gap-2 rounded-[6px] px-2 py-1.5 cursor-pointer text-[13px] overflow-hidden',
+                index === selectedIndex && 'bg-black/6 dark:bg-white/8 text-foreground'
               )}
               onClick={() => onSelect(file)}
             >

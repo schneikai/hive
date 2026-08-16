@@ -1,9 +1,6 @@
 import { memo, useCallback, useState, useRef, useEffect, useMemo } from 'react'
 import { revealLabel } from '@/lib/platform'
 import {
-  AlertCircle,
-  GitBranch,
-  Folder,
   Link,
   Loader2,
   Map,
@@ -77,6 +74,54 @@ import { projectApi } from '@/api/project-api'
 import { gitApi } from '@/api/git-api'
 import { mergeCustomCommands, replaceTemplateVariables } from '@/lib/custom-commands'
 import type { CustomProjectCommand } from '@/lib/custom-commands'
+import {
+  AGENT_LIST,
+  AGENT_LIST_AFTER_META,
+  AGENT_LIST_AFTER_TITLE,
+  AGENT_TIME,
+  AgentStateDot,
+  CARD_CONTENT_COLUMN,
+  CARD_CONTENT_COLUMN_OVERFLOW_VISIBLE,
+  CARD_HOVER_TRIGGER,
+  CARD_LANE,
+  CARD_LANE_SLOT,
+  CARD_PARENT_ROW,
+  CARD_PARENT_ROW_ALIGN,
+  CARD_TITLE_ACTIONS,
+  CARD_TITLE_EDITING_GHOST,
+  CARD_TITLE_EDITING_INPUT,
+  CARD_TITLE_EDITING_ROOT,
+  CARD_TITLE_IS_DIM,
+  CARD_TITLE_IS_UNREAD,
+  CARD_TITLE_ROW,
+  CARD_TITLE_ROW_LEFT,
+  META_ROW,
+  META_ROW_LEFT,
+  META_TEXT_MONO,
+  MICRO_BADGE_BASE,
+  MICRO_BADGE_PRIMARY,
+  STATUS_DOT,
+  STATUS_GLYPH_BOX,
+  STATUS_QUESTION_ICON,
+  SidebarAgentRow,
+  WorkspaceCardSurface,
+  getFlushWorktreeCardPaddingLeft,
+  getWorktreeCardContentIndent,
+  type AgentDotState
+} from '@/components/sidebar'
+
+// Orca indent ladder for a worktree card directly under a project group header
+// (indentation.ts: grouped depth 0 → content indent 20px, status-lane pullback
+// 10px → surface padding-left 10px). The list owner supplies no extra inset.
+const WORKTREE_CARD_CONTENT_INDENT = getWorktreeCardContentIndent({
+  isGrouped: true,
+  groupDepth: 0,
+  lineageDepth: 0
+})
+const WORKTREE_CARD_PADDING_LEFT = getFlushWorktreeCardPaddingLeft(
+  WORKTREE_CARD_CONTENT_INDENT,
+  true
+)
 
 interface Worktree {
   id: string
@@ -209,8 +254,17 @@ export const WorktreeItem = memo(function WorktreeItem({
   const isChecked = connectionModeSelectedIds.has(worktree.id)
   const hasNamedBranch = Boolean(worktree.branch_name)
 
+  // Orca workspace-card title (kit CARD_TITLE_*): 13px/20px, normal weight dimmed
+  // to 80% when read, semibold full-foreground when the worktree carries unread output.
   const renderWorktreeName = (): React.JSX.Element => (
-    <span className="text-sm truncate block cursor-default">{displayName}</span>
+    <span
+      className={cn(
+        worktreeStatus === 'unread' ? CARD_TITLE_IS_UNREAD : CARD_TITLE_IS_DIM,
+        'cursor-default'
+      )}
+    >
+      {displayName}
+    </span>
   )
 
   // Auto-refresh relative time every 60 seconds
@@ -233,11 +287,11 @@ export const WorktreeItem = memo(function WorktreeItem({
           : worktreeStatus === 'planning'
             ? { displayStatus: 'Planning', statusClass: 'font-semibold text-blue-400' }
             : worktreeStatus === 'working'
-              ? { displayStatus: 'Working', statusClass: 'font-semibold text-primary' }
+              ? { displayStatus: 'Working', statusClass: 'font-medium text-yellow-500' }
               : worktreeStatus === 'plan_ready'
                 ? { displayStatus: 'Plan ready', statusClass: 'font-semibold text-blue-400' }
                 : worktreeStatus === 'completed'
-                  ? { displayStatus: 'Ready', statusClass: 'font-semibold text-green-400' }
+                  ? { displayStatus: 'Ready', statusClass: 'text-muted-foreground' }
                   : { displayStatus: 'Ready', statusClass: 'text-muted-foreground' }
 
   // Archive confirmation state
@@ -499,60 +553,163 @@ export const WorktreeItem = memo(function WorktreeItem({
     }
   }, [hasNamedBranch, worktree])
 
+  // --- Orca workspace-card building blocks (shared by both render modes) ---
+  // Card shell/lane/title/agent-row geometry all come from the shared kit
+  // (`@/components/sidebar`, ported verbatim from orca) so every sidebar row
+  // shares one recipe. The 6px inter-row gap (kit ROW_GAP) is owned by the
+  // list wrapper (WorktreeList), not by this card.
+
+  // Status lane glyph — exactly one glyph per orca `StatusIndicator` (12px box,
+  // 8px ring/dot) via the kit AgentStateDot: working = yellow ring, attention =
+  // orange question glyph, ready/idle = emerald "done" dot. Hive-specific
+  // extras: plan_ready = blue map, unread = blue dot, archiving = muted spinner.
+  const agentDotState: AgentDotState | null =
+    worktreeStatus === 'working' || worktreeStatus === 'planning'
+      ? 'working'
+      : worktreeStatus === 'answering' ||
+          worktreeStatus === 'permission' ||
+          worktreeStatus === 'command_approval'
+        ? 'question'
+        : worktreeStatus === 'plan_ready' || worktreeStatus === 'unread'
+          ? null
+          : 'done'
+  const renderStatusGlyph = (): React.JSX.Element => {
+    if (isArchiving) {
+      return (
+        <span className={STATUS_GLYPH_BOX}>
+          <Loader2 className="size-3 animate-spin text-muted-foreground" />
+        </span>
+      )
+    }
+    if (worktreeStatus === 'plan_ready') {
+      return (
+        <span className={STATUS_GLYPH_BOX}>
+          <Map className={cn(STATUS_QUESTION_ICON, 'text-blue-400')} aria-label="Plan ready" />
+        </span>
+      )
+    }
+    if (worktreeStatus === 'unread') {
+      return (
+        <span className={STATUS_GLYPH_BOX}>
+          <span className={cn(STATUS_DOT, 'bg-blue-500')} data-worktree-unread-dot="" />
+        </span>
+      )
+    }
+    return <AgentStateDot state={agentDotState ?? 'done'} size="md" />
+  }
+
+  // Meta row (orca `WorktreeCardMetaRow`): only rendered when there is real
+  // content — the teleport badge and the worktree directory name when it
+  // differs from the live branch shown in the title (orca de-dupes identity).
+  const showDirectoryName = !worktree.is_default && worktree.name !== displayName
+  const hasMetaRow = isTeleported || showDirectoryName
+  const renderMetaRow = (): React.JSX.Element | null =>
+    hasMetaRow ? (
+      <div className={META_ROW} data-worktree-card-meta-row="">
+        <div className={META_ROW_LEFT}>
+          {isTeleported && (
+            <span
+              className={cn(MICRO_BADGE_BASE, 'border-sky-500/30 bg-sky-500/5 text-sky-500')}
+              data-testid="worktree-teleported-badge"
+            >
+              <RadioTower className="size-2.5" />
+              Teleported
+            </span>
+          )}
+          {showDirectoryName && (
+            <span className={META_TEXT_MONO} title={worktree.path}>
+              {worktree.name}
+            </span>
+          )}
+        </div>
+      </div>
+    ) : null
+
+  // Status line as an orca inline agent row (kit SidebarAgentRow: h-6, 11px
+  // muted, model glyph 13px = orca AgentIcon size 13, status label, timestamp
+  // in 10px tabular figures). The list wrapper carries orca's -0.5rem outdent.
+  const renderAgentRow = (): React.JSX.Element => (
+    <div
+      className={cn(AGENT_LIST, hasMetaRow ? AGENT_LIST_AFTER_META : AGENT_LIST_AFTER_TITLE)}
+      data-compact-agent-list="true"
+    >
+      <SidebarAgentRow
+        data-worktree-agent-row=""
+        leading={<ModelIcon worktreeId={worktree.id} className="size-[13px] shrink-0" />}
+        label={
+          <span className={statusClass} data-testid="worktree-status-text">
+            {displayStatus}
+          </span>
+        }
+        trailing={
+          lastMessageTime ? (
+            <span
+              className={AGENT_TIME}
+              title={new Date(lastMessageTime).toLocaleString()}
+              data-testid="worktree-last-message-time"
+            >
+              {formatRelativeTime(lastMessageTime)}
+            </span>
+          ) : null
+        }
+      />
+    </div>
+  )
+
+  // Title-row micro badge for the primary (default) worktree — orca `primary` Badge.
+  const renderPrimaryBadge = (): React.JSX.Element | null =>
+    worktree.is_default ? (
+      <span
+        className={MICRO_BADGE_PRIMARY}
+        title="Primary worktree (original clone directory)"
+        data-worktree-primary-badge=""
+      >
+        primary
+      </span>
+    ) : null
+
   // --- Connection mode rendering (simplified, no menus) ---
   if (isInConnectionMode) {
     return (
       <>
-        <div
+        <WorkspaceCardSurface
+          multiSelected={isChecked}
           className={cn(
-            'group flex items-center gap-1.5 pl-8 pr-1 py-1 rounded-md cursor-pointer transition-colors',
-            isChecked ? 'bg-accent/30' : 'hover:bg-accent/50',
-            isSource && isChecked && 'bg-accent/20',
+            isSource && isChecked && 'bg-worktree-sidebar-accent/40',
             isArchiving && 'opacity-50 pointer-events-none'
           )}
+          style={{ paddingLeft: WORKTREE_CARD_PADDING_LEFT }}
           onClick={handleClick}
           data-testid={`worktree-item-${worktree.id}`}
         >
-          {/* Checkbox instead of status icons */}
-          <Checkbox
-            checked={isChecked}
-            onCheckedChange={() => toggleConnectionModeWorktree(worktree.id)}
-            disabled={isSource}
-            className={cn('h-3.5 w-3.5 shrink-0', isSource && 'opacity-70')}
-            onClick={(e) => e.stopPropagation()}
-            data-testid={`connection-mode-checkbox-${worktree.id}`}
-          />
-
-          {/* Worktree Name + Status Line */}
-          <div className="flex-1 min-w-0">
-            {renderWorktreeName()}
-            <div className="flex items-center pr-1">
-              <ModelIcon worktreeId={worktree.id} className="h-2.5 w-2.5 mr-1 shrink-0" />
-              <span className={cn('text-[11px]', statusClass)} data-testid="worktree-status-text">
-                {displayStatus}
+          <div className={cn(CARD_PARENT_ROW, CARD_PARENT_ROW_ALIGN)}>
+            {/* Status lane: checkbox instead of the status glyph */}
+            <div className={CARD_LANE} data-worktree-card-status-slot="">
+              <span className={CARD_LANE_SLOT}>
+                <Checkbox
+                  checked={isChecked}
+                  onCheckedChange={() => toggleConnectionModeWorktree(worktree.id)}
+                  disabled={isSource}
+                  className={cn('h-3.5 w-3.5 shrink-0', isSource && 'opacity-70')}
+                  onClick={(e) => e.stopPropagation()}
+                  data-testid={`connection-mode-checkbox-${worktree.id}`}
+                />
               </span>
-              {isTeleported && (
-                <span
-                  className="ml-1.5 inline-flex items-center gap-0.5 rounded border border-sky-500/30 px-1 text-[10px] font-medium text-sky-500"
-                  data-testid="worktree-teleported-badge"
-                >
-                  <RadioTower className="h-2.5 w-2.5" />
-                  Teleported
-                </span>
-              )}
-              <span className="flex-1" />
-              {lastMessageTime && (
-                <span
-                  className="text-[10px] text-muted-foreground/60 tabular-nums shrink-0"
-                  title={new Date(lastMessageTime).toLocaleString()}
-                  data-testid="worktree-last-message-time"
-                >
-                  {formatRelativeTime(lastMessageTime)}
-                </span>
-              )}
+            </div>
+
+            {/* Worktree Name + Meta + Status Line */}
+            <div className={cn(CARD_CONTENT_COLUMN, CARD_CONTENT_COLUMN_OVERFLOW_VISIBLE)}>
+              <div className={CARD_TITLE_ROW}>
+                <div className={CARD_TITLE_ROW_LEFT}>
+                  {renderWorktreeName()}
+                  {renderPrimaryBadge()}
+                </div>
+              </div>
+              {renderMetaRow()}
+              {renderAgentRow()}
             </div>
           </div>
-        </div>
+        </WorkspaceCardSurface>
 
         <ArchiveConfirmDialog
           open={archiveConfirmOpen}
@@ -569,14 +726,15 @@ export const WorktreeItem = memo(function WorktreeItem({
   const tree = (
     <ContextMenu>
       <ContextMenuTrigger asChild>
-        <div
+        <WorkspaceCardSurface
+          active={isSelected ? 'primary' : false}
+          renaming={isRenamingBranch}
           className={cn(
-            'group flex items-center gap-1.5 pl-8 pr-1 py-1 rounded-md cursor-pointer transition-colors',
-            isSelected ? 'bg-accent text-accent-foreground' : 'hover:bg-accent/50',
             isArchiving && 'opacity-50 pointer-events-none',
             isDragging && 'opacity-50',
-            isDragOver && 'border-t-2 border-primary'
+            isDragOver && '!border-t-ring'
           )}
+          style={{ paddingLeft: WORKTREE_CARD_PADDING_LEFT }}
           draggable={!worktree.is_default && !isRenamingBranch}
           onDragStart={onDragStart ? (e) => onDragStart(e, worktree.id) : undefined}
           onDragOver={onDragOver ? (e) => onDragOver(e, worktree.id) : undefined}
@@ -585,263 +743,247 @@ export const WorktreeItem = memo(function WorktreeItem({
           onClick={handleClick}
           data-testid={`worktree-item-${worktree.id}`}
         >
-          {/* Branch Icons / Status Badges — show up to 2 */}
-          {isArchiving ? (
-            <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground shrink-0" />
-          ) : (
-            <>
-              {isRunProcessAlive && (
-                <PulseAnimation className="h-3.5 w-3.5 text-green-500 shrink-0" />
-              )}
-              {(worktreeStatus === 'working' || worktreeStatus === 'planning') && (
-                <Loader2 className="h-3.5 w-3.5 text-primary shrink-0 animate-spin" />
-              )}
-              {(worktreeStatus === 'answering' || worktreeStatus === 'permission') && (
-                <AlertCircle className="h-3.5 w-3.5 text-amber-500 shrink-0" />
-              )}
-              {worktreeStatus === 'plan_ready' && (
-                <Map className="h-3.5 w-3.5 text-blue-400 shrink-0" />
-              )}
-              {!isRunProcessAlive &&
-                worktreeStatus !== 'working' &&
-                worktreeStatus !== 'planning' &&
-                worktreeStatus !== 'answering' &&
-                worktreeStatus !== 'permission' &&
-                worktreeStatus !== 'plan_ready' &&
-                (worktree.is_default ? (
-                  <Folder className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                ) : (
-                  <GitBranch className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                ))}
-            </>
-          )}
+          <div className={CARD_HOVER_TRIGGER} data-worktree-card-hover-trigger="">
+            <div className={cn(CARD_PARENT_ROW, CARD_PARENT_ROW_ALIGN)}>
+              {/* Status lane — one glyph, 20px wide (orca status slot) */}
+              <div className={CARD_LANE} data-worktree-card-status-slot="">
+                <span className={CARD_LANE_SLOT}>{renderStatusGlyph()}</span>
+              </div>
 
-          {/* Worktree Name / Inline Rename Input + Status Line */}
-          <div className="flex-1 min-w-0">
-            {isRenamingBranch ? (
-              <input
-                ref={renameInputRef}
-                autoFocus
-                value={branchNameInput}
-                onChange={(e) => setBranchNameInput(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    handleBranchRename()
-                  }
-                  if (e.key === 'Escape') {
-                    intentionalCloseRef.current = true
-                    if (blurTimerRef.current) clearTimeout(blurTimerRef.current)
-                    setIsRenamingBranch(false)
-                  }
-                }}
-                onBlur={() => {
-                  // Skip scheduling timer if we're intentionally closing via Escape/Enter
-                  if (intentionalCloseRef.current) {
-                    intentionalCloseRef.current = false
-                    return
-                  }
+              {/* Content column: title row / meta row / agent row */}
+              <div className={cn(CARD_CONTENT_COLUMN, CARD_CONTENT_COLUMN_OVERFLOW_VISIBLE)}>
+                {/* Title row: name (or inline rename input) + micro badges + actions */}
+                <div className={CARD_TITLE_ROW}>
+                  <div className={CARD_TITLE_ROW_LEFT}>
+                    {isRenamingBranch ? (
+                      // orca WorktreeTitleInlineRename (text mode): grid root, invisible
+                      // width ghost, borderless input sized to one line-height.
+                      <span className={cn(CARD_TITLE_EDITING_ROOT, 'flex-1 text-[13px] leading-5')}>
+                        <span className={CARD_TITLE_EDITING_GHOST} aria-hidden="true">
+                          {branchNameInput || ' '}
+                        </span>
+                        <input
+                          ref={renameInputRef}
+                          autoFocus
+                          value={branchNameInput}
+                          onChange={(e) => setBranchNameInput(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              handleBranchRename()
+                            }
+                            if (e.key === 'Escape') {
+                              intentionalCloseRef.current = true
+                              if (blurTimerRef.current) clearTimeout(blurTimerRef.current)
+                              setIsRenamingBranch(false)
+                            }
+                          }}
+                          onBlur={() => {
+                            // Skip scheduling timer if we're intentionally closing via Escape/Enter
+                            if (intentionalCloseRef.current) {
+                              intentionalCloseRef.current = false
+                              return
+                            }
 
-                  // Ignore blur events that happen too soon after starting rename (menu closing)
-                  const timeSinceStart = Date.now() - renameStartTimeRef.current
-                  if (timeSinceStart < 500) {
-                    // Always refocus during the first 500ms (menu closing period)
-                    // User can press Escape to cancel if needed
-                    setTimeout(() => {
-                      if (
-                        renameInputRef.current &&
-                        document.activeElement !== renameInputRef.current
-                      ) {
-                        renameInputRef.current.focus()
-                        renameInputRef.current.select()
-                      }
-                    }, 0)
-                    return
-                  }
+                            // Ignore blur events that happen too soon after starting rename (menu closing)
+                            const timeSinceStart = Date.now() - renameStartTimeRef.current
+                            if (timeSinceStart < 500) {
+                              // Always refocus during the first 500ms (menu closing period)
+                              // User can press Escape to cancel if needed
+                              setTimeout(() => {
+                                if (
+                                  renameInputRef.current &&
+                                  document.activeElement !== renameInputRef.current
+                                ) {
+                                  renameInputRef.current.focus()
+                                  renameInputRef.current.select()
+                                }
+                              }, 0)
+                              return
+                            }
 
-                  // Delay blur to allow for normal focus changes
-                  if (blurTimerRef.current) clearTimeout(blurTimerRef.current)
-                  blurTimerRef.current = setTimeout(() => {
-                    blurTimerRef.current = null
-                    // Only close if the input is still not focused
-                    if (document.activeElement !== renameInputRef.current) {
-                      setIsRenamingBranch(false)
-                    }
-                  }, 100)
-                }}
-                onClick={(e) => e.stopPropagation()}
-                className="bg-background border border-border rounded px-1.5 py-0.5 text-xs w-full focus:outline-none focus:ring-1 focus:ring-ring"
-                data-testid="branch-rename-input"
-              />
-            ) : (
-              renderWorktreeName()
-            )}
-            <div className="flex items-center pr-1">
-              <ModelIcon worktreeId={worktree.id} className="h-2.5 w-2.5 mr-1 shrink-0" />
-              <span className={cn('text-[11px]', statusClass)} data-testid="worktree-status-text">
-                {displayStatus}
-              </span>
-              {isTeleported && (
-                <span
-                  className="ml-1.5 inline-flex items-center gap-0.5 rounded border border-sky-500/30 px-1 text-[10px] font-medium text-sky-500"
-                  data-testid="worktree-teleported-badge"
-                >
-                  <RadioTower className="h-2.5 w-2.5" />
-                  Teleported
-                </span>
-              )}
-              <span className="flex-1" />
-              {lastMessageTime && (
-                <span
-                  className="text-[10px] text-muted-foreground/60 tabular-nums shrink-0"
-                  title={new Date(lastMessageTime).toLocaleString()}
-                  data-testid="worktree-last-message-time"
-                >
-                  {formatRelativeTime(lastMessageTime)}
-                </span>
-              )}
+                            // Delay blur to allow for normal focus changes
+                            if (blurTimerRef.current) clearTimeout(blurTimerRef.current)
+                            blurTimerRef.current = setTimeout(() => {
+                              blurTimerRef.current = null
+                              // Only close if the input is still not focused
+                              if (document.activeElement !== renameInputRef.current) {
+                                setIsRenamingBranch(false)
+                              }
+                            }, 100)
+                          }}
+                          onClick={(e) => e.stopPropagation()}
+                          className={cn(CARD_TITLE_EDITING_INPUT, 'w-full')}
+                          data-testid="branch-rename-input"
+                        />
+                      </span>
+                    ) : (
+                      renderWorktreeName()
+                    )}
+                    {!isRenamingBranch && renderPrimaryBadge()}
+                    {isRunProcessAlive && (
+                      <span className="ml-auto flex shrink-0 items-center gap-1">
+                        <PulseAnimation className="size-3.5 shrink-0 text-blue-500" />
+                      </span>
+                    )}
+                  </div>
+
+                  <div className={CARD_TITLE_ACTIONS}>
+                    {/* Hint Badge (visible when filter is active and search field is focused) */}
+                    {hint && (inputFocused || (vimModeEnabled && vimMode === 'normal')) && (
+                      <HintBadge
+                        code={hint}
+                        mode={hintMode}
+                        pendingChar={hintPendingChar}
+                        actionMode={hintActionMode}
+                      />
+                    )}
+
+                    {/* More Options Dropdown (visible on hover) */}
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className={cn(
+                            'size-5 p-0 opacity-0 transition-opacity',
+                            'group-hover/worktree-card:opacity-100 group-focus-within/worktree-card:opacity-100 focus-visible:opacity-100 data-[state=open]:opacity-100',
+                            'hover:bg-accent'
+                          )}
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <MoreHorizontal className="size-3.5" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent className="w-52" align="end">
+                        {attachments.length > 0 && (
+                          <>
+                            {attachments.map((attachment) => (
+                              <DropdownMenuSub key={attachment.id}>
+                                <DropdownMenuSubTrigger>
+                                  {attachment.type === 'jira' ? (
+                                    <Ticket className="h-4 w-4 mr-2 text-blue-500" />
+                                  ) : (
+                                    <Figma className="h-4 w-4 mr-2 text-purple-500" />
+                                  )}
+                                  {attachment.label}
+                                </DropdownMenuSubTrigger>
+                                <DropdownMenuSubContent className="w-40">
+                                  <DropdownMenuItem
+                                    onClick={() => handleOpenAttachment(attachment.url)}
+                                  >
+                                    <ExternalLink className="h-4 w-4 mr-2" />
+                                    Open
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem
+                                    onClick={() => handleDetachAttachment(attachment.id)}
+                                    className="text-destructive focus:text-destructive focus:bg-destructive/10"
+                                  >
+                                    <Unlink className="h-4 w-4 mr-2" />
+                                    Detach
+                                  </DropdownMenuItem>
+                                </DropdownMenuSubContent>
+                              </DropdownMenuSub>
+                            ))}
+                            <DropdownMenuSeparator />
+                          </>
+                        )}
+                        <DropdownMenuItem onClick={() => setAddAttachmentOpen(true)}>
+                          <Plus className="h-4 w-4 mr-2" />
+                          Add Attachment
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={handleEditContext}>
+                          <FileText className="h-4 w-4 mr-2" />
+                          Edit Context
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem onClick={handleOpenInTerminal}>
+                          <Terminal className="h-4 w-4 mr-2" />
+                          Open in Terminal
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={handleOpenInEditor}>
+                          <Code className="h-4 w-4 mr-2" />
+                          Open in Editor
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={handleOpenInFinder}>
+                          <ExternalLink className="h-4 w-4 mr-2" />
+                          {revealLabel(true)}
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={handleCopyPath}>
+                          <Copy className="h-4 w-4 mr-2" />
+                          Copy Path
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={handleTogglePin}>
+                          {isPinned ? (
+                            <PinOff className="h-4 w-4 mr-2" />
+                          ) : (
+                            <Pin className="h-4 w-4 mr-2" />
+                          )}
+                          {isPinned ? 'Unpin' : 'Pin'}
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem onClick={() => enterConnectionMode(worktree.id)}>
+                          <Link className="h-4 w-4 mr-2" />
+                          Connect to...
+                        </DropdownMenuItem>
+                        {!worktree.is_default && (
+                          <>
+                            {hasNamedBranch ? (
+                              <>
+                                <DropdownMenuItem onClick={startBranchRename}>
+                                  <Pencil className="h-4 w-4 mr-2" />
+                                  Rename Branch
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={handleDuplicate}>
+                                  <GitBranchPlus className="h-4 w-4 mr-2" />
+                                  Duplicate
+                                </DropdownMenuItem>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem onClick={handleUnbranch}>
+                                  <GitBranchPlus className="h-4 w-4 mr-2" />
+                                  Unbranch
+                                  <span className="ml-auto text-xs text-muted-foreground">
+                                    Keep branch
+                                  </span>
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                  onClick={handleArchive}
+                                  className="text-destructive focus:text-destructive focus:bg-destructive/10"
+                                >
+                                  <Archive className="h-4 w-4 mr-2" />
+                                  Archive
+                                  <span className="ml-auto text-xs text-muted-foreground">
+                                    Delete branch
+                                  </span>
+                                </DropdownMenuItem>
+                              </>
+                            ) : (
+                              <>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem
+                                  onClick={handleUnbranch}
+                                  className="text-destructive focus:text-destructive focus:bg-destructive/10"
+                                >
+                                  <Archive className="h-4 w-4 mr-2" />
+                                  Remove Worktree
+                                  <span className="ml-auto text-xs text-muted-foreground">
+                                    Detached HEAD
+                                  </span>
+                                </DropdownMenuItem>
+                              </>
+                            )}
+                          </>
+                        )}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
+                </div>
+
+                {renderMetaRow()}
+                {renderAgentRow()}
+              </div>
             </div>
           </div>
-
-          {/* Hint Badge (visible when filter is active and search field is focused) */}
-          {hint && (inputFocused || (vimModeEnabled && vimMode === 'normal')) && (
-            <HintBadge
-              code={hint}
-              mode={hintMode}
-              pendingChar={hintPendingChar}
-              actionMode={hintActionMode}
-            />
-          )}
-
-          {/* Unread dot badge */}
-          {worktreeStatus === 'unread' && (
-            <span className="h-2 w-2 rounded-full bg-primary shrink-0" />
-          )}
-
-          {/* More Options Dropdown (visible on hover) */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                className={cn(
-                  'h-5 w-5 p-0 opacity-0 group-hover:opacity-100 transition-opacity',
-                  'hover:bg-accent'
-                )}
-                onClick={(e) => e.stopPropagation()}
-              >
-                <MoreHorizontal className="h-3.5 w-3.5" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent className="w-52" align="end">
-              {attachments.length > 0 && (
-                <>
-                  {attachments.map((attachment) => (
-                    <DropdownMenuSub key={attachment.id}>
-                      <DropdownMenuSubTrigger>
-                        {attachment.type === 'jira' ? (
-                          <Ticket className="h-4 w-4 mr-2 text-blue-500" />
-                        ) : (
-                          <Figma className="h-4 w-4 mr-2 text-purple-500" />
-                        )}
-                        {attachment.label}
-                      </DropdownMenuSubTrigger>
-                      <DropdownMenuSubContent className="w-40">
-                        <DropdownMenuItem onClick={() => handleOpenAttachment(attachment.url)}>
-                          <ExternalLink className="h-4 w-4 mr-2" />
-                          Open
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          onClick={() => handleDetachAttachment(attachment.id)}
-                          className="text-destructive focus:text-destructive focus:bg-destructive/10"
-                        >
-                          <Unlink className="h-4 w-4 mr-2" />
-                          Detach
-                        </DropdownMenuItem>
-                      </DropdownMenuSubContent>
-                    </DropdownMenuSub>
-                  ))}
-                  <DropdownMenuSeparator />
-                </>
-              )}
-              <DropdownMenuItem onClick={() => setAddAttachmentOpen(true)}>
-                <Plus className="h-4 w-4 mr-2" />
-                Add Attachment
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={handleEditContext}>
-                <FileText className="h-4 w-4 mr-2" />
-                Edit Context
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={handleOpenInTerminal}>
-                <Terminal className="h-4 w-4 mr-2" />
-                Open in Terminal
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={handleOpenInEditor}>
-                <Code className="h-4 w-4 mr-2" />
-                Open in Editor
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={handleOpenInFinder}>
-                <ExternalLink className="h-4 w-4 mr-2" />
-                {revealLabel(true)}
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={handleCopyPath}>
-                <Copy className="h-4 w-4 mr-2" />
-                Copy Path
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={handleTogglePin}>
-                {isPinned ? <PinOff className="h-4 w-4 mr-2" /> : <Pin className="h-4 w-4 mr-2" />}
-                {isPinned ? 'Unpin' : 'Pin'}
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => enterConnectionMode(worktree.id)}>
-                <Link className="h-4 w-4 mr-2" />
-                Connect to...
-              </DropdownMenuItem>
-              {!worktree.is_default && (
-                <>
-                  {hasNamedBranch ? (
-                    <>
-                      <DropdownMenuItem onClick={startBranchRename}>
-                        <Pencil className="h-4 w-4 mr-2" />
-                        Rename Branch
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onClick={handleDuplicate}>
-                        <GitBranchPlus className="h-4 w-4 mr-2" />
-                        Duplicate
-                      </DropdownMenuItem>
-                      <DropdownMenuSeparator />
-                      <DropdownMenuItem onClick={handleUnbranch}>
-                        <GitBranchPlus className="h-4 w-4 mr-2" />
-                        Unbranch
-                        <span className="ml-auto text-xs text-muted-foreground">Keep branch</span>
-                      </DropdownMenuItem>
-                      <DropdownMenuItem
-                        onClick={handleArchive}
-                        className="text-destructive focus:text-destructive focus:bg-destructive/10"
-                      >
-                        <Archive className="h-4 w-4 mr-2" />
-                        Archive
-                        <span className="ml-auto text-xs text-muted-foreground">Delete branch</span>
-                      </DropdownMenuItem>
-                    </>
-                  ) : (
-                    <>
-                      <DropdownMenuSeparator />
-                      <DropdownMenuItem
-                        onClick={handleUnbranch}
-                        className="text-destructive focus:text-destructive focus:bg-destructive/10"
-                      >
-                        <Archive className="h-4 w-4 mr-2" />
-                        Remove Worktree
-                        <span className="ml-auto text-xs text-muted-foreground">Detached HEAD</span>
-                      </DropdownMenuItem>
-                    </>
-                  )}
-                </>
-              )}
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
+        </WorkspaceCardSurface>
       </ContextMenuTrigger>
 
       <ArchiveConfirmDialog

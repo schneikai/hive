@@ -44,11 +44,13 @@ export const ModeToggle = memo(function ModeToggle({
       onClick={() => toggleSessionMode(sessionId)}
       onMouseDown={(e) => e.preventDefault()}
       className={cn(
-        'flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium transition-colors',
+        'flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium tracking-[0.01em] transition-colors',
         'border select-none',
         mode === 'build'
           ? 'bg-blue-500/10 border-blue-500/30 text-blue-500 hover:bg-blue-500/20'
-          : 'bg-violet-500/10 border-violet-500/30 text-violet-500 hover:bg-violet-500/20'
+          : mode === 'super-plan'
+            ? 'bg-orange-500/10 border-orange-500/30 text-orange-500 hover:bg-orange-500/20'
+            : 'bg-violet-500/10 border-violet-500/30 text-violet-500 hover:bg-violet-500/20'
       )}
       title={`${config.description} (Tab to toggle, Shift+Tab for Super Plan)`}
       aria-label={`Current mode: ${config.label}. Click to switch to ${mode === 'build' ? 'Plan' : 'Build'} mode`}

@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect } from 'react'
-import { Plus, Loader2, FolderPlus, FolderOpen, Github } from 'lucide-react'
+import { Loader2, FolderPlus, FolderOpen, Github } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -13,6 +13,12 @@ import { GitInitDialog } from './GitInitDialog'
 import { CreateProjectDialog } from './CreateProjectDialog'
 import { AddRepositoryDialog } from './AddRepositoryDialog'
 import { projectApi } from '@/api/project-api'
+import { cn } from '@/lib/utils'
+import {
+  SIDEBAR_HEADER_ACTION_BUTTON,
+  SIDEBAR_HEADER_ACTION_ICON,
+  SIDEBAR_HEADER_ACTION_ICON_STROKE
+} from '@/components/sidebar'
 
 export function AddProjectButton(): React.JSX.Element {
   const [isAdding, setIsAdding] = useState(false)
@@ -96,13 +102,20 @@ export function AddProjectButton(): React.JSX.Element {
         <DropdownMenuTrigger asChild>
           <Button
             variant="ghost"
-            size="icon"
-            className="h-6 w-6"
+            size="icon-xs"
+            className={SIDEBAR_HEADER_ACTION_BUTTON}
             title="Add Project"
             disabled={isAdding}
             data-testid="add-project-button"
           >
-            {isAdding ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+            {isAdding ? (
+              <Loader2 className={cn(SIDEBAR_HEADER_ACTION_ICON, 'animate-spin')} />
+            ) : (
+              <FolderPlus
+                className={SIDEBAR_HEADER_ACTION_ICON}
+                strokeWidth={SIDEBAR_HEADER_ACTION_ICON_STROKE}
+              />
+            )}
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start" className="min-w-[190px]">

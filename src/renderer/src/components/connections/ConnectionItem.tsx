@@ -1,14 +1,11 @@
 import { useCallback, useEffect, useState, useRef } from 'react'
 import { revealLabel } from '@/lib/platform'
 import {
-  AlertCircle,
   Archive,
   Code,
   Copy,
   ExternalLink,
   Link,
-  Loader2,
-  Map,
   MoreHorizontal,
   Pencil,
   Pin,
@@ -45,6 +42,30 @@ import {
 } from '@/stores'
 import { useWorktreeStatusStore } from '@/stores/useWorktreeStatusStore'
 import { HintBadge } from '@/components/ui/HintBadge'
+import {
+  AGENT_LIST,
+  AGENT_LIST_AFTER_TITLE,
+  AgentStateDot,
+  CARD_CONTENT_COLUMN,
+  CARD_CONTENT_COLUMN_OVERFLOW_VISIBLE,
+  CARD_LANE,
+  CARD_LANE_SLOT,
+  CARD_LANE_UNREAD_DOT,
+  CARD_LANE_UNREAD_WRAP,
+  CARD_PARENT_ROW,
+  CARD_PARENT_ROW_ALIGN,
+  CARD_TITLE_ACTIONS,
+  CARD_TITLE_BASE,
+  CARD_TITLE_DIM,
+  CARD_TITLE_EDITING_INPUT,
+  CARD_TITLE_ROW,
+  CARD_TITLE_ROW_LEFT,
+  CARD_TITLE_UNREAD,
+  SidebarAgentRow,
+  WorkspaceCardSurface,
+  getFlushWorktreeCardPaddingLeft,
+  type AgentDotState
+} from '@/components/sidebar'
 import { ArchiveConfirmDialog } from '@/components/worktrees/ArchiveConfirmDialog'
 import type { DiffStatFile } from '@/components/worktrees/DirtyFilesConfirmDialog'
 import { toast, clipboardToast } from '@/lib/toast'
@@ -80,6 +101,42 @@ interface Connection {
 interface ConnectionItemProps {
   connection: Connection
   onManageWorktrees?: (connectionId: string) => void
+}
+
+// ── Orca card helpers ──────────────────────────────────────────
+
+/** Hover-revealed title-row action (orca worktree-card-header.tsx:294-297 geometry, neutral hover). */
+const MORE_BUTTON_CLASS =
+  'inline-flex size-4 items-center justify-center rounded bg-transparent p-0 opacity-0 transition-opacity group-hover/worktree-card:opacity-100 group-focus-within/worktree-card:opacity-100 focus-visible:opacity-100 data-[state=open]:opacity-100 text-muted-foreground hover:bg-accent/70 hover:text-foreground'
+
+/** Map Hive session status → orca AgentStateDot vocabulary. */
+function statusToDotState(status: string | null): AgentDotState {
+  switch (status) {
+    case 'working':
+    case 'planning':
+      return 'working'
+    case 'answering':
+    case 'permission':
+    case 'command_approval':
+    case 'plan_ready':
+      return 'question'
+    default:
+      // completed / unread / idle all read as the emerald "ready" dot (orca StatusIndicator)
+      return 'done'
+  }
+}
+
+/** Orca status lane: 20px slot, 12px StatusIndicator glyph, amber unread overlay dot. */
+function StatusLane({ status }: { status: string | null }): React.JSX.Element {
+  const unread = status === 'unread'
+  return (
+    <div className={CARD_LANE}>
+      <span className={unread ? CARD_LANE_UNREAD_WRAP : CARD_LANE_SLOT}>
+        <AgentStateDot state={statusToDotState(status)} size="md" />
+        {unread && <span className={CARD_LANE_UNREAD_DOT} data-worktree-unread-dot="" />}
+      </span>
+    </div>
+  )
 }
 
 export function ConnectionItem({
@@ -118,23 +175,22 @@ export function ConnectionItem({
 
   const isSelected = selectedConnectionId === connection.id
 
-  // Derive display status text + color
-  const { displayStatus, statusClass } =
+  // Derive display status text (state colour lives in the orca AgentStateDot glyphs)
+  const displayStatus =
     connectionStatus === 'answering'
-      ? { displayStatus: 'Answer questions', statusClass: 'font-semibold text-amber-500' }
+      ? 'Answer questions'
       : connectionStatus === 'command_approval'
-        ? { displayStatus: 'Approve command', statusClass: 'font-semibold text-orange-500' }
+        ? 'Approve command'
         : connectionStatus === 'permission'
-          ? { displayStatus: 'Permission', statusClass: 'font-semibold text-amber-500' }
+          ? 'Permission'
           : connectionStatus === 'planning'
-            ? { displayStatus: 'Planning', statusClass: 'font-semibold text-blue-400' }
+            ? 'Planning'
             : connectionStatus === 'working'
-              ? { displayStatus: 'Working', statusClass: 'font-semibold text-primary' }
+              ? 'Working'
               : connectionStatus === 'plan_ready'
-                ? { displayStatus: 'Plan ready', statusClass: 'font-semibold text-blue-400' }
-                : connectionStatus === 'completed'
-                  ? { displayStatus: 'Ready', statusClass: 'font-semibold text-green-400' }
-                  : { displayStatus: 'Ready', statusClass: 'text-muted-foreground' }
+                ? 'Plan ready'
+                : 'Ready'
+  const isUnread = connectionStatus === 'unread'
 
   // Marquee animation state for overflowing display name
   const containerRef = useRef<HTMLDivElement>(null)
@@ -276,9 +332,7 @@ export function ConnectionItem({
 
   // Members whose worktrees can actually be archived (default worktrees never are)
   const getArchivableMembers = useCallback((): ConnectionMemberEnriched[] => {
-    const allWorktrees = Array.from(
-      useWorktreeStore.getState().worktreesByProject.values()
-    ).flat()
+    const allWorktrees = Array.from(useWorktreeStore.getState().worktreesByProject.values()).flat()
     return (connection.members || []).filter(
       (m) => !allWorktrees.find((w) => w.id === m.worktree_id)?.is_default
     )
@@ -429,187 +483,200 @@ export function ConnectionItem({
   )
 
   const mainContent = (
-    <div
-      className={cn(
-        'group flex items-center gap-1.5 px-2 py-1.5 rounded-md cursor-pointer transition-colors',
-        isSelected ? 'bg-accent text-accent-foreground' : 'hover:bg-accent/50'
-      )}
+    <WorkspaceCardSurface
+      active={isSelected ? 'primary' : false}
+      renaming={isRenaming}
+      className="group/worktree-card"
+      style={{ paddingLeft: getFlushWorktreeCardPaddingLeft(0) }}
       onClick={handleClick}
       data-testid={`connection-item-${connection.id}`}
     >
-      {/* Connection color indicator — always visible */}
-      {connection.color ? (
-        <span
-          className="h-2.5 w-2.5 rounded-full flex-shrink-0"
-          style={{ backgroundColor: parseColorQuad(connection.color)[1] }}
-          aria-hidden="true"
-        />
-      ) : (
-        <Link className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-      )}
+      <div className={cn(CARD_PARENT_ROW, CARD_PARENT_ROW_ALIGN)}>
+        <StatusLane status={connectionStatus} />
 
-      {/* Status icon (shown alongside color) */}
-      {(connectionStatus === 'working' || connectionStatus === 'planning') && (
-        <Loader2 className="h-3.5 w-3.5 text-primary shrink-0 animate-spin" />
-      )}
-      {(connectionStatus === 'answering' || connectionStatus === 'permission') && (
-        <AlertCircle className="h-3.5 w-3.5 text-amber-500 shrink-0" />
-      )}
-      {connectionStatus === 'plan_ready' && <Map className="h-3.5 w-3.5 text-blue-400 shrink-0" />}
-
-      {/* Name and status */}
-      <div className="flex-1 min-w-0">
-        {isRenaming ? (
-          <input
-            ref={renameInputRef}
-            autoFocus
-            value={nameInput}
-            onChange={(e) => setNameInput(e.target.value)}
-            onKeyDown={handleRenameKeyDown}
-            onBlur={() => {
-              // Skip scheduling timer if we're intentionally closing via Escape/Enter
-              if (intentionalCloseRef.current) {
-                intentionalCloseRef.current = false
-                return
-              }
-              // Ignore blur events that happen too soon after starting rename (menu closing)
-              const timeSinceStart = Date.now() - renameStartTimeRef.current
-              if (timeSinceStart < 500) {
-                // Always refocus during the first 500ms (menu closing period)
-                // User can press Escape to cancel if needed
-                setTimeout(() => {
-                  if (renameInputRef.current && document.activeElement !== renameInputRef.current) {
-                    renameInputRef.current.focus()
-                    renameInputRef.current.select()
-                  }
-                }, 0)
-                return
-              }
-
-              // Delay blur to allow for normal focus changes
-              if (blurTimerRef.current) clearTimeout(blurTimerRef.current)
-              blurTimerRef.current = setTimeout(() => {
-                blurTimerRef.current = null
-                // Only close if the input is still not focused
-                if (document.activeElement !== renameInputRef.current) {
-                  setIsRenaming(false)
-                }
-              }, 100)
-            }}
-            onClick={(e) => e.stopPropagation()}
-            className="bg-background border border-border rounded px-1.5 py-0.5 text-sm w-full focus:outline-none focus:ring-1 focus:ring-ring"
-            placeholder={projectNames || 'Connection name'}
-          />
-        ) : (
-          <>
-            <div
-              className="overflow-hidden"
-              ref={containerRef}
-              onMouseEnter={handleMouseEnter}
-              onMouseLeave={handleMouseLeave}
-            >
-              <span
-                ref={textRef}
-                className={cn('text-sm whitespace-nowrap block', !isAnimating && 'truncate')}
-                style={
-                  isAnimating
-                    ? ({
-                        '--scroll-distance': `${scrollDistance}px`,
-                        animation: `marquee-scroll ${animationDuration}s linear infinite`
-                      } as React.CSSProperties)
-                    : undefined
-                }
-                title={displayName}
-              >
-                {displayName}
+        <div className={cn(CARD_CONTENT_COLUMN, CARD_CONTENT_COLUMN_OVERFLOW_VISIBLE)}>
+          {/* Title row: connection color dot / link glyph + name (or inline rename) + hover actions */}
+          <div className={CARD_TITLE_ROW}>
+            <div className={CARD_TITLE_ROW_LEFT}>
+              <span className="inline-flex size-4 shrink-0 items-center justify-center">
+                {connection.color ? (
+                  <span
+                    className="h-2.5 w-2.5 shrink-0 rounded-full"
+                    style={{ backgroundColor: parseColorQuad(connection.color)[1] }}
+                    aria-hidden="true"
+                  />
+                ) : (
+                  <Link className="size-3.5 shrink-0 text-muted-foreground" />
+                )}
               </span>
+              {isRenaming ? (
+                <input
+                  ref={renameInputRef}
+                  autoFocus
+                  value={nameInput}
+                  onChange={(e) => setNameInput(e.target.value)}
+                  onKeyDown={handleRenameKeyDown}
+                  onBlur={() => {
+                    // Skip scheduling timer if we're intentionally closing via Escape/Enter
+                    if (intentionalCloseRef.current) {
+                      intentionalCloseRef.current = false
+                      return
+                    }
+                    // Ignore blur events that happen too soon after starting rename (menu closing)
+                    const timeSinceStart = Date.now() - renameStartTimeRef.current
+                    if (timeSinceStart < 500) {
+                      // Always refocus during the first 500ms (menu closing period)
+                      // User can press Escape to cancel if needed
+                      setTimeout(() => {
+                        if (
+                          renameInputRef.current &&
+                          document.activeElement !== renameInputRef.current
+                        ) {
+                          renameInputRef.current.focus()
+                          renameInputRef.current.select()
+                        }
+                      }, 0)
+                      return
+                    }
+
+                    // Delay blur to allow for normal focus changes
+                    if (blurTimerRef.current) clearTimeout(blurTimerRef.current)
+                    blurTimerRef.current = setTimeout(() => {
+                      blurTimerRef.current = null
+                      // Only close if the input is still not focused
+                      if (document.activeElement !== renameInputRef.current) {
+                        setIsRenaming(false)
+                      }
+                    }, 100)
+                  }}
+                  onClick={(e) => e.stopPropagation()}
+                  className={cn(
+                    CARD_TITLE_EDITING_INPUT,
+                    'w-full min-w-0 flex-1 text-[13px] leading-5'
+                  )}
+                  placeholder={projectNames || 'Connection name'}
+                />
+              ) : (
+                <div
+                  className="min-w-0 flex-1 overflow-hidden"
+                  ref={containerRef}
+                  onMouseEnter={handleMouseEnter}
+                  onMouseLeave={handleMouseLeave}
+                >
+                  <span
+                    ref={textRef}
+                    className={cn(
+                      CARD_TITLE_BASE,
+                      isUnread ? CARD_TITLE_UNREAD : CARD_TITLE_DIM,
+                      'whitespace-nowrap',
+                      isAnimating && 'overflow-visible text-clip'
+                    )}
+                    style={
+                      isAnimating
+                        ? ({
+                            '--scroll-distance': `${scrollDistance}px`,
+                            animation: `marquee-scroll ${animationDuration}s linear infinite`
+                          } as React.CSSProperties)
+                        : undefined
+                    }
+                    title={displayName}
+                  >
+                    {displayName}
+                  </span>
+                </div>
+              )}
+
+              <div className={CARD_TITLE_ACTIONS}>
+                {/* Hint badge */}
+                {hint && vimModeEnabled && vimMode === 'normal' && (
+                  <HintBadge
+                    code={hint}
+                    mode={hintMode}
+                    pendingChar={hintPendingChar}
+                    actionMode={hintActionMode}
+                  />
+                )}
+
+                {/* More Options Dropdown (visible on hover) */}
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className={MORE_BUTTON_CLASS}
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <MoreHorizontal className="size-3.5" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent className="w-52" align="end">
+                    <DropdownMenuItem onClick={handleManageWorktrees}>
+                      <Settings2 className="h-4 w-4 mr-2" />
+                      Connection Worktrees
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={handleStartRename}>
+                      <Pencil className="h-4 w-4 mr-2" />
+                      Rename
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={handleTogglePin}>
+                      {isPinned ? (
+                        <PinOff className="h-4 w-4 mr-2" />
+                      ) : (
+                        <Pin className="h-4 w-4 mr-2" />
+                      )}
+                      {isPinned ? 'Unpin' : 'Pin'}
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onClick={handleOpenInTerminal}>
+                      <Terminal className="h-4 w-4 mr-2" />
+                      Open in Terminal
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={handleOpenInEditor}>
+                      <Code className="h-4 w-4 mr-2" />
+                      Open in Editor
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={handleOpenInFinder}>
+                      <ExternalLink className="h-4 w-4 mr-2" />
+                      {revealLabel(true)}
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={handleCopyPath}>
+                      <Copy className="h-4 w-4 mr-2" />
+                      Copy Path
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      onClick={handleArchiveAll}
+                      disabled={isArchivingAll}
+                      className="text-destructive focus:text-destructive focus:bg-destructive/10"
+                    >
+                      <Archive className="h-4 w-4 mr-2" />
+                      Archive All
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={handleDelete}
+                      className="text-destructive focus:text-destructive focus:bg-destructive/10"
+                    >
+                      <Trash2 className="h-4 w-4 mr-2" />
+                      Delete
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
             </div>
-            <span className={cn('text-[11px]', statusClass)} data-testid="connection-status-text">
-              {displayStatus}
-            </span>
-          </>
-        )}
+          </div>
+
+          {/* Inline agent row (orca compact agent row): state dot · status — hidden while renaming */}
+          {!isRenaming && (
+            <div className={cn(AGENT_LIST, AGENT_LIST_AFTER_TITLE)} data-compact-agent-list="true">
+              <SidebarAgentRow
+                leading={<AgentStateDot state={statusToDotState(connectionStatus)} size="sm" />}
+                label={<span data-testid="connection-status-text">{displayStatus}</span>}
+              />
+            </div>
+          )}
+        </div>
       </div>
-
-      {/* Hint badge */}
-      {hint && vimModeEnabled && vimMode === 'normal' && (
-        <HintBadge
-          code={hint}
-          mode={hintMode}
-          pendingChar={hintPendingChar}
-          actionMode={hintActionMode}
-        />
-      )}
-
-      {/* Unread dot badge */}
-      {connectionStatus === 'unread' && (
-        <span className="h-2 w-2 rounded-full bg-primary shrink-0" />
-      )}
-
-      {/* More Options Dropdown (visible on hover) */}
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button
-            variant="ghost"
-            size="icon"
-            className={cn(
-              'h-5 w-5 p-0 opacity-0 group-hover:opacity-100 transition-opacity',
-              'hover:bg-accent'
-            )}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <MoreHorizontal className="h-3.5 w-3.5" />
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent className="w-52" align="end">
-          <DropdownMenuItem onClick={handleManageWorktrees}>
-            <Settings2 className="h-4 w-4 mr-2" />
-            Connection Worktrees
-          </DropdownMenuItem>
-          <DropdownMenuItem onClick={handleStartRename}>
-            <Pencil className="h-4 w-4 mr-2" />
-            Rename
-          </DropdownMenuItem>
-          <DropdownMenuItem onClick={handleTogglePin}>
-            {isPinned ? <PinOff className="h-4 w-4 mr-2" /> : <Pin className="h-4 w-4 mr-2" />}
-            {isPinned ? 'Unpin' : 'Pin'}
-          </DropdownMenuItem>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem onClick={handleOpenInTerminal}>
-            <Terminal className="h-4 w-4 mr-2" />
-            Open in Terminal
-          </DropdownMenuItem>
-          <DropdownMenuItem onClick={handleOpenInEditor}>
-            <Code className="h-4 w-4 mr-2" />
-            Open in Editor
-          </DropdownMenuItem>
-          <DropdownMenuItem onClick={handleOpenInFinder}>
-            <ExternalLink className="h-4 w-4 mr-2" />
-            {revealLabel(true)}
-          </DropdownMenuItem>
-          <DropdownMenuItem onClick={handleCopyPath}>
-            <Copy className="h-4 w-4 mr-2" />
-            Copy Path
-          </DropdownMenuItem>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem
-            onClick={handleArchiveAll}
-            disabled={isArchivingAll}
-            className="text-destructive focus:text-destructive focus:bg-destructive/10"
-          >
-            <Archive className="h-4 w-4 mr-2" />
-            Archive All
-          </DropdownMenuItem>
-          <DropdownMenuItem
-            onClick={handleDelete}
-            className="text-destructive focus:text-destructive focus:bg-destructive/10"
-          >
-            <Trash2 className="h-4 w-4 mr-2" />
-            Delete
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
-    </div>
+    </WorkspaceCardSurface>
   )
 
   return (
@@ -624,7 +691,7 @@ export function ConnectionItem({
               {projectDetails.map((detail, idx) => (
                 <div key={idx} className="text-[11px] font-mono">
                   <div className="font-medium">{detail.project}</div>
-                  <div className="text-muted-foreground text-[10px]">→ {detail.branch}</div>
+                  <div className="text-background/70 text-[10px]">→ {detail.branch}</div>
                 </div>
               ))}
             </div>

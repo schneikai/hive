@@ -26,22 +26,24 @@ export function BashToolView({ input, output, error }: ToolViewProps) {
   return (
     <div data-testid="bash-tool-view">
       {/* Command header with terminal styling */}
-      <div className="bg-zinc-900 rounded-t-md px-3 py-2 font-mono text-xs">
-        {description && <div className="text-zinc-500 mb-1 text-[10px]"># {description}</div>}
+      <div className="bg-foreground/[0.04] border border-border rounded-t-md px-3 py-2 font-mono text-xs">
+        {description && (
+          <div className="text-muted-foreground mb-1 text-[10px]"># {description}</div>
+        )}
         <div className="flex items-start gap-1.5">
-          <Terminal className="h-3.5 w-3.5 text-zinc-500 mt-0.5 shrink-0" />
-          <span className="text-green-400 select-none shrink-0">$</span>
-          <span className="text-zinc-200 whitespace-pre-wrap break-all">{command}</span>
+          <Terminal className="h-3.5 w-3.5 text-muted-foreground mt-0.5 shrink-0" />
+          <span className="text-emerald-400 select-none shrink-0">$</span>
+          <span className="text-foreground whitespace-pre-wrap break-all">{command}</span>
         </div>
       </div>
 
       {/* Output area */}
       {(cleanOutput || error) && (
-        <div className="bg-zinc-950 rounded-b-md px-3 py-2 font-mono text-xs border-t border-zinc-800">
+        <div className="bg-secondary border border-t-0 border-border rounded-b-md px-3 py-2 font-mono text-xs">
           {error && <div className="text-red-400 whitespace-pre-wrap break-all mb-1">{error}</div>}
           {cleanOutput && (
             <>
-              <pre className="text-zinc-400 whitespace-pre-wrap break-all max-h-60 overflow-y-auto">
+              <pre className="text-muted-foreground whitespace-pre-wrap break-all max-h-60 overflow-y-auto">
                 {displayedOutput}
               </pre>
               {needsTruncation && (

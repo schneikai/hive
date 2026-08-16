@@ -49,7 +49,7 @@ export function SettingsPet(): React.JSX.Element {
         >
           <span
             className={cn(
-              'pointer-events-none block h-4 w-4 rounded-full bg-background shadow-lg ring-0 transition-transform',
+              'pointer-events-none block h-4 w-4 rounded-full bg-background ring-0 transition-transform',
               pet.enabled ? 'translate-x-4' : 'translate-x-0'
             )}
           />
@@ -84,7 +84,7 @@ export function SettingsPet(): React.JSX.Element {
                 className={cn(
                   'flex items-center justify-between rounded-md border px-3 py-2 text-left text-sm transition-colors',
                   selected
-                    ? 'border-primary/40 bg-primary/10'
+                    ? 'border-border bg-accent'
                     : 'border-border bg-muted/30 hover:bg-accent/50'
                 )}
                 data-testid={`pet-size-${option.id}`}
@@ -93,7 +93,7 @@ export function SettingsPet(): React.JSX.Element {
                   <span className="block font-medium">{option.label}</span>
                   <span className="text-xs text-muted-foreground">{option.description}</span>
                 </span>
-                {selected && <Check className="h-4 w-4 text-primary" />}
+                {selected && <Check className="h-4 w-4 text-foreground" />}
               </button>
             )
           })}

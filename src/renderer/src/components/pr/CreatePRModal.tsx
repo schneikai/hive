@@ -393,10 +393,11 @@ export function CreatePRModal({ worktreeId, worktreePath }: CreatePRModalProps):
             placeholder="Commit summary"
             className={cn(
               'pr-12',
-              commitSummary.length > 72 && 'border-red-500 focus-visible:ring-red-500',
+              commitSummary.length > 72 &&
+                'border-red-500 focus-visible:ring-[3px] focus-visible:ring-red-500/50',
               commitSummary.length > 50 &&
                 commitSummary.length <= 72 &&
-                'border-yellow-500 focus-visible:ring-yellow-500'
+                'border-yellow-500 focus-visible:ring-[3px] focus-visible:ring-yellow-500/50'
             )}
             disabled={isCommitting}
           />
@@ -465,8 +466,8 @@ export function CreatePRModal({ worktreeId, worktreePath }: CreatePRModalProps):
               id="pr-base-branch"
               type="button"
               className={cn(
-                'flex items-center justify-between w-full px-3 py-2 text-sm border rounded-md',
-                'bg-background hover:bg-accent/50 transition-colors text-left'
+                'flex items-center justify-between w-full px-3 py-2 text-[13px] border rounded-md',
+                'bg-background hover:bg-accent transition-colors text-left'
               )}
             >
               <span className="flex items-center gap-2 min-w-0">
@@ -497,7 +498,7 @@ export function CreatePRModal({ worktreeId, worktreePath }: CreatePRModalProps):
                     key={name}
                     type="button"
                     className={cn(
-                      'flex items-center gap-2 w-full px-3 py-2 text-sm text-left',
+                      'flex items-center gap-2 w-full px-3 py-2 text-[13px] text-left',
                       'hover:bg-accent transition-colors',
                       name === baseBranch && 'bg-accent'
                     )}
@@ -509,7 +510,7 @@ export function CreatePRModal({ worktreeId, worktreePath }: CreatePRModalProps):
                     <GitBranch className="h-3 w-3 text-muted-foreground shrink-0" />
                     <span className="truncate">{name}</span>
                     {name === baseBranch && (
-                      <Check className="h-3 w-3 ml-auto text-primary shrink-0" />
+                      <Check className="h-3 w-3 ml-auto text-foreground shrink-0" />
                     )}
                   </button>
                 ))}

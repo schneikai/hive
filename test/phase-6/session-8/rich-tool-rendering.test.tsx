@@ -371,7 +371,7 @@ describe('Session 8: Rich Tool Rendering', () => {
       expect(screen.getByText('$')).toBeTruthy()
     })
 
-    test('uses dark background', () => {
+    test('uses terminal-styled surfaces', () => {
       render(
         <BashToolView
           name="Bash"
@@ -382,8 +382,13 @@ describe('Session 8: Rich Tool Rendering', () => {
       )
 
       const view = screen.getByTestId('bash-tool-view')
-      const darkBg = view.querySelectorAll('.bg-zinc-900')
-      expect(darkBg.length).toBeGreaterThan(0)
+      // Orca design: command header sits on a tinted token surface,
+      // output on a secondary surface (was hardcoded bg-zinc-900/950)
+      const surfaces = Array.from(view.querySelectorAll('div, pre'))
+      const headerBg = surfaces.filter((el) => el.className.includes('bg-foreground/[0.04]'))
+      const outputBg = surfaces.filter((el) => el.className.includes('bg-secondary'))
+      expect(headerBg.length).toBeGreaterThan(0)
+      expect(outputBg.length).toBeGreaterThan(0)
     })
 
     test('shows description comment if present', () => {

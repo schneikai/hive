@@ -1,7 +1,13 @@
 import { useEffect, useState, useCallback } from 'react'
-import { ChevronRight, Link } from 'lucide-react'
+import { Link } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useConnectionStore } from '@/stores'
+import {
+  SECTION_HEADER_ICON,
+  SECTION_HEADER_WRAPPER_STICKY,
+  SECTION_HEADER_WRAPPER_STICKY_TOP,
+  SidebarSectionHeader
+} from '@/components/sidebar'
 import { ConnectionItem } from './ConnectionItem'
 import { ManageConnectionWorktreesDialog } from './ManageConnectionWorktreesDialog'
 
@@ -32,22 +38,27 @@ export function ConnectionList(): React.JSX.Element | null {
   }
 
   return (
-    <div data-testid="connection-list" className="mb-2">
-      {/* Section header */}
-      <button
-        className="flex items-center gap-1 w-full px-2 py-1 text-[11px] font-medium uppercase tracking-wider text-muted-foreground hover:text-foreground transition-colors"
-        onClick={() => setIsCollapsed(!isCollapsed)}
+    // Orca virtual-row rhythm: ROW_GAP (6px) between header and every card; the
+    // trailing pb-2.5 (= ROW_GAP + GROUP_HEADER_TOP_MARGIN) gives the next
+    // section header its 6px gap + pt-1 spacer.
+    <div data-testid="connection-list" className="flex flex-col gap-1.5 pb-2.5">
+      {/* Sticky wrapper is ours (not the kit's `sticky` prop) so the header keeps its data-testid. */}
+      <div
+        className={cn(SECTION_HEADER_WRAPPER_STICKY, SECTION_HEADER_WRAPPER_STICKY_TOP)}
         data-testid="connections-section-header"
       >
-        <ChevronRight className={cn('h-3 w-3 transition-transform', !isCollapsed && 'rotate-90')} />
-        <Link className="h-3 w-3" />
-        <span>Connections</span>
-        <span className="ml-auto text-[10px] tabular-nums">{connections.length}</span>
-      </button>
+        <SidebarSectionHeader
+          icon={<Link className={SECTION_HEADER_ICON} />}
+          label="Connections"
+          count={connections.length}
+          expanded={!isCollapsed}
+          onToggle={() => setIsCollapsed((collapsed) => !collapsed)}
+        />
+      </div>
 
       {/* Connection items */}
       {!isCollapsed && (
-        <div className="mt-0.5 space-y-0.5" data-testid="connections-list-items">
+        <div className="flex flex-col gap-1.5" data-testid="connections-list-items">
           {connections.map((connection) => (
             <ConnectionItem
               key={connection.id}

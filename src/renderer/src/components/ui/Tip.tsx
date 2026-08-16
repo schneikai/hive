@@ -75,24 +75,19 @@ export function Tip({ tipId, children, enabled = true }: TipProps): React.JSX.El
         >
           <div className="flex">
             {/* Accent left border */}
-            <div className="w-[3px] shrink-0 bg-primary" />
+            <div className="w-[3px] shrink-0 bg-blue-400" />
             <div className="flex-1 p-3 space-y-2.5">
               <p className="text-sm text-popover-foreground leading-relaxed">
                 {definition.description}
               </p>
               <div className="flex items-center gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-7 text-xs"
-                  onClick={handleDismiss}
-                >
+                <Button variant="outline" size="sm" onClick={handleDismiss}>
                   Got it
                 </Button>
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="h-7 text-xs text-muted-foreground"
+                  className="text-muted-foreground"
                   onClick={handleDisableAll}
                 >
                   Don't show tips

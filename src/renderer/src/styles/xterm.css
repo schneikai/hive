@@ -46,14 +46,15 @@
   opacity: 0.4;
 }
 
-/* Search highlight decorations from @xterm/addon-search */
+/* Search highlight decorations from @xterm/addon-search — amber is the
+   semantic "search match" color; --primary is neutral and would wash out */
 .terminal-view-container .xterm-find-result-decoration {
-  outline: 1px solid var(--ring, hsl(270 60% 55%));
+  outline: 1px solid var(--ring, #737373);
   outline-offset: -1px;
 }
 
 .terminal-view-container .xterm-find-active-result-decoration {
-  outline: 2px solid var(--primary, hsl(270 60% 55%));
+  outline: 2px solid #f59e0b;
   outline-offset: -1px;
-  background-color: color-mix(in srgb, var(--primary, hsl(270 60% 55%)) 30%, transparent);
+  background-color: rgb(245 158 11 / 0.25);
 }
