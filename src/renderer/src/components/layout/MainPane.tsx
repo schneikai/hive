@@ -24,6 +24,7 @@ import { useKanbanStore } from '@/stores/useKanbanStore'
 import { useProjectStore } from '@/stores/useProjectStore'
 import { usePinnedStore } from '@/stores/usePinnedStore'
 import { useSettingsStore } from '@/stores/useSettingsStore'
+import { isForceBoardMode } from '@/api/hive-enterprise/client'
 import { useClaudeCliSessionPortal } from '@/contexts/ClaudeCliSessionPortalContext'
 import { KanbanBoard } from '@/components/kanban/KanbanBoard'
 import { KanbanIcon } from '@/components/kanban/KanbanIcon'
@@ -111,6 +112,7 @@ export function MainPane({ children }: MainPaneProps): React.JSX.Element {
   const connectionsLoaded = useConnectionStore((state) => state.loaded)
   const pinnedStoreLoaded = usePinnedStore((state) => state.loaded)
   const boardMode = useSettingsStore((s) => s.boardMode)
+  const forceBoardMode = useSettingsStore(isForceBoardMode)
   const terminalPosition = useSettingsStore((s) => s.terminalPosition)
   const selectedProjectId = useProjectStore((state) => state.selectedProjectId)
   const selectedProjectPath = useProjectStore((state) =>
@@ -462,7 +464,11 @@ export function MainPane({ children }: MainPaneProps): React.JSX.Element {
         <div className="flex-1 flex items-center justify-center text-muted-foreground">
           <div className="text-center">
             <p className="text-lg font-medium">No active session</p>
-            <p className="text-sm mt-2">Click the + button above to create a new session.</p>
+            <p className="text-sm mt-2">
+              {forceBoardMode
+                ? 'Your organization requires sessions to be started from a board ticket.'
+                : 'Click the + button above to create a new session.'}
+            </p>
           </div>
         </div>
       )

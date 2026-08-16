@@ -1,5 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
-import { isHiveTelemetryEnabled, refreshHiveEnterpriseOrg } from '@/api/hive-enterprise/client'
+import {
+  isHiveTelemetryEnabled,
+  markHiveOrgPolicySettled,
+  refreshHiveEnterpriseOrg
+} from '@/api/hive-enterprise/client'
 import { AppLayout } from '@/components/layout'
 import { DesktopWindowEscapeChrome } from '@/components/layout/DesktopWindowEscapeChrome'
 import { ErrorBoundary } from '@/components/error'
@@ -31,9 +35,13 @@ function App(): React.JSX.Element {
 
   useEffect(() => {
     if (settingsLoading || didRefreshHiveOrg.current) return
-    if (!isHiveTelemetryEnabled({ hiveAuthToken, hiveOrganizationId })) return
+    if (!isHiveTelemetryEnabled({ hiveAuthToken, hiveOrganizationId })) {
+      // No org login — nothing to sync; unblock auto-start waiters right away.
+      markHiveOrgPolicySettled()
+      return
+    }
     didRefreshHiveOrg.current = true
-    void refreshHiveEnterpriseOrg()
+    void refreshHiveEnterpriseOrg().finally(markHiveOrgPolicySettled)
     void reportActiveAccountsSnapshot()
   }, [hiveAuthToken, hiveOrganizationId, settingsLoading])
 

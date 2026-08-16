@@ -9,6 +9,7 @@ export const MeDocument = /* GraphQL */ `
         name
         storePrompts
         recordQuestions
+        forceBoardMode
       }
     }
   }
@@ -21,6 +22,7 @@ export const RecordPromptStartDocument = /* GraphQL */ `
       promptId
       storePrompts
       recordQuestions
+      forceBoardMode
     }
   }
 `
@@ -31,6 +33,7 @@ export const RecordPromptIdleDocument = /* GraphQL */ `
       recorded
       storePrompts
       recordQuestions
+      forceBoardMode
     }
   }
 `
@@ -41,6 +44,7 @@ export const RecordQuestionsAnsweredDocument = /* GraphQL */ `
       recorded
       storePrompts
       recordQuestions
+      forceBoardMode
     }
   }
 `
@@ -51,6 +55,7 @@ export const ReportActiveAccountsDocument = /* GraphQL */ `
       recorded
       storePrompts
       recordQuestions
+      forceBoardMode
     }
   }
 `

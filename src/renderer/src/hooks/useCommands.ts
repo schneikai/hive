@@ -16,6 +16,7 @@ import { useGitStore } from '@/stores/useGitStore'
 import { useShortcutStore } from '@/stores/useShortcutStore'
 import { useCommandPaletteStore, type Command } from '@/stores/useCommandPaletteStore'
 import { commandRegistry, fuzzySearch } from '@/lib/command-registry'
+import { isForceBoardMode } from '@/api/hive-enterprise/client'
 import { THEME_PRESETS, getThemeById } from '@/lib/themes'
 import { toast } from '@/lib/toast'
 import { revealLabel, fileManagerName } from '@/lib/platform'
@@ -249,6 +250,14 @@ export function useCommands() {
         shortcut: getDisplayString('session:new'),
         keywords: ['new', 'create', 'session', 'chat'],
         action: async () => {
+          // Org "Force board mode" policy: guard at execution too — the
+          // palette's command list is memoized, so a policy that flips on
+          // mid-session can leave a stale, still-selectable entry behind.
+          if (isForceBoardMode(useSettingsStore.getState())) {
+            toast.error('Your organization requires sessions to be started from a board ticket')
+            closeCommandPalette()
+            return
+          }
           if (!activeWorktreeId || !selectedProjectId) {
             toast.error('Please select a worktree first')
             return
@@ -261,7 +270,10 @@ export function useCommands() {
           }
           closeCommandPalette()
         },
-        isEnabled: () => activeWorktreeId !== null && selectedProjectId !== null
+        isEnabled: () => activeWorktreeId !== null && selectedProjectId !== null,
+        // Org "Force board mode" policy: sessions may only be started from a
+        // board ticket.
+        isVisible: () => !isForceBoardMode(useSettingsStore.getState())
       },
       {
         id: 'action:close-session',

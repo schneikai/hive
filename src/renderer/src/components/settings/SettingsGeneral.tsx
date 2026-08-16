@@ -10,6 +10,7 @@ import type { UsageProvider } from '@shared/types/usage'
 import claudeIcon from '@/assets/model-icons/claude.svg'
 import openaiIcon from '@/assets/model-icons/openai.svg'
 import { isAgentSdkAvailable } from '@/lib/agent-sdk-availability'
+import { isForceBoardMode } from '@/api/hive-enterprise/client'
 
 export function SettingsGeneral(): React.JSX.Element {
   const { setTheme } = useThemeStore()
@@ -39,6 +40,9 @@ export function SettingsGeneral(): React.JSX.Element {
     setActiveSection
   } = useSettingsStore()
   const { resetToDefaults: resetShortcuts } = useShortcutStore()
+  // Org "Force board mode" policy overrides auto-start (off) and auto-pin (on);
+  // both toggles are locked while it is active.
+  const forceBoardMode = useSettingsStore(isForceBoardMode)
 
   const handleResetAll = (): void => {
     resetToDefaults()
@@ -99,23 +103,30 @@ export function SettingsGeneral(): React.JSX.Element {
         <div>
           <label className="text-sm font-medium">Auto-start session</label>
           <p className="text-xs text-muted-foreground">
-            Automatically create a session when selecting a worktree with none
+            {forceBoardMode
+              ? 'Disabled by your organization (Force board mode)'
+              : 'Automatically create a session when selecting a worktree with none'}
           </p>
         </div>
         <button
           role="switch"
-          aria-checked={autoStartSession}
+          aria-checked={forceBoardMode ? false : autoStartSession}
+          disabled={forceBoardMode}
           onClick={() => updateSetting('autoStartSession', !autoStartSession)}
           className={cn(
-            'relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors',
-            autoStartSession ? 'bg-primary' : 'bg-muted'
+            'relative inline-flex h-5 w-9 shrink-0 rounded-full border-2 border-transparent transition-colors',
+            forceBoardMode
+              ? 'bg-muted cursor-not-allowed opacity-50'
+              : autoStartSession
+                ? 'bg-primary cursor-pointer'
+                : 'bg-muted cursor-pointer'
           )}
           data-testid="auto-start-session-toggle"
         >
           <span
             className={cn(
               'pointer-events-none block h-4 w-4 rounded-full bg-background ring-0 transition-transform',
-              autoStartSession ? 'translate-x-4' : 'translate-x-0'
+              !forceBoardMode && autoStartSession ? 'translate-x-4' : 'translate-x-0'
             )}
           />
         </button>
@@ -219,26 +230,32 @@ export function SettingsGeneral(): React.JSX.Element {
         <div>
           <label className="text-sm font-medium">Auto-pin project on board prompts</label>
           <p className="text-xs text-muted-foreground">
-            When a board action sends a prompt for a ticket, automatically pin the project's base
-            worktree so its tickets appear on the pinned board.
+            {forceBoardMode
+              ? 'Enabled by your organization (Force board mode)'
+              : "When a board action sends a prompt for a ticket, automatically pin the project's base worktree so its tickets appear on the pinned board."}
           </p>
         </div>
         <button
           role="switch"
-          aria-checked={autoPinBaseWorktreeOnBoardPrompt}
+          aria-checked={forceBoardMode ? true : autoPinBaseWorktreeOnBoardPrompt}
+          disabled={forceBoardMode}
           onClick={() =>
             updateSetting('autoPinBaseWorktreeOnBoardPrompt', !autoPinBaseWorktreeOnBoardPrompt)
           }
           className={cn(
-            'relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors',
-            autoPinBaseWorktreeOnBoardPrompt ? 'bg-primary' : 'bg-muted'
+            'relative inline-flex h-5 w-9 shrink-0 rounded-full border-2 border-transparent transition-colors',
+            forceBoardMode
+              ? 'bg-primary cursor-not-allowed opacity-50'
+              : autoPinBaseWorktreeOnBoardPrompt
+                ? 'bg-primary cursor-pointer'
+                : 'bg-muted cursor-pointer'
           )}
           data-testid="auto-pin-base-worktree-toggle"
         >
           <span
             className={cn(
               'pointer-events-none block h-4 w-4 rounded-full bg-background ring-0 transition-transform',
-              autoPinBaseWorktreeOnBoardPrompt ? 'translate-x-4' : 'translate-x-0'
+              forceBoardMode || autoPinBaseWorktreeOnBoardPrompt ? 'translate-x-4' : 'translate-x-0'
             )}
           />
         </button>

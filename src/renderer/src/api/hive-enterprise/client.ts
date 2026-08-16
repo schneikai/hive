@@ -28,6 +28,54 @@ export function isHiveTelemetryEnabled(settings: TelemetryGateSettings): boolean
   return Boolean(settings.hiveAuthToken && settings.hiveOrganizationId)
 }
 
+type ForceBoardModeSettings = TelemetryGateSettings &
+  Pick<AppSettings, 'hiveOrganizationForceBoardMode'>
+
+/**
+ * Org policy: when the organization has "Force board mode" enabled, members
+ * can only start sessions from a board ticket — the new-session button and
+ * shortcuts are disabled, no first session auto-opens, and auto-pinning the
+ * project on board prompts is always on. Only applies while logged in to an
+ * organization.
+ */
+export function isForceBoardMode(settings: ForceBoardModeSettings): boolean {
+  return isHiveTelemetryEnabled(settings) && settings.hiveOrganizationForceBoardMode === true
+}
+
+// Enforcement of org policy reads the locally persisted flag, which can be one
+// launch behind when an admin changed it while the app was closed. Auto-start
+// waits (bounded) on this promise so the startup refresh gets a chance to land
+// before the first session would be auto-created.
+let resolveStartupOrgPolicy: () => void = () => {}
+const startupOrgPolicySettled = new Promise<void>((resolve) => {
+  resolveStartupOrgPolicy = resolve
+})
+
+const STARTUP_ORG_POLICY_TIMEOUT_MS = 5000
+
+/**
+ * Mark the startup org-policy sync as finished. Called by App once the
+ * startup refresh completes — or immediately when no refresh will run (not
+ * signed in to an organization). Idempotent.
+ */
+export function markHiveOrgPolicySettled(): void {
+  resolveStartupOrgPolicy()
+}
+
+/**
+ * Resolves once the startup org-policy sync has settled, but never blocks
+ * longer than a few seconds — a hung refresh falls back to the locally
+ * persisted policy. Resolves immediately for users without an org login.
+ */
+export function whenHiveOrgPolicySettled(): Promise<void> {
+  const settings = useSettingsStore.getState()
+  if (!settings.isLoading && !isHiveTelemetryEnabled(settings)) return Promise.resolve()
+  return Promise.race([
+    startupOrgPolicySettled,
+    new Promise<void>((resolve) => setTimeout(resolve, STARTUP_ORG_POLICY_TIMEOUT_MS))
+  ])
+}
+
 function endpointFromSettings(settings: AppSettings): string {
   return `${settings.hiveEnterpriseServerUrl.replace(/\/+$/, '')}/api/graphql`
 }
@@ -202,7 +250,8 @@ export async function completeHiveEnterpriseLogin(token: string): Promise<void> 
     hiveOrganizationId: me?.organization?.id ?? null,
     hiveOrganizationName: me?.organization?.name ?? null,
     hiveOrganizationStorePrompts: me?.organization?.storePrompts ?? true,
-    hiveOrganizationRecordQuestions: me?.organization?.recordQuestions ?? true
+    hiveOrganizationRecordQuestions: me?.organization?.recordQuestions ?? true,
+    hiveOrganizationForceBoardMode: me?.organization?.forceBoardMode ?? false
   })
 }
 
@@ -211,6 +260,7 @@ export async function completeHiveEnterpriseLogin(token: string): Promise<void> 
 async function reconcileOrgSettings(result: {
   storePrompts?: boolean | null
   recordQuestions?: boolean | null
+  forceBoardMode?: boolean | null
 }): Promise<void> {
   const state = useSettingsStore.getState()
   const updates: Partial<AppSettings> = {}
@@ -225,6 +275,12 @@ async function reconcileOrgSettings(result: {
     result.recordQuestions !== state.hiveOrganizationRecordQuestions
   ) {
     updates.hiveOrganizationRecordQuestions = result.recordQuestions
+  }
+  if (
+    typeof result.forceBoardMode === 'boolean' &&
+    result.forceBoardMode !== state.hiveOrganizationForceBoardMode
+  ) {
+    updates.hiveOrganizationForceBoardMode = result.forceBoardMode
   }
   if (Object.keys(updates).length > 0) {
     await useSettingsStore.getState().updateSettings(updates)
@@ -241,7 +297,8 @@ export async function refreshHiveEnterpriseOrg(): Promise<void> {
       hiveOrganizationId: me?.organization?.id ?? null,
       hiveOrganizationName: me?.organization?.name ?? null,
       hiveOrganizationStorePrompts: me?.organization?.storePrompts ?? true,
-      hiveOrganizationRecordQuestions: me?.organization?.recordQuestions ?? true
+      hiveOrganizationRecordQuestions: me?.organization?.recordQuestions ?? true,
+      hiveOrganizationForceBoardMode: me?.organization?.forceBoardMode ?? false
     })
   } catch (error) {
     console.warn('[HiveEnterprise] org refresh failed:', error)

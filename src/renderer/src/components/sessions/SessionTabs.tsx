@@ -46,6 +46,7 @@ import { useWorktreeStore } from '@/stores/useWorktreeStore'
 import { useProjectStore } from '@/stores/useProjectStore'
 import { useConnectionStore } from '@/stores/useConnectionStore'
 import { useSettingsStore } from '@/stores/useSettingsStore'
+import { isForceBoardMode, whenHiveOrgPolicySettled } from '@/api/hive-enterprise/client'
 import { useWorktreeStatusStore } from '@/stores/useWorktreeStatusStore'
 import { useKanbanStore } from '@/stores/useKanbanStore'
 import { useFavoriteTicketsStore } from '@/stores/useFavoriteTicketsStore'
@@ -719,6 +720,9 @@ export function SessionTabs(): React.JSX.Element | null {
   // Auto-start runs as a direct follow-up to loadSessions (not a separate effect) to
   // eliminate race conditions between the two async operations.
   const autoStartSession = useSettingsStore((state) => state.autoStartSession)
+  // Org "Force board mode" policy: sessions may only be started from a board
+  // ticket — hides the new-session button and suppresses auto-start.
+  const forceBoardMode = useSettingsStore(isForceBoardMode)
   const availableAgentSdks = useSettingsStore((state) => state.availableAgentSdks)
   const defaultAgentSdk = useSettingsStore((state) => state.defaultAgentSdk)
   const rawCustomProviders = useSettingsStore((state) => state.customProviders)
@@ -749,11 +753,18 @@ export function SessionTabs(): React.JSX.Element | null {
       if (cancelled) return
 
       // After sessions are loaded, check if auto-start is needed
-      if (!autoStartSession) return
+      if (!autoStartSession || forceBoardMode) return
       if (autoStartedRef.current === selectedWorktreeId) return
 
       const sessions = useSessionStore.getState().sessionsByWorktree.get(selectedWorktreeId) || []
       if (sessions.length > 0) return
+
+      // Wait (bounded) for the startup org-policy sync, then re-check with
+      // fresh state: a "Force board mode" enabled while the app was closed
+      // must suppress this launch's auto-start too, not just the next one.
+      await whenHiveOrgPolicySettled()
+      if (cancelled) return
+      if (isForceBoardMode(useSettingsStore.getState())) return
 
       autoStartedRef.current = selectedWorktreeId
       await createSession(selectedWorktreeId, project.id, undefined, undefined, {
@@ -774,7 +785,15 @@ export function SessionTabs(): React.JSX.Element | null {
     return () => {
       cancelled = true
     }
-  }, [selectedWorktreeId, project, loadSessions, autoStartSession, createSession, isConnectionMode])
+  }, [
+    selectedWorktreeId,
+    project,
+    loadSessions,
+    autoStartSession,
+    forceBoardMode,
+    createSession,
+    isConnectionMode
+  ])
 
   // Load sessions when connection changes (connection mode)
   useEffect(() => {
@@ -787,12 +806,17 @@ export function SessionTabs(): React.JSX.Element | null {
       if (cancelled) return
 
       // Auto-start a session if auto-start is enabled and no sessions exist
-      if (!autoStartSession) return
+      if (!autoStartSession || forceBoardMode) return
       if (autoStartedRef.current === selectedConnectionId) return
 
       const sessions =
         useSessionStore.getState().sessionsByConnection.get(selectedConnectionId) || []
       if (sessions.length > 0) return
+
+      // Same startup-policy wait as the worktree path above.
+      await whenHiveOrgPolicySettled()
+      if (cancelled) return
+      if (isForceBoardMode(useSettingsStore.getState())) return
 
       autoStartedRef.current = selectedConnectionId
       await createConnectionSession(selectedConnectionId)
@@ -806,6 +830,7 @@ export function SessionTabs(): React.JSX.Element | null {
     isConnectionMode,
     loadConnectionSessions,
     autoStartSession,
+    forceBoardMode,
     createConnectionSession
   ])
 
@@ -1380,8 +1405,10 @@ export function SessionTabs(): React.JSX.Element | null {
       className="flex items-center h-8 shrink-0 bg-card border-b border-border"
       data-testid="session-tabs"
     >
-      {/* New session / new ticket button - on the left */}
-      {boardMode === 'sticky-tab' || !isBoardViewActive ? (
+      {/* New session / new ticket button - on the left. Force board mode
+          removes the session-create button entirely — sessions can only be
+          started from a board ticket — but keeps the ticket-create button. */}
+      {!forceBoardMode && (boardMode === 'sticky-tab' || !isBoardViewActive) ? (
         /* Session create button with right-click provider menu */
         <Tip tipId="provider-right-click" enabled={multipleProvidersAvailable}>
           <div className="shrink-0 h-full">
