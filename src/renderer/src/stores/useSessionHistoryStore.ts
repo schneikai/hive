@@ -16,7 +16,7 @@ interface SessionWithWorktree {
   opencode_session_id: string | null
   claude_session_id: string | null
   agent_sdk: AgentSdk
-  mode: 'build' | 'plan' | 'super-plan'
+  mode: 'build' | 'plan' | 'super-plan' | 'super-build'
   session_type: 'default' | 'board-assistant'
   model_provider_id: string | null
   model_id: string | null

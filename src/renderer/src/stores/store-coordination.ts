@@ -38,8 +38,8 @@ export function clearConnectionSelection(): void {
 
 export interface KanbanSessionEvent {
   type: 'session_completed' | 'session_error' | 'plan_ready' | 'plan_followup' | 'supercharge' | 'mode_change' | 'implement' | 'session_working' | 'status_cleared'
-  /** The mode the session was running in (build / plan) — relevant for completed events */
-  sessionMode?: 'build' | 'plan'
+  /** The mode the session was running in — relevant for completed / mode_change events */
+  sessionMode?: 'build' | 'plan' | 'super-plan' | 'super-build'
   /** For supercharge: the newly-created session that replaces the old one */
   newSessionId?: string
   /**

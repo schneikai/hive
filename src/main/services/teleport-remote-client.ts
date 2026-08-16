@@ -17,7 +17,7 @@ export interface TeleportRemoteReceiveParams {
     id: string | null
     variant: string | null
   }
-  mode: 'build' | 'plan' | 'super-plan'
+  mode: 'build' | 'plan' | 'super-plan' | 'super-build'
 }
 
 export interface TeleportRemoteReceiveResult {

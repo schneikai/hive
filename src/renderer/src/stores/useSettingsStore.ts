@@ -323,7 +323,7 @@ interface SettingsState extends AppSettings {
     model: SelectedModel | null
   ) => Promise<void>
   getModelForMode: (
-    mode: 'build' | 'plan' | 'super-plan' | 'ask' | 'review'
+    mode: 'build' | 'plan' | 'super-plan' | 'super-build' | 'ask' | 'review'
   ) => SelectedModel | null
   setLastHandoffOverride: (value: AppSettings['lastHandoffOverride']) => void
   toggleFavoriteModel: (providerID: string, modelID: string) => void
@@ -697,10 +697,10 @@ export const useSettingsStore = create<SettingsState>()(
         await saveToDatabase(settings)
       },
 
-      getModelForMode: (mode: 'build' | 'plan' | 'super-plan' | 'ask' | 'review') => {
+      getModelForMode: (mode: 'build' | 'plan' | 'super-plan' | 'super-build' | 'ask' | 'review') => {
         // Return only the mode-specific default (no global fallback).
         // Callers that need a fallback chain should check selectedModel separately.
-        const key = mode === 'super-plan' ? 'plan' : mode
+        const key = mode === 'super-plan' ? 'plan' : mode === 'super-build' ? 'build' : mode
         return get().defaultModels?.[key] ?? null
       },
 

@@ -75,7 +75,7 @@ const VALID_COLUMNS = new Set<KanbanTicketColumn>([
   'merged',
   'done'
 ])
-const VALID_MODES = new Set(['build', 'plan', 'super-plan'])
+const VALID_MODES = new Set(['build', 'plan', 'super-plan', 'super-build'])
 const VALID_MARKS = new Set(['common', 'rare', 'epic', 'legendary'])
 
 type Frontmatter = Record<string, unknown>
@@ -2396,7 +2396,7 @@ function validateKnownFrontmatter(frontmatter: Frontmatter, ticketId: string | n
     invalid('column', 'todo, in_progress, review, merged, or done')
   }
   if ('mode' in frontmatter && frontmatter.mode !== null && !asMode(frontmatter.mode)) {
-    invalid('mode', 'build, plan, super-plan, or null')
+    invalid('mode', 'build, plan, super-plan, super-build, or null')
   }
   if ('sort_order' in frontmatter && asNumber(frontmatter.sort_order) === null) {
     invalid('sort_order', 'a finite number')

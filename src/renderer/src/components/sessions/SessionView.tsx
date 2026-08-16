@@ -135,7 +135,9 @@ import type { ToolStatus, ToolUseInfo } from './ToolCard'
 import {
   PLAN_MODE_PREFIX,
   ASK_MODE_PREFIX,
-  getSuperPlanModePrefix,
+  getSuperModePrefix,
+  isSuperMode,
+  baseMode,
   stripPlanModePrefix,
   isPlanLike
 } from '@/lib/constants'
@@ -3500,8 +3502,8 @@ function LegacySessionView({ sessionId }: SessionViewProps): React.JSX.Element {
               .setSessionStatus(sessionId, isPlanLike(currentMode) ? 'planning' : 'working')
             // Apply mode prefix for OpenCode sessions (Claude Code uses native plan mode)
             const modePrefix =
-              currentMode === 'super-plan'
-                ? getSuperPlanModePrefix(sessionAgentSdk)
+              isSuperMode(currentMode)
+                ? getSuperModePrefix(currentMode, sessionAgentSdk)
                 : currentMode === 'plan' && !skipPlanModePrefix
                   ? PLAN_MODE_PREFIX
                   : ''
@@ -4714,10 +4716,11 @@ function LegacySessionView({ sessionId }: SessionViewProps): React.JSX.Element {
         .getState()
         .setSessionStatus(sessionId, isPlanLike(currentModeForStatus) ? 'planning' : 'working')
 
-      // Auto-revert super-plan → plan immediately (one-shot mode).
+      // Auto-revert super modes to their base mode immediately (one-shot mode):
+      // super-plan → plan, super-build → build.
       // The captured `currentModeForStatus` preserves the original mode for prefix logic below.
-      if (currentModeForStatus === 'super-plan') {
-        useSessionStore.getState().setSessionMode(sessionId, 'plan')
+      if (isSuperMode(currentModeForStatus)) {
+        useSessionStore.getState().setSessionMode(sessionId, baseMode(currentModeForStatus))
       }
 
       try {
@@ -4738,8 +4741,8 @@ function LegacySessionView({ sessionId }: SessionViewProps): React.JSX.Element {
         // instead of only appearing after a session reload from disk.
         const optimisticMode = currentModeForStatus
         const optimisticModePrefix =
-          optimisticMode === 'super-plan'
-            ? getSuperPlanModePrefix(sessionAgentSdk)
+          isSuperMode(optimisticMode)
+            ? getSuperModePrefix(optimisticMode, sessionAgentSdk)
             : optimisticMode === 'plan' && !skipPlanModePrefix
               ? PLAN_MODE_PREFIX
               : ''
@@ -4882,8 +4885,8 @@ function LegacySessionView({ sessionId }: SessionViewProps): React.JSX.Element {
             } else {
               // Unknown command — send as regular prompt (SDK may handle it)
               const modePrefix =
-                currentModeForStatus === 'super-plan'
-                  ? getSuperPlanModePrefix(sessionAgentSdk)
+                isSuperMode(currentModeForStatus)
+                  ? getSuperModePrefix(currentModeForStatus, sessionAgentSdk)
                   : currentModeForStatus === 'plan' && !skipPlanModePrefix
                     ? PLAN_MODE_PREFIX
                     : ''
@@ -4923,8 +4926,8 @@ function LegacySessionView({ sessionId }: SessionViewProps): React.JSX.Element {
           } else {
             // Regular prompt — existing code (with mode prefix, attachments, etc.)
             const modePrefix =
-              currentModeForStatus === 'super-plan'
-                ? getSuperPlanModePrefix(sessionAgentSdk)
+              isSuperMode(currentModeForStatus)
+                ? getSuperModePrefix(currentModeForStatus, sessionAgentSdk)
                 : currentModeForStatus === 'plan' && !skipPlanModePrefix
                   ? PLAN_MODE_PREFIX
                   : ''
@@ -5833,7 +5836,7 @@ function LegacySessionView({ sessionId }: SessionViewProps): React.JSX.Element {
     [handleAttach]
   )
 
-  // Global Tab/Shift+Tab key handler — toggles Build/Plan mode or Super-Plan
+  // Global Tab/Shift+Tab key handler — Tab toggles Build/Plan, Shift+Tab toggles Super
   const toggleSessionMode = useSessionStore((state) => state.toggleSessionMode)
   const toggleSuperPlanShortcut = useSessionStore((state) => state.toggleSuperPlanShortcut)
   useEffect(() => {
@@ -5841,7 +5844,7 @@ function LegacySessionView({ sessionId }: SessionViewProps): React.JSX.Element {
       if (e.key !== 'Tab' || e.ctrlKey || e.metaKey || e.altKey) return
 
       // Don't intercept plain Tab inside the ticket creation modal — it needs
-      // natural tab navigation. Shift+Tab still toggles super-plan mode.
+      // natural tab navigation. Shift+Tab still toggles super mode.
       const createModal = document.querySelector('[data-testid="ticket-create-modal"]')
       if (createModal?.contains(document.activeElement) && !e.shiftKey) return
 
@@ -6456,10 +6459,10 @@ function LegacySessionView({ sessionId }: SessionViewProps): React.JSX.Element {
               'focus-within:shadow-[0_0_0_3px_color-mix(in_srgb,var(--ring)_18%,transparent)]',
               isBashMode
                 ? 'border-border focus-within:border-[color-mix(in_srgb,var(--ring)_60%,transparent)]'
-                : mode === 'build'
-                  ? 'border-blue-500/25'
-                  : mode === 'super-plan'
-                    ? 'border-orange-500/25'
+                : isSuperMode(mode)
+                  ? 'border-orange-500/25'
+                  : mode === 'build'
+                    ? 'border-blue-500/25'
                     : 'border-violet-500/25'
             )}
           >

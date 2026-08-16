@@ -155,7 +155,7 @@ export interface DiscordResourceCreate {
   created_at?: string
 }
 
-export type SessionMode = 'build' | 'plan' | 'super-plan'
+export type SessionMode = 'build' | 'plan' | 'super-plan' | 'super-build'
 export type SessionType = 'default' | 'board-assistant'
 
 export interface Session {
@@ -506,7 +506,7 @@ export interface KanbanTicket {
   sort_order: number
   current_session_id: string | null
   worktree_id: string | null
-  mode: 'build' | 'plan' | 'super-plan' | null
+  mode: 'build' | 'plan' | 'super-plan' | 'super-build' | null
   plan_ready: boolean // Mapped from INTEGER 0/1 in DB
   created_at: string
   updated_at: string
@@ -545,7 +545,7 @@ export interface KanbanTicketCreate {
   sort_order?: number
   current_session_id?: string | null
   worktree_id?: string | null
-  mode?: 'build' | 'plan' | 'super-plan' | null
+  mode?: 'build' | 'plan' | 'super-plan' | 'super-build' | null
   plan_ready?: boolean
   external_provider?: string | null
   external_id?: string | null
@@ -569,7 +569,7 @@ export interface KanbanTicketUpdate {
   sort_order?: number
   current_session_id?: string | null
   worktree_id?: string | null
-  mode?: 'build' | 'plan' | 'super-plan' | null
+  mode?: 'build' | 'plan' | 'super-plan' | 'super-build' | null
   plan_ready?: boolean
   github_pr_number?: number | null
   github_pr_url?: string | null
@@ -641,7 +641,7 @@ export interface KanbanTicketBatchCreateItem {
   sort_order?: number
   current_session_id?: string | null
   worktree_id?: string | null
-  mode?: 'build' | 'plan' | 'super-plan' | null
+  mode?: 'build' | 'plan' | 'super-plan' | 'super-build' | null
   plan_ready?: boolean
   external_provider?: string | null
   external_id?: string | null
@@ -721,7 +721,7 @@ export interface MarkdownCardDiagnostic {
 export interface PendingLaunchConfig {
   worktree: { type: 'new'; sourceBranch: string } | { type: 'existing'; worktreeId: string }
   prompt: string
-  mode: 'build' | 'plan' | 'super-plan'
+  mode: 'build' | 'plan' | 'super-plan' | 'super-build'
   model: { providerID: string; modelID: string; variant?: string } | null
   sdk: 'opencode' | 'claude-code' | 'codex'
   codexFastMode: boolean
@@ -735,7 +735,7 @@ export interface TicketFollowupMessage {
   ticket_id: string
   content: string
   role: 'user' | 'assistant'
-  mode: 'build' | 'plan' | 'super-plan'
+  mode: 'build' | 'plan' | 'super-plan' | 'super-build'
   session_id: string | null
   source: 'direct' | 'supercharge' | 'error_retry'
   created_at: string
@@ -745,7 +745,7 @@ export interface TicketFollowupMessageCreate {
   ticket_id: string
   content: string
   role?: 'user' | 'assistant'
-  mode: 'build' | 'plan' | 'super-plan'
+  mode: 'build' | 'plan' | 'super-plan' | 'super-build'
   session_id?: string | null
   source?: 'direct' | 'supercharge' | 'error_retry'
 }

@@ -22,6 +22,7 @@ import { parseRemoteLaunch } from '@shared/types/remote-launch'
 import { opencodeApi } from '@/api/opencode-api'
 import { type AgentSdk, isTerminalBacked } from '@shared/types/agent-sdk'
 import { CUSTOM_MODEL_PROVIDER_ID } from '@shared/types/custom-provider'
+import { isSuperMode, toggleSuper } from '@shared/agent-mode-prefixes'
 
 /**
  * Push the follow-up-message queue state for a session into the backend.
@@ -100,7 +101,7 @@ function getUnavailableProviderError(sdk: AgentSdk): string | null {
 }
 
 // Session mode type
-export type SessionMode = 'build' | 'plan' | 'super-plan'
+export type SessionMode = 'build' | 'plan' | 'super-plan' | 'super-build'
 
 // Pending plan approval state (from ExitPlanMode blocking tool)
 export interface PendingPlan {
@@ -1537,6 +1538,7 @@ export const useSessionStore = create<SessionState>()(
 
       // Toggle session mode between build and plan/super-plan (2-way cycle)
       // From 'build': go to 'super-plan' if superArmed, else 'plan'
+      // From 'super-build': go to 'super-plan' (super carries over)
       // From 'plan' or 'super-plan': go to 'build'
       toggleSessionMode: async (sessionId: string) => {
         const currentMode = get().modeBySession.get(sessionId) || 'build'
@@ -1544,6 +1546,8 @@ export const useSessionStore = create<SessionState>()(
         let newMode: SessionMode
         if (currentMode === 'build') {
           newMode = get().getSuperArmed(sessionId) ? 'super-plan' : 'plan'
+        } else if (currentMode === 'super-build') {
+          newMode = 'super-plan'
         } else {
           // 'plan' or 'super-plan' → back to 'build'
           newMode = 'build'
@@ -1572,24 +1576,14 @@ export const useSessionStore = create<SessionState>()(
         notifyKanbanSessionSync(sessionId, { type: 'mode_change', sessionMode: newMode })
       },
 
-      // Toggle super mode for a session (only works when in plan modes)
-      // 'plan' → 'super-plan' (superArmed = true)
-      // 'super-plan' → 'plan' (superArmed = false)
+      // Toggle super mode for a session, preserving the plan/build base mode:
+      // 'plan' ↔ 'super-plan', 'build' ↔ 'super-build'
+      // superArmed tracks whether the new mode is a super mode.
       toggleSuperMode: async (sessionId: string) => {
         const currentMode = get().modeBySession.get(sessionId) || 'build'
 
-        let newMode: SessionMode
-        let newSuperArmed: boolean
-        if (currentMode === 'plan') {
-          newMode = 'super-plan'
-          newSuperArmed = true
-        } else if (currentMode === 'super-plan') {
-          newMode = 'plan'
-          newSuperArmed = false
-        } else {
-          // Only works in plan modes; do nothing
-          return
-        }
+        const newMode: SessionMode = toggleSuper(currentMode)
+        const newSuperArmed = isSuperMode(newMode)
 
         // Update both maps atomically
         set((state) => {
@@ -1614,26 +1608,11 @@ export const useSessionStore = create<SessionState>()(
         notifyKanbanSessionSync(sessionId, { type: 'mode_change', sessionMode: newMode })
       },
 
-      // Toggle super-plan shortcut: super-plan → plan, everything else → super-plan
-      // Unlike toggleSuperMode, this does NOT mutate superArmedBySession
+      // Shift+Tab shortcut: toggle super on/off while preserving the plan/build
+      // base mode ('build' ↔ 'super-build', 'plan' ↔ 'super-plan'). Same
+      // semantics as the SUPER button, so just delegate.
       toggleSuperPlanShortcut: async (sessionId: string) => {
-        const currentMode = get().modeBySession.get(sessionId) || 'build'
-        const newMode: SessionMode = currentMode === 'super-plan' ? 'plan' : 'super-plan'
-
-        set((state) => {
-          const newModeMap = new Map(state.modeBySession)
-          newModeMap.set(sessionId, newMode)
-          return { modeBySession: newModeMap }
-        })
-
-        try {
-          await dbApi.session.update<Session>(sessionId, { mode: newMode })
-        } catch (error) {
-          console.error('Failed to persist session mode:', error)
-        }
-
-        await get().applyModeDefaultModel(sessionId, newMode)
-        notifyKanbanSessionSync(sessionId, { type: 'mode_change', sessionMode: newMode })
+        await get().toggleSuperMode(sessionId)
       },
 
       // Set session mode explicitly (also applies mode-specific model default)

@@ -3,7 +3,7 @@ import type { FollowUpTriggerColumn } from '@/stores/useSettingsStore'
 
 export function isBlockerSatisfied(
   blockerColumn: KanbanTicketColumn,
-  blockerMode: 'build' | 'plan' | 'super-plan' | null,
+  blockerMode: 'build' | 'plan' | 'super-plan' | 'super-build' | null,
   triggerColumn: FollowUpTriggerColumn
 ): boolean {
   // A merged blocker's work already landed on the base branch, so it

@@ -127,7 +127,7 @@ const receiveParamsSchema = z
     claudeSessionId: z.string().min(1),
     transcript: z.string(),
     model: modelSchema,
-    mode: z.enum(['build', 'plan', 'super-plan'])
+    mode: z.enum(['build', 'plan', 'super-plan', 'super-build'])
   })
   .strict() satisfies z.ZodType<TeleportReceiveParams>
 

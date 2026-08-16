@@ -8,6 +8,7 @@ interface UserBubbleProps {
   timestamp: string
   isPlanMode?: boolean
   isSuperPlanMode?: boolean
+  isSuperBuildMode?: boolean
   isAskMode?: boolean
   isSteered?: boolean
 }
@@ -16,6 +17,7 @@ export const UserBubble = memo(function UserBubble({
   content,
   isPlanMode,
   isSuperPlanMode,
+  isSuperBuildMode,
   isAskMode,
   isSteered
 }: UserBubbleProps): React.JSX.Element {
@@ -47,7 +49,7 @@ export const UserBubble = memo(function UserBubble({
       <div
         className={cn(
           'max-w-[80%] rounded-[10px] border px-3 py-2',
-          isSuperPlanMode
+          isSuperPlanMode || isSuperBuildMode
             ? 'bg-secondary border-border text-foreground'
             : isPlanMode
               ? 'bg-violet-500/10 border-violet-500/20 text-foreground'
@@ -62,6 +64,14 @@ export const UserBubble = memo(function UserBubble({
             data-testid="super-plan-mode-badge"
           >
             SUPER PLAN
+          </span>
+        )}
+        {isSuperBuildMode && (
+          <span
+            className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-semibold bg-orange-500/15 text-orange-400 mb-1"
+            data-testid="super-build-mode-badge"
+          >
+            SUPER BUILD
           </span>
         )}
         {isPlanMode && (

@@ -7,6 +7,7 @@ import { ForkMessageButton } from './ForkMessageButton'
 import {
   PLAN_MODE_PREFIX,
   ASK_MODE_PREFIX,
+  stripSuperBuildModePrefix,
   stripSuperPlanModePrefix
 } from '@/lib/constants'
 import type { OpenCodeMessage } from './SessionView'
@@ -66,6 +67,7 @@ export const MessageRenderer = memo(function MessageRenderer({
 }: MessageRendererProps): React.JSX.Element {
   // For user messages, check if there's a mode prefix (possibly after attachments)
   let isSuperPlanMode = false
+  let isSuperBuildMode = false
   let isPlanMode = false
   let isAskMode = false
   let displayContent = message.content
@@ -75,9 +77,13 @@ export const MessageRenderer = memo(function MessageRenderer({
 
     // Check for mode prefixes in order (longest first to avoid false positives)
     const strippedSuperPlan = stripSuperPlanModePrefix(remaining)
+    const strippedSuperBuild = strippedSuperPlan === null ? stripSuperBuildModePrefix(remaining) : null
     if (strippedSuperPlan !== null) {
       isSuperPlanMode = true
       displayContent = prefix + strippedSuperPlan
+    } else if (strippedSuperBuild !== null) {
+      isSuperBuildMode = true
+      displayContent = prefix + strippedSuperBuild
     } else if (remaining.startsWith(PLAN_MODE_PREFIX)) {
       isPlanMode = true
       displayContent = prefix + remaining.slice(PLAN_MODE_PREFIX.length)
@@ -111,6 +117,7 @@ export const MessageRenderer = memo(function MessageRenderer({
           timestamp={message.timestamp}
           isPlanMode={isPlanMode}
           isSuperPlanMode={isSuperPlanMode}
+          isSuperBuildMode={isSuperBuildMode}
           isAskMode={isAskMode}
           isSteered={message.steered}
         />

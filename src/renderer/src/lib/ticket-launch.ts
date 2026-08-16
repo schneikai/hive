@@ -15,7 +15,13 @@ import { resolveCustomProviderSelectedModel } from '@/lib/handoffSelection'
 import { messageSendTimes, lastSendMode, userExplicitSendTimes } from '@/lib/message-send-times'
 import { bumpWorktreeLastMessage } from '@/lib/last-message-utils'
 import { snapshotTokenBaseline } from '@/lib/token-baselines'
-import { PLAN_MODE_PREFIX, getSuperPlanModePrefix, isPlanLike } from '@/lib/constants'
+import {
+  PLAN_MODE_PREFIX,
+  getSuperModePrefix,
+  isPlanLike,
+  isSuperMode,
+  baseMode
+} from '@/lib/constants'
 import { canonicalizeTicketTitle } from '@shared/types/branch-utils'
 import { unwrapEnvelope } from '@/lib/ipc-envelope'
 import { opencodeApi } from '@/api/opencode-api'
@@ -27,7 +33,7 @@ import { FALLBACK_MODELS } from '@shared/model-resolution'
 import type { HandoffAgentSdk } from '@shared/types/agent-sdk'
 import type { KanbanTicketUpdate } from '../../../main/db/types'
 
-type LaunchMode = 'build' | 'plan' | 'super-plan'
+type LaunchMode = 'build' | 'plan' | 'super-plan' | 'super-build'
 
 export interface LaunchModelConfig {
   sdk: HandoffAgentSdk
@@ -81,12 +87,11 @@ function composeLaunchPrompt(
     sessionAgentSdk === 'claude-code' ||
     sessionAgentSdk === 'codex' ||
     sessionAgentSdk === 'claude-code-cli'
-  const modePrefix =
-    mode === 'super-plan'
-      ? getSuperPlanModePrefix(sessionAgentSdk)
-      : mode === 'plan' && !skipPrefix
-        ? PLAN_MODE_PREFIX
-        : ''
+  const modePrefix = isSuperMode(mode)
+    ? getSuperModePrefix(mode, sessionAgentSdk)
+    : mode === 'plan' && !skipPrefix
+      ? PLAN_MODE_PREFIX
+      : ''
   const fullPrompt = modePrefix + trimmedPrompt
 
   return goalMode && goalSuccessCriteria
@@ -353,10 +358,10 @@ export async function launchTicketWithModel(spec: TicketLaunchSpec): Promise<Tic
           claudeCli: true
         })
 
-      if (spec.mode === 'super-plan') {
+      if (isSuperMode(spec.mode)) {
         // Await so the persisted mode is committed before the main process
         // reads it in buildClaudeCliPtySpawn (createClaudeCli).
-        await useSessionStore.getState().setSessionMode(sessionId, 'plan')
+        await useSessionStore.getState().setSessionMode(sessionId, baseMode(spec.mode))
       }
 
       bumpWorktreeLastMessage({ worktreeId })
@@ -411,8 +416,8 @@ export async function launchTicketWithModel(spec: TicketLaunchSpec): Promise<Tic
 
       const promptOptions = sessionAgentSdk === 'codex' ? { codexFastMode } : undefined
 
-      if (spec.mode === 'super-plan') {
-        useSessionStore.getState().setSessionMode(sessionId, 'plan')
+      if (isSuperMode(spec.mode)) {
+        useSessionStore.getState().setSessionMode(sessionId, baseMode(spec.mode))
       }
 
       bumpWorktreeLastMessage({ worktreeId })

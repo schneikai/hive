@@ -47,7 +47,7 @@ export interface BackupTicket {
   description: string | null
   column: 'todo' | 'in_progress' | 'review' | 'merged' | 'done'
   sort_order: number
-  mode: 'build' | 'plan' | 'super-plan' | null
+  mode: 'build' | 'plan' | 'super-plan' | 'super-build' | null
   mark: string | null // 'common'|'rare'|'epic'|'legendary'
   total_tokens: number
   archived_at: string | null

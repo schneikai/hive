@@ -50,8 +50,8 @@ export const DEFAULT_SHORTCUTS: ShortcutDefinition[] = [
   },
   {
     id: 'session:super-plan-toggle',
-    label: 'Toggle Super Plan',
-    description: 'Toggle super-plan mode (Shift+Tab)',
+    label: 'Toggle Super Mode',
+    description: 'Toggle super mode — super-build or super-plan (Shift+Tab)',
     category: 'session',
     defaultBinding: { key: 'Tab', modifiers: ['shift'] }
   },

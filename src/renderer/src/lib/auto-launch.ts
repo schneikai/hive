@@ -5,7 +5,7 @@ import { launchTicketWithModel, type LaunchModelConfig } from '@/lib/ticket-laun
 import { runMultiModelLaunch } from '@/lib/multi-model-launch'
 import type { HandoffAgentSdk } from '@shared/types/agent-sdk'
 
-type AutoLaunchMode = 'build' | 'plan' | 'super-plan'
+type AutoLaunchMode = 'build' | 'plan' | 'super-plan' | 'super-build'
 
 interface AutoLaunchTicket {
   id: string

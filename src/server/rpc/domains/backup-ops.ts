@@ -171,7 +171,7 @@ const backupTicketSchema = z
     description: z.string().nullable(),
     column: z.enum(['todo', 'in_progress', 'review', 'merged', 'done']),
     sort_order: z.number(),
-    mode: z.enum(['build', 'plan', 'super-plan']).nullable(),
+    mode: z.enum(['build', 'plan', 'super-plan', 'super-build']).nullable(),
     mark: z.string().nullable(),
     total_tokens: z.number(),
     archived_at: z.string().nullable(),

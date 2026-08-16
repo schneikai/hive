@@ -43,7 +43,14 @@ import { messageSendTimes, lastSendMode, userExplicitSendTimes } from '@/lib/mes
 import { bumpWorktreeLastMessage } from '@/lib/last-message-utils'
 import { snapshotTokenBaseline } from '@/lib/token-baselines'
 import { autoPinBaseWorktree } from '@/lib/auto-pin'
-import { PLAN_MODE_PREFIX, getSuperPlanModePrefix, isPlanLike } from '@/lib/constants'
+import {
+  PLAN_MODE_PREFIX,
+  getSuperModePrefix,
+  isPlanLike,
+  isSuperMode,
+  baseMode,
+  toggleSuper
+} from '@/lib/constants'
 import { toast } from '@/lib/toast'
 import { opencodeApi } from '@/api/opencode-api'
 import { dbApi } from '@/api/db-api'
@@ -84,7 +91,7 @@ const EMPTY_ARRAY: readonly never[] = []
 const EMPTY_CUSTOM_PROVIDERS: CustomClaudeProvider[] = []
 
 // ── Types ───────────────────────────────────────────────────────────
-type PickerMode = 'build' | 'plan' | 'super-plan'
+type PickerMode = 'build' | 'plan' | 'super-plan' | 'super-build'
 type PickerAgentSdk = 'opencode' | 'claude-code' | 'claude-code-cli' | 'codex'
 
 function completionSendMode(mode: PickerMode): 'build' | 'plan' {
@@ -151,7 +158,7 @@ export function _resetLastSourceBranch(): void {
 
 // ── Prompt template builders ────────────────────────────────────────
 function getModePrefix(mode: PickerMode): string {
-  return mode === 'build'
+  return baseMode(mode) === 'build'
     ? 'Please implement the following ticket.'
     : 'Please review the following ticket and create a detailed implementation plan.'
 }
@@ -159,7 +166,7 @@ function getModePrefix(mode: PickerMode): string {
 function swapModePrefix(text: string, fromMode: PickerMode, toMode: PickerMode): string {
   const fromPrefix = getModePrefix(fromMode)
   const toPrefix = getModePrefix(toMode)
-  if (fromPrefix === toPrefix) return text // plan ↔ super-plan: same prefix
+  if (fromPrefix === toPrefix) return text // same base mode (e.g. plan ↔ super-plan): same prefix
   if (text.startsWith(fromPrefix)) {
     return toPrefix + text.slice(fromPrefix.length) // swap prefix, keep the rest
   }
@@ -212,12 +219,11 @@ function composePromptForSdk(
     sessionAgentSdk === 'claude-code' ||
     sessionAgentSdk === 'codex' ||
     sessionAgentSdk === 'claude-code-cli'
-  const modePrefix =
-    mode === 'super-plan'
-      ? getSuperPlanModePrefix(sessionAgentSdk)
-      : mode === 'plan' && !skipPrefix
-        ? PLAN_MODE_PREFIX
-        : ''
+  const modePrefix = isSuperMode(mode)
+    ? getSuperModePrefix(mode, sessionAgentSdk)
+    : mode === 'plan' && !skipPrefix
+      ? PLAN_MODE_PREFIX
+      : ''
   const fullPrompt = modePrefix + trimmedPrompt
 
   return goalMode && goalCriteria.trim()
@@ -795,9 +801,9 @@ export function WorktreePickerModal({
     setGoalMode(false)
     setGoalCriteria('')
     setMode((prev) => {
-      if (prev !== 'super-plan') return prev
+      if (!isSuperMode(prev)) return prev
       setSuperArmed(false)
-      return 'plan'
+      return baseMode(prev)
     })
     // A model picked for a different SDK isn't valid for claude-code-cli —
     // same reset `handleSdkChange` does on an explicit SDK switch.
@@ -910,7 +916,14 @@ export function WorktreePickerModal({
   // ── Handle mode toggle ──────────────────────────────────────────
   const toggleMode = useCallback(() => {
     setMode((prev) => {
-      const next: PickerMode = prev === 'build' ? (superArmed ? 'super-plan' : 'plan') : 'build'
+      const next: PickerMode =
+        prev === 'build'
+          ? superArmed
+            ? 'super-plan'
+            : 'plan'
+          : prev === 'super-build'
+            ? 'super-plan'
+            : 'build'
       setPromptText((current) => swapModePrefix(current, prev, next))
       setGoalMode(false)
       setGoalCriteria('')
@@ -919,27 +932,28 @@ export function WorktreePickerModal({
   }, [superArmed])
 
   // ── Handle SUPER toggle ─────────────────────────────────────────
-  const toggleSuper = useCallback(() => {
-    if (runOnRemote) return // super-plan is unavailable for remote launches
-    if (mode === 'plan') {
-      setMode('super-plan')
-      setSuperArmed(true)
+  const toggleSuperButton = useCallback(() => {
+    if (runOnRemote) return // super modes are unavailable for remote launches
+    const next = toggleSuper(mode) as PickerMode
+    setMode(next)
+    setSuperArmed(isSuperMode(next))
+    if (isSuperMode(next)) {
       setGoalMode(false)
       setGoalCriteria('')
-    } else if (mode === 'super-plan') {
-      setMode('plan')
-      setSuperArmed(false)
     }
   }, [mode, runOnRemote])
 
-  // ── Handle Shift+Tab super-plan shortcut ─────────────────────
+  // ── Handle Shift+Tab super shortcut (build ↔ super-build, plan ↔ super-plan) ──
   const toggleSuperShortcut = useCallback(() => {
-    if (runOnRemote) return // super-plan is unavailable for remote launches
+    if (runOnRemote) return // super modes are unavailable for remote launches
     setMode((prev) => {
-      const next: PickerMode = prev === 'super-plan' ? 'plan' : 'super-plan'
+      const next = toggleSuper(prev) as PickerMode
       setPromptText((current) => swapModePrefix(current, prev, next))
-      setGoalMode(false)
-      setGoalCriteria('')
+      setSuperArmed(isSuperMode(next))
+      if (isSuperMode(next)) {
+        setGoalMode(false)
+        setGoalCriteria('')
+      }
       return next
     })
   }, [runOnRemote])
@@ -1001,7 +1015,7 @@ export function WorktreePickerModal({
   // ── Handle Tab / Shift+Tab keys ─────────────────────────────────
   // Must use window-level capture-phase listener to beat SessionView's
   // global Tab handler which also uses capture and stops propagation.
-  // Tab = toggle build↔plan, Shift+Tab = toggle ±super-plan.
+  // Tab = toggle build↔plan, Shift+Tab = toggle ±super.
   useEffect(() => {
     if (!open || preAssignOnly) return
     const handler = (e: KeyboardEvent): void => {
@@ -1326,10 +1340,10 @@ export function WorktreePickerModal({
               claudeCli: true
             })
 
-          if (mode === 'super-plan') {
+          if (isSuperMode(mode)) {
             // Await so the persisted mode is committed before the main process
             // reads it in buildClaudeCliPtySpawn (createClaudeCli).
-            await useSessionStore.getState().setSessionMode(sessionId, 'plan')
+            await useSessionStore.getState().setSessionMode(sessionId, baseMode(mode))
           }
 
           bumpWorktreeLastMessage({ connectionId })
@@ -1371,8 +1385,8 @@ export function WorktreePickerModal({
           if (!outboundPrompt) return
           const promptOptions = sessionAgentSdk === 'codex' ? { codexFastMode } : undefined
 
-          if (mode === 'super-plan') {
-            useSessionStore.getState().setSessionMode(sessionId, 'plan')
+          if (isSuperMode(mode)) {
+            useSessionStore.getState().setSessionMode(sessionId, baseMode(mode))
           }
           if (!connectResult.sessionId) {
             throw new Error('Missing opencode session id')
@@ -1723,10 +1737,10 @@ export function WorktreePickerModal({
             claudeCli: true
           })
 
-        if (mode === 'super-plan') {
+        if (isSuperMode(mode)) {
           // Await so the persisted mode is committed before the main process
           // reads it in buildClaudeCliPtySpawn (createClaudeCli).
-          await useSessionStore.getState().setSessionMode(sessionId, 'plan')
+          await useSessionStore.getState().setSessionMode(sessionId, baseMode(mode))
         }
 
         bumpWorktreeLastMessage({ worktreeId })
@@ -1770,10 +1784,10 @@ export function WorktreePickerModal({
         if (!outboundPrompt) return
         const promptOptions = sessionAgentSdk === 'codex' ? { codexFastMode } : undefined
 
-        // Auto-revert super-plan → plan immediately (one-shot mode).
+        // Auto-revert super modes to their base mode immediately (one-shot mode).
         // The prefix is already captured in fullPrompt above.
-          if (mode === 'super-plan') {
-            useSessionStore.getState().setSessionMode(sessionId, 'plan')
+          if (isSuperMode(mode)) {
+            useSessionStore.getState().setSessionMode(sessionId, baseMode(mode))
           }
           if (!connectResult.sessionId) {
             throw new Error('Missing opencode session id')
@@ -1877,8 +1891,8 @@ export function WorktreePickerModal({
   ])
 
   // ── Mode toggle chip ────────────────────────────────────────────
-  const ModeIcon = mode === 'build' ? Hammer : Map
-  const modeLabel = mode === 'build' ? 'Build' : 'Plan'
+  const ModeIcon = baseMode(mode) === 'build' ? Hammer : Map
+  const modeLabel = baseMode(mode) === 'build' ? 'Build' : 'Plan'
 
   // Block Esc / overlay-click / X-button close while a remote launch is in
   // flight — the RPC keeps running server-side regardless, but v1 keeps the
@@ -1925,9 +1939,11 @@ export function WorktreePickerModal({
                 className={cn(
                   'flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium transition-colors',
                   'border select-none',
-                  mode === 'build'
-                    ? 'bg-blue-500/10 border-blue-500/30 text-blue-500 hover:bg-blue-500/20'
-                    : 'bg-violet-500/10 border-violet-500/30 text-violet-500 hover:bg-violet-500/20'
+                  isSuperMode(mode)
+                    ? 'bg-orange-500/10 border-orange-500/30 text-orange-500 hover:bg-orange-500/20'
+                    : mode === 'build'
+                      ? 'bg-blue-500/10 border-blue-500/30 text-blue-500 hover:bg-blue-500/20'
+                      : 'bg-violet-500/10 border-violet-500/30 text-violet-500 hover:bg-violet-500/20'
                 )}
                 title={`${modeLabel} mode`}
                 aria-label={`Current mode: ${modeLabel}. Click to switch`}
@@ -1935,27 +1951,20 @@ export function WorktreePickerModal({
                 <ModeIcon className="h-3.5 w-3.5" aria-hidden="true" />
                 <span>{modeLabel}</span>
               </button>
-              <div
-                className={cn(
-                  'transition-all duration-200 overflow-hidden',
-                  mode === 'plan' || mode === 'super-plan'
-                    ? 'opacity-100 translate-x-0 max-w-[80px]'
-                    : 'opacity-0 -translate-x-2 max-w-0 pointer-events-none'
-                )}
-              >
+              <div className="transition-all duration-200 overflow-hidden opacity-100 translate-x-0 max-w-[80px]">
                 <button
                   type="button"
-                  onClick={toggleSuper}
+                  onClick={toggleSuperButton}
                   disabled={runOnRemote}
-                  aria-pressed={mode === 'super-plan'}
-                  aria-label={`Super mode ${mode === 'super-plan' ? 'enabled' : 'disabled'}`}
+                  aria-pressed={isSuperMode(mode)}
+                  aria-label={`Super mode ${isSuperMode(mode) ? 'enabled' : 'disabled'}`}
                   data-testid="wt-picker-super-toggle"
                   title={runOnRemote ? 'Not available for remote launches' : undefined}
                   className={cn(
                     'flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium transition-colors',
                     'border select-none whitespace-nowrap',
                     'disabled:opacity-40 disabled:cursor-not-allowed',
-                    mode === 'super-plan'
+                    isSuperMode(mode)
                       ? 'bg-orange-500/10 border-orange-500/30 text-orange-500 hover:bg-orange-500/20 super-sparkle'
                       : 'bg-muted/50 border-border text-muted-foreground hover:bg-muted hover:text-foreground'
                   )}
