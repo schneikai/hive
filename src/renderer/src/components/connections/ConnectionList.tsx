@@ -1,7 +1,8 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useMemo } from 'react'
 import { Link } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { useConnectionStore } from '@/stores'
+import { useConnectionStore, useFilterStore, useProjectStore, useSpaceStore } from '@/stores'
+import { filterProjects } from '@/lib/project-filter'
 import {
   SECTION_HEADER_ICON,
   SECTION_HEADER_WRAPPER_STICKY,
@@ -33,7 +34,38 @@ export function ConnectionList(): React.JSX.Element | null {
 
   const connectionModeActive = useConnectionStore((s) => s.connectionModeActive)
 
-  if (connections.length === 0 || connectionModeActive) {
+  // Sidebar filter: a connection matches iff at least one of its projects matches
+  const filterQuery = useFilterStore((s) => s.filterQuery)
+  const activeLanguages = useFilterStore((s) => s.activeLanguages)
+  const projects = useProjectStore((s) => s.projects)
+  const activeSpaceId = useSpaceStore((s) => s.activeSpaceId)
+  const projectSpaceMap = useSpaceStore((s) => s.projectSpaceMap)
+  const filterActive = !!filterQuery.trim() || activeLanguages.length > 0
+
+  const visibleConnections = useMemo(() => {
+    if (!filterActive) return connections
+    const matchingProjectIds = new Set(
+      filterProjects(projects, {
+        filterQuery,
+        activeLanguages,
+        activeSpaceId,
+        projectSpaceMap
+      }).map((fp) => fp.project.id)
+    )
+    return connections.filter((connection) =>
+      connection.members?.some((m) => matchingProjectIds.has(m.project_id))
+    )
+  }, [
+    filterActive,
+    connections,
+    projects,
+    filterQuery,
+    activeLanguages,
+    activeSpaceId,
+    projectSpaceMap
+  ])
+
+  if (visibleConnections.length === 0 || connectionModeActive) {
     return null
   }
 
@@ -50,7 +82,7 @@ export function ConnectionList(): React.JSX.Element | null {
         <SidebarSectionHeader
           icon={<Link className={SECTION_HEADER_ICON} />}
           label="Connections"
-          count={connections.length}
+          count={visibleConnections.length}
           expanded={!isCollapsed}
           onToggle={() => setIsCollapsed((collapsed) => !collapsed)}
         />
@@ -59,7 +91,7 @@ export function ConnectionList(): React.JSX.Element | null {
       {/* Connection items */}
       {!isCollapsed && (
         <div className="flex flex-col gap-1.5" data-testid="connections-list-items">
-          {connections.map((connection) => (
+          {visibleConnections.map((connection) => (
             <ConnectionItem
               key={connection.id}
               connection={connection}
