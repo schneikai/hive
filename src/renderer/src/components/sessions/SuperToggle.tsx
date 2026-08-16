@@ -38,11 +38,11 @@ export const SuperToggle = memo(function SuperToggle({
           title="Toggle super-plan mode (Shift+Tab)"
           data-testid="super-toggle"
           className={cn(
-            'flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium transition-colors',
+            'flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium tracking-[0.01em] transition-colors',
             'border select-none whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed',
             isOn
-              ? 'bg-orange-500/10 border-orange-500/30 text-orange-500 hover:bg-orange-500/20 super-sparkle'
-              : 'bg-muted/50 border-border text-muted-foreground hover:bg-muted hover:text-foreground'
+              ? 'bg-secondary border-border text-foreground hover:bg-accent'
+              : 'bg-transparent border-border text-muted-foreground hover:bg-secondary hover:text-foreground'
           )}
         >
           SUPER

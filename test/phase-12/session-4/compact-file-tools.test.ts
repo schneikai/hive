@@ -166,8 +166,11 @@ describe('Session 4: Compact File Tools', () => {
       // the bordered card layout with data-testid="tool-card"
       const toolCardExport = content.slice(content.indexOf('export const ToolCard'))
       expect(toolCardExport).toContain('data-testid="tool-card"')
-      expect(toolCardExport).toContain('border-l-2')
-      expect(toolCardExport).toContain('borderLeftColor')
+      // Orca design: bordered card surface (no status-colored left accent)
+      expect(toolCardExport).toContain('rounded-lg border')
+      expect(toolCardExport).toContain('border-border bg-card')
+      // Error state still visually distinct from success/running
+      expect(toolCardExport).toContain('border-red-500/30 bg-red-500/5')
     })
   })
 

@@ -16,7 +16,7 @@ function StatusIcon({ status }: { status: 'running' | 'completed' | 'error' }) {
         <Loader2 className="h-3.5 w-3.5 animate-spin text-blue-500" data-testid="subtask-spinner" />
       )
     case 'completed':
-      return <Check className="h-3.5 w-3.5 text-green-500" data-testid="subtask-check" />
+      return <Check className="h-3.5 w-3.5 text-emerald-500" data-testid="subtask-check" />
     case 'error':
       return <AlertCircle className="h-3.5 w-3.5 text-red-500" data-testid="subtask-error" />
   }

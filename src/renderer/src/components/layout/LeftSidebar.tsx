@@ -1,9 +1,12 @@
-import { useEffect } from 'react'
+import { useCallback, useEffect } from 'react'
 import { useLayoutStore } from '@/stores/useLayoutStore'
 import { useProjectStore, useConnectionStore, useFilterStore, useSpaceStore } from '@/stores'
 import { useSettingsStore } from '@/stores/useSettingsStore'
+import { useKanbanStore } from '@/stores/useKanbanStore'
+import { useFileViewerStore } from '@/stores/useFileViewerStore'
 import { ResizeHandle } from './ResizeHandle'
-import { FolderGit2, Link, Loader2 } from 'lucide-react'
+import { KanbanSquare, Link, Loader2 } from 'lucide-react'
+import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import {
   ProjectList,
@@ -19,6 +22,57 @@ import { UsageIndicator } from './UsageIndicator'
 import { UpdatePill } from './UpdatePill'
 import { PinnedList } from './PinnedList'
 import { RecentList } from './RecentList'
+import {
+  LIST_CONTAINER,
+  LIST_SCROLL,
+  NAV_ICON,
+  NAV_ICON_INACTIVE,
+  NAV_ICON_STROKE_ACTIVE,
+  NAV_ICON_STROKE_INACTIVE,
+  NAV_LABEL,
+  NAV_LIST,
+  NAV_ROW,
+  NAV_ROW_ACTIVE,
+  NAV_ROW_INACTIVE,
+  SIDEBAR_HEADER,
+  SIDEBAR_HEADER_ACTIONS,
+  SIDEBAR_HEADER_ACTION_ICON_STROKE,
+  SIDEBAR_HEADER_LABEL,
+  SIDEBAR_HEADER_LEFT,
+  SIDEBAR_SHELL
+} from '@/components/sidebar'
+
+/** Orca SidebarNav row (SidebarNav.tsx:104-123): 13px medium row, size-4 icon,
+ * heavier stroke + accent fill when active. */
+function SidebarNavRow({
+  icon: Icon,
+  label,
+  active,
+  onClick,
+  testId
+}: {
+  icon: typeof KanbanSquare
+  label: string
+  active: boolean
+  onClick: () => void
+  testId: string
+}): React.JSX.Element {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-current={active ? 'page' : undefined}
+      className={cn(NAV_ROW, active ? NAV_ROW_ACTIVE : NAV_ROW_INACTIVE)}
+      data-testid={testId}
+    >
+      <Icon
+        className={cn(NAV_ICON, !active && NAV_ICON_INACTIVE)}
+        strokeWidth={active ? NAV_ICON_STROKE_ACTIVE : NAV_ICON_STROKE_INACTIVE}
+      />
+      <span className={NAV_LABEL}>{label}</span>
+    </button>
+  )
+}
 
 export function LeftSidebar(): React.JSX.Element {
   const { leftSidebarWidth, leftSidebarCollapsed, setLeftSidebarWidth } = useLayoutStore()
@@ -45,6 +99,21 @@ export function LeftSidebar(): React.JSX.Element {
   const connectionModeSubmitting = useConnectionStore((s) => s.connectionModeSubmitting)
   const exitConnectionMode = useConnectionStore((s) => s.exitConnectionMode)
   const finalizeConnection = useConnectionStore((s) => s.finalizeConnection)
+
+  // Nav row — Pinned Board toggle (same behavior as the PinnedList header
+  // button: clear file/diff overlays before showing the board, then toggle).
+  const isPinnedBoardActive = useKanbanStore((s) => s.isPinnedBoardActive)
+  const togglePinnedBoard = useKanbanStore((s) => s.togglePinnedBoard)
+
+  const handlePinnedBoardClick = useCallback((): void => {
+    if (!isPinnedBoardActive) {
+      const fileStore = useFileViewerStore.getState()
+      fileStore.setActiveFile(null)
+      fileStore.clearActiveDiff()
+      fileStore.closeContextEditor()
+    }
+    togglePinnedBoard()
+  }, [isPinnedBoardActive, togglePinnedBoard])
 
   const canFinalize = connectionModeSelectedIds.size >= 2
 
@@ -105,28 +174,48 @@ export function LeftSidebar(): React.JSX.Element {
 
   return (
     <div className="flex flex-shrink-0" data-testid="left-sidebar-container">
+      {/* Orca sidebar/index.tsx:110 shell — nav, header, list viewport, footer */}
       <aside
-        className="bg-sidebar text-sidebar-foreground border-r flex flex-col overflow-hidden"
+        className={cn(
+          SIDEBAR_SHELL,
+          'text-worktree-sidebar-foreground border-r border-worktree-sidebar-border'
+        )}
         style={{ width: leftSidebarWidth }}
         data-testid="left-sidebar"
         data-width={leftSidebarWidth}
         role="navigation"
         aria-label="Projects and worktrees"
       >
-        {connectionModeActive ? (
-          <div className="p-3 border-b flex items-center justify-between bg-muted/50">
-            <div className="flex items-center gap-2 text-sm font-medium min-w-0">
-              <Link className="h-4 w-4 text-primary shrink-0" />
-              <span className="truncate">Select worktrees</span>
-              <span className="text-xs text-muted-foreground shrink-0">
-                ({connectionModeSelectedIds.size})
-              </span>
+        {/* Orca SidebarNav: nav rows + search field */}
+        <div className={NAV_LIST}>
+          <SidebarNavRow
+            icon={KanbanSquare}
+            label="Pinned Board"
+            active={isPinnedBoardActive}
+            onClick={handlePinnedBoardClick}
+            testId="sidebar-nav-pinned-board"
+          />
+          {projectCount > 1 && <ProjectFilter value={filterQuery} onChange={setFilterQuery} />}
+          {activeLanguages.length > 0 && (
+            <div className="px-0.5 pt-1">
+              <FilterChips languages={activeLanguages} onRemove={removeLanguage} />
             </div>
-            <div className="flex items-center gap-1 shrink-0">
+          )}
+        </div>
+
+        {/* Orca SidebarHeader ("Workspaces" → "Projects") */}
+        {connectionModeActive ? (
+          <div className={SIDEBAR_HEADER}>
+            <div className={cn(SIDEBAR_HEADER_LEFT, SIDEBAR_HEADER_LABEL, 'gap-1.5')}>
+              <Link className="size-3.5 shrink-0" strokeWidth={SIDEBAR_HEADER_ACTION_ICON_STROKE} />
+              <span className="truncate">Select worktrees</span>
+              <span className="shrink-0 tabular-nums">({connectionModeSelectedIds.size})</span>
+            </div>
+            <div className={cn(SIDEBAR_HEADER_ACTIONS, 'gap-1')}>
               <Button
                 variant="ghost"
                 size="sm"
-                className="h-7 text-xs"
+                className="h-6 px-2 text-[12px] text-muted-foreground"
                 onClick={exitConnectionMode}
                 disabled={connectionModeSubmitting}
               >
@@ -134,13 +223,13 @@ export function LeftSidebar(): React.JSX.Element {
               </Button>
               <Button
                 size="sm"
-                className="h-7 text-xs"
+                className="h-6 px-2 text-[12px]"
                 onClick={finalizeConnection}
                 disabled={!canFinalize || connectionModeSubmitting}
               >
                 {connectionModeSubmitting ? (
                   <>
-                    <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                    <Loader2 className="size-3 animate-spin" />
                     Connecting...
                   </>
                 ) : (
@@ -150,12 +239,11 @@ export function LeftSidebar(): React.JSX.Element {
             </div>
           </div>
         ) : (
-          <div className="p-3 border-b flex items-center justify-between">
-            <div className="flex items-center gap-2 text-sm font-medium">
-              <FolderGit2 className="h-4 w-4" />
-              <span>Projects</span>
+          <div className={SIDEBAR_HEADER}>
+            <div className={SIDEBAR_HEADER_LEFT}>
+              <span className={SIDEBAR_HEADER_LABEL}>Projects</span>
             </div>
-            <div className="flex items-center gap-1">
+            <div className={SIDEBAR_HEADER_ACTIONS}>
               <ConnectionsButton />
               <RecentToggleButton />
               <SortProjectsButton />
@@ -163,28 +251,31 @@ export function LeftSidebar(): React.JSX.Element {
             </div>
           </div>
         )}
-        {projectCount > 1 && (
-          <div className="px-3 py-2 border-b">
-            <ProjectFilter value={filterQuery} onChange={setFilterQuery} />
+
+        {/* Orca list viewport (VirtualizedWorktreeViewport): pl-1 pt-px scroll root
+            with the hover-reveal sidebar scrollbar; the flex gap stands in for the
+            virtualizer's 6px row gap between the section lists. */}
+        <div className={LIST_CONTAINER} data-worktree-sidebar-container="">
+          <div
+            className={cn(LIST_SCROLL, 'flex flex-col gap-1.5')}
+            style={{ overflowAnchor: 'none' }}
+            data-testid="sidebar-scroll-container"
+          >
+            <PinnedList />
+            <RecentList />
+            <ConnectionList />
+            <ProjectList
+              onAddProject={handleAddProject}
+              filterQuery={filterQuery}
+              activeLanguages={activeLanguages}
+            />
           </div>
-        )}
-        {activeLanguages.length > 0 && (
-          <div className="px-3 py-1.5 border-b">
-            <FilterChips languages={activeLanguages} onRemove={removeLanguage} />
-          </div>
-        )}
-        <div className="flex-1 overflow-auto p-2" data-testid="sidebar-scroll-container">
-          <PinnedList />
-          <RecentList />
-          <ConnectionList />
-          <ProjectList
-            onAddProject={handleAddProject}
-            filterQuery={filterQuery}
-            activeLanguages={activeLanguages}
-          />
         </div>
+
+        {/* Orca footer slot: notice card(s) above the fixed bottom toolbar */}
         {!connectionModeActive && <UpdatePill />}
-        {!connectionModeActive && (shouldShowUsageIndicator ? <UsageIndicator /> : <SpacesTabBar />)}
+        {!connectionModeActive &&
+          (shouldShowUsageIndicator ? <UsageIndicator /> : <SpacesTabBar />)}
       </aside>
       <ResizeHandle onResize={handleResize} direction="left" />
     </div>

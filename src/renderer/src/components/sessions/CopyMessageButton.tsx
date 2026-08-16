@@ -8,7 +8,9 @@ interface CopyMessageButtonProps {
   content: string
 }
 
-export const CopyMessageButton = memo(function CopyMessageButton({ content }: CopyMessageButtonProps) {
+export const CopyMessageButton = memo(function CopyMessageButton({
+  content
+}: CopyMessageButtonProps) {
   const [copied, setCopied] = useState(false)
 
   if (!content.trim()) return null
@@ -33,7 +35,7 @@ export const CopyMessageButton = memo(function CopyMessageButton({ content }: Co
       data-testid="copy-message-button"
     >
       {copied ? (
-        <Check className="h-3 w-3 text-green-500" />
+        <Check className="h-3 w-3 text-emerald-500" />
       ) : (
         <Copy className="h-3 w-3 text-muted-foreground" />
       )}

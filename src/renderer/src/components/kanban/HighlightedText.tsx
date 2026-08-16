@@ -18,7 +18,7 @@ export function HighlightedText({
   while (idx !== -1) {
     if (idx > cursor) parts.push(display.slice(cursor, idx))
     parts.push(
-      <mark key={idx} className="bg-primary/25 text-inherit rounded-[3px] px-px">
+      <mark key={idx} className="bg-foreground/20 text-inherit rounded-[3px] px-px">
         {display.slice(idx, idx + normQuery.length)}
       </mark>
     )

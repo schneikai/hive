@@ -21,12 +21,13 @@ export function WindowChromeControls(): React.JSX.Element | null {
 
   return (
     <div
-      className="flex items-center gap-2"
+      className="flex items-center gap-0.5"
       style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
     >
       <Button
         variant="ghost"
         size="icon"
+        className="size-6 rounded-md text-muted-foreground hover:bg-accent hover:text-foreground"
         onClick={() => void windowControls.windowMinimize?.()}
         title="Minimize"
         data-testid="window-minimize"
@@ -36,6 +37,7 @@ export function WindowChromeControls(): React.JSX.Element | null {
       <Button
         variant="ghost"
         size="icon"
+        className="size-6 rounded-md text-muted-foreground hover:bg-accent hover:text-foreground"
         onClick={() => void windowControls.windowMaximize?.()}
         title={isMaximized ? 'Restore' : 'Maximize'}
         data-testid="window-maximize"
@@ -45,6 +47,7 @@ export function WindowChromeControls(): React.JSX.Element | null {
       <Button
         variant="ghost"
         size="icon"
+        className="size-6 rounded-md text-muted-foreground hover:bg-red-600 hover:text-white"
         onClick={() => void windowControls.windowClose()}
         title="Close"
         data-testid="window-close"

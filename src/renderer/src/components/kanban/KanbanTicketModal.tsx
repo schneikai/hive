@@ -1636,7 +1636,7 @@ function EditModeContent({
       onDragEnter={handleDragEnter}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
-      className={cn(isDragOver && 'ring-2 ring-primary ring-offset-2 rounded-lg')}
+      className={cn(isDragOver && 'ring-[3px] ring-ring/50 rounded-lg')}
     >
       <DialogHeader>
         <div className="flex items-center justify-between">
@@ -1765,7 +1765,7 @@ function EditModeContent({
                   >
                     <div className="flex items-center gap-2 min-w-0">
                       {isBlockerSatisfied(blocker.column, blocker.mode, followUpTriggerColumn) ? (
-                        <span className="text-green-500 text-xs">&#10003;</span>
+                        <span className="text-emerald-500 text-xs">&#10003;</span>
                       ) : (
                         <Lock className="h-3 w-3 text-amber-500" />
                       )}
@@ -2986,8 +2986,8 @@ function PlanReviewModeContent({
 
       {/* Drag-and-drop overlay */}
       {!isClaudeCliPlanSession && isDragging && (
-        <div className="absolute inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm rounded-lg border-2 border-dashed border-primary/50">
-          <div className="flex flex-col items-center gap-2 text-primary">
+        <div className="absolute inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm rounded-lg border-2 border-dashed border-ring">
+          <div className="flex flex-col items-center gap-2 text-muted-foreground">
             <Upload className="h-8 w-8" />
             <span className="text-sm font-medium">Drop files here</span>
           </div>
@@ -3019,7 +3019,7 @@ function PlanReviewModeContent({
               data-testid="plan-review-supercharge-local-btn"
               disabled={isActioning || !hasWorkingContext}
               onClick={handleSuperchargeLocal}
-              className="gap-1.5 border-violet-600 text-violet-600 hover:bg-violet-100 dark:hover:bg-violet-950"
+              className="gap-1.5"
               variant="outline"
             >
               <Bolt className="h-3.5 w-3.5" />
@@ -3032,7 +3032,7 @@ function PlanReviewModeContent({
               data-testid="plan-review-supercharge-btn"
               disabled={isActioning || !hasWorkingContext}
               onClick={handleSupercharge}
-              className="gap-1.5 bg-violet-600 hover:bg-violet-700 text-white"
+              className="gap-1.5"
             >
               <Zap className="h-3.5 w-3.5" />
               Supercharge
@@ -3490,8 +3490,8 @@ function ReviewModeContent({
 
       {/* Drag-and-drop overlay */}
       {isDragging && (
-        <div className="absolute inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm rounded-lg border-2 border-dashed border-primary/50">
-          <div className="flex flex-col items-center gap-2 text-primary">
+        <div className="absolute inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm rounded-lg border-2 border-dashed border-ring">
+          <div className="flex flex-col items-center gap-2 text-muted-foreground">
             <Upload className="h-8 w-8" />
             <span className="text-sm font-medium">Drop files here</span>
           </div>
@@ -3793,8 +3793,8 @@ function ErrorModeContent({
 
       {/* Drag-and-drop overlay */}
       {isDragging && (
-        <div className="absolute inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm rounded-lg border-2 border-dashed border-primary/50">
-          <div className="flex flex-col items-center gap-2 text-primary">
+        <div className="absolute inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm rounded-lg border-2 border-dashed border-ring">
+          <div className="flex flex-col items-center gap-2 text-muted-foreground">
             <Upload className="h-8 w-8" />
             <span className="text-sm font-medium">Drop files here</span>
           </div>

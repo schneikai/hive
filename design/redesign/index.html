@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Hive Redesign — 5 Directions</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@100..900&family=Geist+Mono:wght@100..900&display=swap" rel="stylesheet">
+<style>
+:root { color-scheme: dark; }
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  min-height: 100vh; background: #0a0a0a; color: #fafafa;
+  font-family: 'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  letter-spacing: 0.01em; -webkit-font-smoothing: antialiased;
+  display: flex; flex-direction: column; align-items: center;
+  padding: 64px 24px 80px;
+}
+h1 { font-size: 28px; font-weight: 700; letter-spacing: -0.02em; }
+.sub { margin-top: 8px; font-size: 13px; color: #a1a1a1; max-width: 560px; text-align: center; line-height: 1.6; }
+.sub code { font-family: 'Geist Mono', monospace; font-size: 12px; background: #171717; border: 1px solid rgb(255 255 255 / 0.07); border-radius: 4px; padding: 1px 5px; }
+.grid { margin-top: 40px; display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 340px)); gap: 14px; justify-content: center; width: 100%; max-width: 1120px; }
+a.card {
+  display: flex; flex-direction: column; gap: 10px; text-decoration: none; color: inherit;
+  background: #171717; border: 1px solid rgb(255 255 255 / 0.07); border-radius: 12px;
+  padding: 18px 18px 16px; transition: border-color 150ms, background 150ms, transform 150ms;
+}
+a.card:hover { border-color: rgb(255 255 255 / 0.2); background: #1c1c1c; transform: translateY(-2px); }
+.num { font-family: 'Geist Mono', monospace; font-size: 10px; color: #737373; letter-spacing: 0.08em; }
+.name { font-size: 16px; font-weight: 600; letter-spacing: -0.01em; display: flex; align-items: center; gap: 8px; }
+.tag { font-size: 9px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; padding: 2px 7px; border-radius: 999px; border: 1px solid rgb(255 255 255 / 0.14); color: #a1a1a1; }
+.desc { font-size: 12px; color: #a1a1a1; line-height: 1.6; }
+.swatches { display: flex; gap: 5px; margin-top: 2px; }
+.sw { width: 22px; height: 22px; border-radius: 6px; border: 1px solid rgb(255 255 255 / 0.12); }
+footer { margin-top: 48px; font-size: 11px; color: #525252; }
+</style>
+</head>
+<body>
+  <h1>Hive — Redesign Directions</h1>
+  <p class="sub">Five standalone mockups of the main Hive window, all rooted in the <code>orca</code> design language: neutral chrome, Geist type, 36px titlebar, color reserved for status. Direction 1 is a faithful port; the rest each add one twist. Use the chip in the corner of each page to flip between them.</p>
+
+  <div class="grid">
+    <a class="card" href="01-orca.html">
+      <span class="num">DIRECTION 01</span>
+      <span class="name">Orca <span class="tag">faithful</span></span>
+      <span class="desc">Near-identical port of orca's system: #0a0a0a canvas, lifted #2a2a2a workspace sidebar, 7%-white hairline borders, yellow stepped working spinner, glass overlays.</span>
+      <span class="swatches">
+        <span class="sw" style="background:#0a0a0a"></span><span class="sw" style="background:#171717"></span><span class="sw" style="background:#2a2a2a"></span><span class="sw" style="background:#a1a1a1"></span><span class="sw" style="background:#eab308"></span>
+      </span>
+    </a>
+
+    <a class="card" href="02-honey.html">
+      <span class="num">DIRECTION 02</span>
+      <span class="name">Honey <span class="tag">hive accent</span></span>
+      <span class="desc">Same neutral bones, warmed a few degrees, with a single honey-amber brand accent on active states and the send button — orca's restraint, Hive's identity.</span>
+      <span class="swatches">
+        <span class="sw" style="background:#0b0a08"></span><span class="sw" style="background:#181613"></span><span class="sw" style="background:#2b2720"></span><span class="sw" style="background:#a8a094"></span><span class="sw" style="background:#f5b800"></span>
+      </span>
+    </a>
+
+    <a class="card" href="03-porcelain.html">
+      <span class="num">DIRECTION 03</span>
+      <span class="name">Porcelain <span class="tag">light</span></span>
+      <span class="desc">Orca's real light tokens: white canvas, #f5f5f5 sidebar, ink text, whisper-grey borders — with a dark terminal panel for contrast.</span>
+      <span class="swatches">
+        <span class="sw" style="background:#ffffff"></span><span class="sw" style="background:#fafafa"></span><span class="sw" style="background:#f5f5f5"></span><span class="sw" style="background:#737373"></span><span class="sw" style="background:#d4a300"></span>
+      </span>
+    </a>
+
+    <a class="card" href="04-mist.html">
+      <span class="num">DIRECTION 04</span>
+      <span class="name">Mist <span class="tag">soft glass</span></span>
+      <span class="desc">A bridge from today's glass-dark: cool slate surfaces, faint atmospheric gradient, blurred translucent panels, softer radii, periwinkle accent.</span>
+      <span class="swatches">
+        <span class="sw" style="background:#0e1014"></span><span class="sw" style="background:#151920"></span><span class="sw" style="background:#1a1f28"></span><span class="sw" style="background:#8b94a7"></span><span class="sw" style="background:#8ea6ff"></span>
+      </span>
+    </a>
+
+    <a class="card" href="05-mono.html">
+      <span class="num">DIRECTION 05</span>
+      <span class="name">Mono <span class="tag">terminal-grade</span></span>
+      <span class="desc">The sharpest cut: flat graphite, 4px radii, square status marks, mono-uppercase chrome labels, hairline rules — engineered density.</span>
+      <span class="swatches">
+        <span class="sw" style="background:#09090b"></span><span class="sw" style="background:#131316"></span><span class="sw" style="background:#1a1a1f"></span><span class="sw" style="background:#9d9da8"></span><span class="sw" style="background:#f4f4f5"></span>
+      </span>
+    </a>
+  </div>
+
+  <h2 style="margin-top:56px;font-size:20px;font-weight:700;letter-spacing:-0.02em">Deep dives — Orca direction</h2>
+  <p class="sub">More screens and states rendered in the faithful orca tokens from Direction 1.</p>
+
+  <div class="grid">
+    <a class="card" href="06-board.html">
+      <span class="num">DEEP DIVE 06</span>
+      <span class="name">Board <span class="tag">kanban</span></span>
+      <span class="desc">The full board system: To Do / In Progress / Review / Done columns, ticket cards with model, PR, subagent and blocker badges, progress timers, a dragged card, connections and language-tinted project chips in the sidebar.</span>
+      <span class="swatches">
+        <span class="sw" style="background:#0a0a0a"></span><span class="sw" style="background:#171717"></span><span class="sw" style="background:#3b82f6"></span><span class="sw" style="background:#8b5cf6"></span><span class="sw" style="background:#10b981"></span>
+      </span>
+    </a>
+
+    <a class="card" href="07-terminal-usage.html">
+      <span class="num">DEEP DIVE 07</span>
+      <span class="name">Terminal &amp; Usage <span class="tag">panels</span></span>
+      <span class="desc">The main-pane terminal open (Ghostty dark surface, ANSI test output, terminal tabs) plus the account-usage glass popover hovered over the sidebar footer — two accounts, 5h/7d bars, switch/refresh/schedule actions.</span>
+      <span class="swatches">
+        <span class="sw" style="background:#0a0a0a"></span><span class="sw" style="background:#282c34"></span><span class="sw" style="background:#b5bd68"></span><span class="sw" style="background:#cc6666"></span><span class="sw" style="background:#a1a1a1"></span>
+      </span>
+    </a>
+
+    <a class="card" href="08-pr.html">
+      <span class="num">DEEP DIVE 08</span>
+      <span class="name">Create PR <span class="tag">dialog</span></span>
+      <span class="desc">The Create Pull Request window as an orca glass dialog: branch chips, generated title and description, draft toggle, over the blurred session view.</span>
+      <span class="swatches">
+        <span class="sw" style="background:#0a0a0a"></span><span class="sw" style="background:rgba(23,23,23,0.96)"></span><span class="sw" style="background:#262626"></span><span class="sw" style="background:#e5e5e5"></span><span class="sw" style="background:#10b981"></span>
+      </span>
+    </a>
+
+    <a class="card" href="09-connections.html">
+      <span class="num">DEEP DIVE 09</span>
+      <span class="name">Connections <span class="tag">multi-repo</span></span>
+      <span class="desc">Connection-select mode with checkboxes in the sidebar, an existing two-repo connection, a cross-repo session whose tool cards carry repo chips, and repo-grouped changes on the right.</span>
+      <span class="swatches">
+        <span class="sw" style="background:#0a0a0a"></span><span class="sw" style="background:#2a2a2a"></span><span class="sw" style="background:#38bdf8"></span><span class="sw" style="background:#6ea8dc"></span><span class="sw" style="background:#d4b962"></span>
+      </span>
+    </a>
+  </div>
+
+  <footer>design/redesign · generated from the orca design-system audit</footer>
+</body>
+</html>

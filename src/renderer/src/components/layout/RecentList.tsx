@@ -1,5 +1,5 @@
 import { useEffect, useMemo } from 'react'
-import { AlertCircle, Link, Loader2, Map as MapIcon, Zap } from 'lucide-react'
+import { Link, Zap } from 'lucide-react'
 import { cn, parseColorQuad } from '@/lib/utils'
 import {
   useProjectStore,
@@ -14,6 +14,30 @@ import { useGitStore } from '@/stores/useGitStore'
 import { ModelIcon } from '@/components/worktrees/ModelIcon'
 import { PulseAnimation } from '@/components/worktrees/PulseAnimation'
 import { LanguageIcon } from '@/components/projects/LanguageIcon'
+import {
+  AGENT_LIST,
+  AGENT_LIST_AFTER_TITLE,
+  AGENT_ROW_ICON_WRAP,
+  AgentStateDot,
+  CARD_CONTENT_COLUMN,
+  CARD_CONTENT_COLUMN_OVERFLOW_VISIBLE,
+  CARD_LANE,
+  CARD_LANE_SLOT,
+  CARD_LANE_UNREAD_DOT,
+  CARD_LANE_UNREAD_WRAP,
+  CARD_PARENT_ROW,
+  CARD_PARENT_ROW_ALIGN,
+  CARD_TITLE_IS_DIM,
+  CARD_TITLE_IS_UNREAD,
+  CARD_TITLE_ROW,
+  CARD_TITLE_ROW_LEFT,
+  SECTION_HEADER_ICON,
+  SidebarAgentRow,
+  SidebarSectionHeader,
+  WorkspaceCardSurface,
+  getFlushWorktreeCardPaddingLeft,
+  type AgentDotState
+} from '@/components/sidebar'
 
 type RecentItem =
   | { kind: 'worktree'; id: string; timestamp: number }
@@ -75,11 +99,16 @@ export function RecentList(): React.JSX.Element | null {
   }
 
   return (
-    <div className="mb-1" data-testid="recent-list">
-      <div className="flex items-center gap-1.5 px-2 py-1 text-xs font-medium text-muted-foreground">
-        <Zap className="h-3 w-3" />
-        <span>Recent</span>
-      </div>
+    // Orca virtual-row rhythm: ROW_GAP (6px) between header and every card; the
+    // trailing pb-2.5 (= ROW_GAP + GROUP_HEADER_TOP_MARGIN) gives the next
+    // section header its 6px gap + pt-1 spacer.
+    <div className="flex flex-col gap-1.5 pb-2.5" data-testid="recent-list">
+      <SidebarSectionHeader
+        sticky
+        icon={<Zap className={SECTION_HEADER_ICON} />}
+        label="Recent"
+        count={items.length}
+      />
       {items.map((item) =>
         item.kind === 'worktree' ? (
           <RecentWorktreeItem key={`wt-${item.id}`} worktreeId={item.id} />
@@ -87,7 +116,6 @@ export function RecentList(): React.JSX.Element | null {
           <RecentConnectionItem key={`conn-${item.id}`} connectionId={item.id} />
         )
       )}
-      <div className="border-b border-border/50 mx-2 mt-1 mb-1" />
     </div>
   )
 }
@@ -124,6 +152,12 @@ function RecentWorktreeItem({ worktreeId }: { worktreeId: string }): React.JSX.E
   if (!worktree || !project) return null
 
   const displayBranch = liveBranch?.name ?? worktree.name
+  // Single-line identity "project › worktree"; the primary worktree shows its
+  // real branch instead of the placeholder worktree name.
+  const secondaryLabel = worktree.is_default
+    ? (liveBranch?.name ?? worktree.branch_name ?? displayBranch)
+    : displayBranch
+  const isUnread = worktreeStatus === 'unread'
 
   const handleClick = (): void => {
     selectWorktree(worktreeId)
@@ -137,43 +171,54 @@ function RecentWorktreeItem({ worktreeId }: { worktreeId: string }): React.JSX.E
   }
 
   return (
-    <div
-      className={cn(
-        'group flex items-center gap-1.5 px-2 py-1 rounded-md cursor-pointer transition-colors mx-1',
-        isSelected ? 'bg-accent text-accent-foreground' : 'hover:bg-accent/50'
-      )}
+    <WorkspaceCardSurface
+      active={isSelected ? 'primary' : false}
+      className="group/worktree-card"
+      style={{ paddingLeft: getFlushWorktreeCardPaddingLeft(0) }}
       onClick={handleClick}
       data-testid={`recent-worktree-${worktreeId}`}
     >
-      {/* Project icon */}
-      <LanguageIcon language={project.language} customIcon={project.custom_icon} detectedIcon={project.detected_icon} />
+      <div className={cn(CARD_PARENT_ROW, CARD_PARENT_ROW_ALIGN)}>
+        <StatusLane status={worktreeStatus} />
 
-      {/* Status indicators (heartbeat + AI status) */}
-      {isRunProcessAlive && <PulseAnimation className="h-3.5 w-3.5 text-green-500 shrink-0" />}
-      {(worktreeStatus === 'working' || worktreeStatus === 'planning') && (
-        <Loader2 className="h-3.5 w-3.5 text-primary shrink-0 animate-spin" />
-      )}
-      {(worktreeStatus === 'answering' || worktreeStatus === 'permission') && (
-        <AlertCircle className="h-3.5 w-3.5 text-amber-500 shrink-0" />
-      )}
-      {worktreeStatus === 'plan_ready' && (
-        <MapIcon className="h-3.5 w-3.5 text-blue-400 shrink-0" />
-      )}
+        <div className={cn(CARD_CONTENT_COLUMN, CARD_CONTENT_COLUMN_OVERFLOW_VISIBLE)}>
+          {/* Title row: project icon + "project › worktree" */}
+          <div className={CARD_TITLE_ROW}>
+            <div className={CARD_TITLE_ROW_LEFT}>
+              <LanguageIcon
+                language={project.language}
+                customIcon={project.custom_icon}
+                detectedIcon={project.detected_icon}
+              />
+              <span
+                className={isUnread ? CARD_TITLE_IS_UNREAD : CARD_TITLE_IS_DIM}
+                title={worktree.path}
+              >
+                {project.name} <span className="text-muted-foreground">›</span> {secondaryLabel}
+              </span>
+            </div>
+          </div>
 
-      {/* Name and status line */}
-      <div className="flex-1 min-w-0">
-        <span className="text-sm truncate block" title={worktree.path}>
-          {project.name} <span className="text-muted-foreground">›</span> {displayBranch}
-        </span>
-        <div className="flex items-center">
-          <ModelIcon worktreeId={worktreeId} className="h-2.5 w-2.5 mr-1 shrink-0" />
-          <StatusText status={worktreeStatus} />
+          {/* Inline agent row (orca compact agent row): state dot · model · status */}
+          <div className={cn(AGENT_LIST, AGENT_LIST_AFTER_TITLE)} data-compact-agent-list="true">
+            <SidebarAgentRow
+              leading={
+                <>
+                  <AgentStateDot state={statusToDotState(worktreeStatus)} size="sm" />
+                  {isRunProcessAlive && (
+                    <PulseAnimation className="size-3 shrink-0 text-blue-500" />
+                  )}
+                  <span className={AGENT_ROW_ICON_WRAP}>
+                    <ModelIcon worktreeId={worktreeId} className="size-[13px] shrink-0" />
+                  </span>
+                </>
+              }
+              label={<StatusText status={worktreeStatus} />}
+            />
+          </div>
         </div>
       </div>
-
-      {/* Unread dot */}
-      {worktreeStatus === 'unread' && <span className="h-2 w-2 rounded-full bg-primary shrink-0" />}
-    </div>
+    </WorkspaceCardSurface>
   )
 }
 
@@ -201,55 +246,57 @@ function RecentConnectionItem({
   ].join(' + ')
 
   const displayName = connection.custom_name || projectNames || connection.name || 'Connection'
+  const isUnread = connectionStatus === 'unread'
 
   const handleClick = (): void => {
     selectConnection(connectionId)
   }
 
   return (
-    <div
-      className={cn(
-        'group flex items-center gap-1.5 px-2 py-1 rounded-md cursor-pointer transition-colors mx-1',
-        isSelected ? 'bg-accent text-accent-foreground' : 'hover:bg-accent/50'
-      )}
+    <WorkspaceCardSurface
+      active={isSelected ? 'primary' : false}
+      className="group/worktree-card"
+      style={{ paddingLeft: getFlushWorktreeCardPaddingLeft(0) }}
       onClick={handleClick}
       data-testid={`recent-connection-${connectionId}`}
     >
-      {/* Connection color dot or link icon */}
-      {connection.color ? (
-        <span
-          className="h-2.5 w-2.5 rounded-full flex-shrink-0"
-          style={{ backgroundColor: parseColorQuad(connection.color)[1] }}
-          aria-hidden="true"
-        />
-      ) : (
-        <Link className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-      )}
+      <div className={cn(CARD_PARENT_ROW, CARD_PARENT_ROW_ALIGN)}>
+        <StatusLane status={connectionStatus} />
 
-      {/* Status icon (alongside color) */}
-      {(connectionStatus === 'working' || connectionStatus === 'planning') && (
-        <Loader2 className="h-3.5 w-3.5 text-primary shrink-0 animate-spin" />
-      )}
-      {(connectionStatus === 'answering' || connectionStatus === 'permission') && (
-        <AlertCircle className="h-3.5 w-3.5 text-amber-500 shrink-0" />
-      )}
-      {connectionStatus === 'plan_ready' && (
-        <MapIcon className="h-3.5 w-3.5 text-blue-400 shrink-0" />
-      )}
+        <div className={cn(CARD_CONTENT_COLUMN, CARD_CONTENT_COLUMN_OVERFLOW_VISIBLE)}>
+          {/* Title row: connection color dot / link glyph + name */}
+          <div className={CARD_TITLE_ROW}>
+            <div className={CARD_TITLE_ROW_LEFT}>
+              <span className="inline-flex size-4 shrink-0 items-center justify-center">
+                {connection.color ? (
+                  <span
+                    className="h-2.5 w-2.5 shrink-0 rounded-full"
+                    style={{ backgroundColor: parseColorQuad(connection.color)[1] }}
+                    aria-hidden="true"
+                  />
+                ) : (
+                  <Link className="size-3.5 shrink-0 text-muted-foreground" />
+                )}
+              </span>
+              <span
+                className={isUnread ? CARD_TITLE_IS_UNREAD : CARD_TITLE_IS_DIM}
+                title={displayName}
+              >
+                {displayName}
+              </span>
+            </div>
+          </div>
 
-      {/* Name and status line */}
-      <div className="flex-1 min-w-0">
-        <span className="text-sm truncate block" title={displayName}>
-          {displayName}
-        </span>
-        <StatusText status={connectionStatus} />
+          {/* Inline agent row: state dot · status */}
+          <div className={cn(AGENT_LIST, AGENT_LIST_AFTER_TITLE)} data-compact-agent-list="true">
+            <SidebarAgentRow
+              leading={<AgentStateDot state={statusToDotState(connectionStatus)} size="sm" />}
+              label={<StatusText status={connectionStatus} />}
+            />
+          </div>
+        </div>
       </div>
-
-      {/* Unread dot */}
-      {connectionStatus === 'unread' && (
-        <span className="h-2 w-2 rounded-full bg-primary shrink-0" />
-      )}
-    </div>
+    </WorkspaceCardSurface>
   )
 }
 
@@ -257,25 +304,51 @@ function RecentConnectionItem({
 
 type StatusType = string | null
 
-function StatusText({ status }: { status: StatusType }): React.JSX.Element {
-  const { text, className } =
-    status === 'answering'
-      ? { text: 'Answer questions', className: 'font-semibold text-amber-500' }
-      : status === 'permission'
-        ? { text: 'Permission', className: 'font-semibold text-amber-500' }
-        : status === 'planning'
-          ? { text: 'Planning', className: 'font-semibold text-blue-400' }
-          : status === 'working'
-            ? { text: 'Working', className: 'font-semibold text-primary' }
-            : status === 'plan_ready'
-              ? { text: 'Plan ready', className: 'font-semibold text-blue-400' }
-              : status === 'completed'
-                ? { text: 'Ready', className: 'font-semibold text-green-400' }
-                : { text: 'Ready', className: 'text-muted-foreground' }
+/** Map Hive session status → orca AgentStateDot vocabulary. */
+function statusToDotState(status: StatusType): AgentDotState {
+  switch (status) {
+    case 'working':
+    case 'planning':
+      return 'working'
+    case 'answering':
+    case 'permission':
+    case 'command_approval':
+    case 'plan_ready':
+      return 'question'
+    default:
+      // completed / unread / idle all read as the emerald "ready" dot (orca StatusIndicator)
+      return 'done'
+  }
+}
 
+/** Orca status lane: 20px slot, 12px StatusIndicator glyph, amber unread overlay dot. */
+function StatusLane({ status }: { status: StatusType }): React.JSX.Element {
+  const unread = status === 'unread'
   return (
-    <span className={cn('text-[11px]', className)} data-testid="recent-status-text">
-      {text}
-    </span>
+    <div className={CARD_LANE}>
+      <span className={unread ? CARD_LANE_UNREAD_WRAP : CARD_LANE_SLOT}>
+        <AgentStateDot state={statusToDotState(status)} size="md" />
+        {unread && <span className={CARD_LANE_UNREAD_DOT} data-worktree-unread-dot="" />}
+      </span>
+    </div>
   )
+}
+
+function StatusText({ status }: { status: StatusType }): React.JSX.Element {
+  const text =
+    status === 'answering'
+      ? 'Answer questions'
+      : status === 'permission'
+        ? 'Permission'
+        : status === 'command_approval'
+          ? 'Approve command'
+          : status === 'planning'
+            ? 'Planning'
+            : status === 'working'
+              ? 'Working'
+              : status === 'plan_ready'
+                ? 'Plan ready'
+                : 'Ready'
+
+  return <span data-testid="recent-status-text">{text}</span>
 }

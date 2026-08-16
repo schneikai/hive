@@ -20,7 +20,7 @@ function statusColor(status: ToolStatus): string {
     case 'running':
       return 'bg-blue-500/15 text-blue-500'
     case 'success':
-      return 'bg-green-500/15 text-green-500'
+      return 'bg-emerald-500/15 text-emerald-500'
     case 'error':
       return 'bg-red-500/15 text-red-500'
   }
@@ -47,7 +47,7 @@ function CopyButton({ text, label }: { text: string; label: string }) {
 
   return (
     <Button variant="ghost" size="sm" onClick={handleCopy} className="h-7 gap-1.5 text-xs">
-      {copied ? <Check className="h-3 w-3 text-green-500" /> : <Copy className="h-3 w-3" />}
+      {copied ? <Check className="h-3 w-3 text-emerald-500" /> : <Copy className="h-3 w-3" />}
       {copied ? 'Copied' : `Copy ${label}`}
     </Button>
   )

@@ -74,7 +74,7 @@ export const CommandItem = memo(function CommandItem({
       onMouseEnter={onMouseEnter}
       disabled={!isEnabled}
       className={cn(
-        'flex items-center gap-3 px-3 py-2 rounded-md cursor-pointer text-sm',
+        'flex items-center gap-3 px-3 py-2 rounded-md cursor-pointer text-[13px] tracking-[0.01em]',
         'transition-colors duration-100',
         isSelected && 'bg-accent',
         !isEnabled && 'opacity-50 cursor-not-allowed'
@@ -82,34 +82,13 @@ export const CommandItem = memo(function CommandItem({
       data-testid={`command-item-${command.id}`}
     >
       {/* Icon */}
-      {Icon && (
-        <Icon
-          className={cn(
-            'w-4 h-4 shrink-0',
-            isSelected ? 'text-accent-foreground' : 'text-muted-foreground'
-          )}
-        />
-      )}
+      {Icon && <Icon className="w-4 h-4 shrink-0 text-muted-foreground" />}
 
       {/* Label and description */}
       <div className="flex-1 min-w-0">
-        <div
-          className={cn(
-            'truncate font-medium',
-            isSelected ? 'text-accent-foreground' : 'text-foreground'
-          )}
-        >
-          {command.label}
-        </div>
+        <div className="truncate font-medium text-foreground">{command.label}</div>
         {command.description && (
-          <div
-            className={cn(
-              'text-xs truncate',
-              isSelected ? 'text-accent-foreground/70' : 'text-muted-foreground'
-            )}
-          >
-            {command.description}
-          </div>
+          <div className="text-[11px] truncate text-muted-foreground">{command.description}</div>
         )}
       </div>
 
@@ -118,24 +97,15 @@ export const CommandItem = memo(function CommandItem({
         {command.shortcut && (
           <span
             className={cn(
-              'text-xs font-mono px-1.5 py-0.5 rounded',
-              isSelected
-                ? 'bg-accent-foreground/20 text-accent-foreground'
-                : 'bg-muted text-muted-foreground'
+              'text-[11px] font-mono px-1.5 py-0.5 rounded-md',
+              isSelected ? 'bg-background/40 text-foreground' : 'bg-muted text-muted-foreground'
             )}
             data-testid={`command-shortcut-${command.id}`}
           >
             {command.shortcut}
           </span>
         )}
-        {command.hasChildren && (
-          <ChevronRight
-            className={cn(
-              'w-4 h-4',
-              isSelected ? 'text-accent-foreground' : 'text-muted-foreground'
-            )}
-          />
-        )}
+        {command.hasChildren && <ChevronRight className="w-4 h-4 text-muted-foreground" />}
       </div>
     </Command.Item>
   )

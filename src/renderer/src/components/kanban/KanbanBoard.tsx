@@ -438,10 +438,10 @@ export function KanbanBoard({ projectId, connectionId, isPinnedMode }: KanbanBoa
             <div className="fixed inset-0 bg-black/40 z-30 pointer-events-none" />
             {/* Floating instruction bar — no-drag overrides Electron header drag region */}
             <div
-              className="fixed top-4 left-1/2 -translate-x-1/2 z-50 bg-card border border-border rounded-lg shadow-lg px-4 py-2 flex items-center gap-3"
+              className="fixed top-4 left-1/2 -translate-x-1/2 z-50 rounded-[11px] border border-black/14 dark:border-white/14 bg-[rgba(255,255,255,0.82)] dark:bg-[rgba(0,0,0,0.72)] backdrop-blur-2xl shadow-[0_16px_36px_rgba(0,0,0,0.24),inset_0_1px_0_rgba(255,255,255,0.04)] px-3 py-2 flex items-center gap-3"
               style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
             >
-              <span className="text-sm">
+              <span className="text-[12px]">
                 Selecting dependencies for: <strong>{sourceTicketTitle}</strong> — click tickets to toggle
               </span>
               <button
@@ -449,7 +449,7 @@ export function KanbanBoard({ projectId, connectionId, isPinnedMode }: KanbanBoa
                   e.stopPropagation()
                   exitDependencyMode()
                 }}
-                className="px-3 py-1 text-sm font-medium rounded-md bg-primary text-primary-foreground hover:bg-primary/90"
+                className="h-7 px-2.5 text-[12px] font-medium rounded-md bg-primary text-primary-foreground hover:bg-primary/90"
               >
                 Done
               </button>
@@ -479,7 +479,7 @@ export function KanbanBoard({ projectId, connectionId, isPinnedMode }: KanbanBoa
             ref={boardRef}
             layoutScroll
             data-testid="kanban-board"
-            className="flex flex-1 min-h-0 gap-3 overflow-x-auto p-3"
+            className="flex flex-1 min-h-0 gap-3 overflow-x-auto px-4 pt-2.5 pb-4"
             onClick={handleBoardClick}
           >
             {(() => {

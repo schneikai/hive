@@ -122,7 +122,8 @@ export function ReadToolView({ input, output, error }: ToolViewProps) {
   if (!output) return null
 
   const parsed = parseReadOutput(output)
-  const exactNumberedMode = lineRanges.length > 0 && parsed.lines.some((line) => line.lineNumber !== null)
+  const exactNumberedMode =
+    lineRanges.length > 0 && parsed.lines.some((line) => line.lineNumber !== null)
   const startLine = offset || parsed.startLine
   const lineRange =
     lineRanges.length > 0
@@ -193,7 +194,7 @@ export function ReadToolView({ input, output, error }: ToolViewProps) {
                 <span className="min-w-[2.5em] text-right text-[#52525b] select-none">
                   {line.lineNumber ?? ''}
                 </span>
-                <code className="whitespace-pre-wrap break-all text-zinc-100">
+                <code className="whitespace-pre-wrap break-all text-foreground">
                   {line.content || ' '}
                 </code>
               </div>

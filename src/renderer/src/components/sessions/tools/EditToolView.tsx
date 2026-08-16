@@ -50,7 +50,7 @@ export function EditToolView({ input, error }: ToolViewProps) {
       )}
 
       {/* Diff block */}
-      <div className="bg-zinc-900/50 rounded-md overflow-hidden">
+      <div className="bg-secondary border border-border rounded-md overflow-hidden">
         <div className="font-mono text-xs overflow-x-auto">
           {/* Removed lines */}
           {displayedOld.map((line, i) => (
@@ -59,7 +59,7 @@ export function EditToolView({ input, error }: ToolViewProps) {
               className="flex bg-red-500/10 px-3 py-px"
               data-testid="diff-removed"
             >
-              <span className="text-zinc-600 select-none w-8 text-right pr-3 shrink-0">
+              <span className="text-muted-foreground/50 select-none w-8 text-right pr-3 shrink-0">
                 {i + 1}
               </span>
               <span className="text-red-400 select-none shrink-0 w-4">-</span>
@@ -67,7 +67,7 @@ export function EditToolView({ input, error }: ToolViewProps) {
             </div>
           ))}
           {needsTruncation && !showAll && displayedOld.length < oldLines.length && (
-            <div className="px-3 py-0.5 text-zinc-600 text-[10px]">
+            <div className="px-3 py-0.5 text-muted-foreground/50 text-[10px]">
               ... {oldLines.length - displayedOld.length} more removed
             </div>
           )}
@@ -79,7 +79,7 @@ export function EditToolView({ input, error }: ToolViewProps) {
               className="flex bg-green-500/10 px-3 py-px"
               data-testid="diff-added"
             >
-              <span className="text-zinc-600 select-none w-8 text-right pr-3 shrink-0">
+              <span className="text-muted-foreground/50 select-none w-8 text-right pr-3 shrink-0">
                 {i + 1}
               </span>
               <span className="text-green-400 select-none shrink-0 w-4">+</span>
@@ -87,7 +87,7 @@ export function EditToolView({ input, error }: ToolViewProps) {
             </div>
           ))}
           {needsTruncation && !showAll && displayedNew.length < newLines.length && (
-            <div className="px-3 py-0.5 text-zinc-600 text-[10px]">
+            <div className="px-3 py-0.5 text-muted-foreground/50 text-[10px]">
               ... {newLines.length - displayedNew.length} more added
             </div>
           )}

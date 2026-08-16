@@ -1,7 +1,11 @@
 import { Zap } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useRecentStore } from '@/stores'
-import { cn } from '@/lib/utils'
+import {
+  SIDEBAR_HEADER_ACTION_BUTTON,
+  SIDEBAR_HEADER_ACTION_ICON,
+  SIDEBAR_HEADER_ACTION_ICON_STROKE
+} from '@/components/sidebar'
 
 export function RecentToggleButton(): React.JSX.Element {
   const recentVisible = useRecentStore((s) => s.recentVisible)
@@ -9,14 +13,16 @@ export function RecentToggleButton(): React.JSX.Element {
 
   return (
     <Button
-      variant="ghost"
-      size="icon"
-      className={cn('h-6 w-6', recentVisible && 'text-primary bg-accent')}
+      // Orca SidebarToolbar: 'secondary' variant while the toggled surface is open
+      variant={recentVisible ? 'secondary' : 'ghost'}
+      size="icon-xs"
+      className={SIDEBAR_HEADER_ACTION_BUTTON}
       title="Toggle recent activity"
+      aria-pressed={recentVisible}
       onClick={toggleRecent}
       data-testid="recent-toggle-button"
     >
-      <Zap className="h-4 w-4" />
+      <Zap className={SIDEBAR_HEADER_ACTION_ICON} strokeWidth={SIDEBAR_HEADER_ACTION_ICON_STROKE} />
     </Button>
   )
 }

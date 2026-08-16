@@ -11,29 +11,29 @@ import { unwrapEnvelope } from '@/lib/ipc-envelope'
 import { copyTextToClipboard } from '@/lib/clipboard'
 import type { GhosttyTerminalConfig } from '@shared/types/terminal'
 
-/** Default Catppuccin Mocha theme used when no Ghostty config is found */
+/** Default neutral theme (Ghostty default-style dark palette) used when no
+    Ghostty config is found — background/foreground get overridden by app tokens */
 const DEFAULT_TERMINAL_THEME: ITheme = {
-  background: '#1e1e2e',
-  foreground: '#cdd6f4',
-  cursor: '#f5e0dc',
-  selectionBackground: '#585b7066',
-  selectionForeground: '#cdd6f4',
-  black: '#45475a',
-  red: '#f38ba8',
-  green: '#a6e3a1',
-  yellow: '#f9e2af',
-  blue: '#89b4fa',
-  magenta: '#f5c2e7',
-  cyan: '#94e2d5',
-  white: '#bac2de',
-  brightBlack: '#585b70',
-  brightRed: '#f38ba8',
-  brightGreen: '#a6e3a1',
-  brightYellow: '#f9e2af',
-  brightBlue: '#89b4fa',
-  brightMagenta: '#f5c2e7',
-  brightCyan: '#94e2d5',
-  brightWhite: '#a6adc8'
+  background: '#0a0a0a',
+  foreground: '#fafafa',
+  cursor: '#a1a1a1',
+  selectionBackground: '#7373734d',
+  black: '#1d1f21',
+  red: '#cc6666',
+  green: '#b5bd68',
+  yellow: '#f0c674',
+  blue: '#81a2be',
+  magenta: '#b294bb',
+  cyan: '#8abeb7',
+  white: '#c5c8c6',
+  brightBlack: '#666666',
+  brightRed: '#d54e53',
+  brightGreen: '#b9ca4a',
+  brightYellow: '#e7c547',
+  brightBlue: '#7aa6da',
+  brightMagenta: '#c397d8',
+  brightCyan: '#70c0b1',
+  brightWhite: '#eaeaea'
 }
 
 /** ANSI color index to xterm.js theme key mapping (0-15) */
@@ -93,8 +93,9 @@ function buildTheme(ghosttyConfig: GhosttyTerminalConfig): ITheme {
   if (bg) theme.background = bg
   if (fg && !ghosttyConfig.foreground) theme.foreground = fg
   if (!ghosttyConfig.selectionBackground) {
-    const accent = getCSSVar('accent')
-    if (accent) theme.selectionBackground = accent
+    // Translucent grey selection stays legible over any glyph color in both
+    // light and dark themes — an opaque token (--accent) would mask text.
+    theme.selectionBackground = '#7373734d'
   }
   if (mutedFg && !ghosttyConfig.cursorColor) {
     theme.cursor = mutedFg

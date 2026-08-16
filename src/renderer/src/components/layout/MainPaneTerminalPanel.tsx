@@ -56,8 +56,8 @@ export function MainPaneTerminalPanel(): React.JSX.Element {
       <button
         onClick={toggle}
         className={cn(
-          'h-[30px] flex items-center gap-2 px-3 text-xs transition-colors',
-          'text-muted-foreground hover:text-foreground hover:bg-accent/50',
+          'h-[30px] flex items-center gap-2 px-2.5 text-[11px] font-medium rounded-none transition-colors',
+          'text-muted-foreground hover:text-foreground hover:bg-accent',
           expanded && 'border-b border-border'
         )}
         data-testid="bottom-terminal-toggle"

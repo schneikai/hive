@@ -1,3 +1,4 @@
+import { cn } from '@/lib/utils'
 import { useEffect, useState } from 'react'
 import { FolderGit2 } from 'lucide-react'
 import { projectApi } from '@/api/project-api'
@@ -205,7 +206,7 @@ export function LanguageIcon({
         src={projectIconUrl}
         alt="project icon"
         title="Custom project icon"
-        className="h-4 w-4 shrink-0 object-contain rounded-sm"
+        className={cn('h-4 w-4 shrink-0 object-contain rounded-sm', className)}
       />
     )
   }
@@ -217,7 +218,7 @@ export function LanguageIcon({
         src={detectedIconUrl}
         alt="project favicon"
         title="Auto-detected favicon"
-        className="h-4 w-4 shrink-0 object-contain rounded-sm"
+        className={cn('h-4 w-4 shrink-0 object-contain rounded-sm', className)}
       />
     )
   }
@@ -234,7 +235,7 @@ export function LanguageIcon({
         src={userOverrideUrl}
         alt={language}
         title={language}
-        className="h-4 w-4 shrink-0 object-contain"
+        className={cn('h-4 w-4 shrink-0 object-contain', className)}
       />
     )
   }
@@ -247,7 +248,7 @@ export function LanguageIcon({
         src={bundledUrl}
         alt={language}
         title={language}
-        className="h-4 w-4 shrink-0 object-contain"
+        className={cn('h-4 w-4 shrink-0 object-contain', className)}
       />
     )
   }
@@ -260,10 +261,14 @@ export function LanguageIcon({
 
   return (
     <div
-      className={`h-4 w-4 shrink-0 rounded-sm flex items-center justify-center ${config.bg}`}
+      className={cn(
+        'h-4 w-4 shrink-0 rounded-sm flex items-center justify-center',
+        config.bg,
+        className
+      )}
       title={language}
     >
-      <span className={`text-[8px] font-bold leading-none ${config.text}`}>{config.label}</span>
+      <span className={cn('text-[8px] font-bold leading-none', config.text)}>{config.label}</span>
     </div>
   )
 }

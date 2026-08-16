@@ -3,6 +3,17 @@
 @import 'highlight.js/styles/github-dark-dimmed.css';
 @import './xterm.css';
 
+/* Hive toggles a .dark class on <html> (see themes.ts); make every `dark:`
+   utility follow that class instead of prefers-color-scheme (orca main.css:27). */
+@custom-variant dark (&:is(.dark *));
+
+/* Why: hover-reveal controls (sidebar/row action buttons) hide with `opacity-0`
+   and fade in via `group-hover`. Touch devices have no hover, so those controls
+   stay invisible. Gate the hide behind `can-hover:` so touch (hover: none) keeps
+   them visible while pointer devices preserve the reveal-on-hover behavior.
+   (orca main.css:33) */
+@custom-variant can-hover (@media (hover: hover));
+
 [data-meta-held='true'] .run-url:hover {
   text-decoration: underline;
   text-underline-offset: 2px;
@@ -10,9 +21,9 @@
 }
 
 @font-face {
-  font-family: 'DM Sans';
-  src: url('../assets/fonts/DMSans-Variable.woff2') format('woff2');
-  font-weight: 100 1000;
+  font-family: 'Geist';
+  src: url('../assets/fonts/Geist-Variable.woff2') format('woff2');
+  font-weight: 100 900;
   font-style: normal;
   font-display: swap;
 }
@@ -79,8 +90,16 @@
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
-  --font-sans: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
-  --font-mono: 'SF Mono', SFMono-Regular, Consolas, 'Liberation Mono', Menlo, monospace;
+  --color-worktree-sidebar: var(--worktree-sidebar);
+  --color-worktree-sidebar-foreground: var(--worktree-sidebar-foreground);
+  --color-worktree-sidebar-accent: var(--worktree-sidebar-accent);
+  --color-worktree-sidebar-accent-foreground: var(--worktree-sidebar-accent-foreground);
+  --color-worktree-sidebar-border: var(--worktree-sidebar-border);
+  --color-worktree-sidebar-ring: var(--worktree-sidebar-ring);
+  --font-sans: 'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  --font-mono:
+    'SF Mono', SFMono-Regular, ui-monospace, 'Cascadia Code', Menlo, Consolas, 'Liberation Mono',
+    monospace;
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
@@ -93,76 +112,88 @@
 :root {
   color-scheme: light;
   --radius: 0.625rem;
-  /* Light theme — purple-tinted surfaces (HSL 260° purple) */
-  --background: hsl(260 20% 99%);
-  --foreground: hsl(260 15% 12%);
-  --card: hsl(260 20% 99%);
-  --card-foreground: hsl(260 15% 12%);
-  --popover: hsl(260 20% 99%);
-  --popover-foreground: hsl(260 15% 12%);
-  --primary: oklch(0.488 0.217 270);
-  --primary-foreground: var(--color-white);
-  --secondary: hsl(260 15% 95%);
-  --secondary-foreground: hsl(260 15% 20%);
-  --muted: hsl(260 15% 95%);
-  --muted-foreground: hsl(260 10% 45%);
-  --accent: hsl(260 15% 95%);
-  --accent-foreground: hsl(260 15% 20%);
-  --destructive: var(--color-red-500);
-  --destructive-foreground: var(--color-white);
-  --border: hsl(260 10% 90%);
-  --input: hsl(260 10% 88%);
-  --ring: var(--primary);
-  --chart-1: oklch(64.62% 0.171 250.71);
-  --chart-2: oklch(60.04% 0.118 184.7);
-  --chart-3: oklch(39.87% 0.07 227.39);
-  --chart-4: oklch(74.37% 0.144 85.12);
-  --chart-5: oklch(64.47% 0.222 41.12);
-  --sidebar: hsl(260 15% 97%);
-  --sidebar-foreground: hsl(260 10% 45%);
-  --sidebar-primary: var(--primary);
-  --sidebar-primary-foreground: var(--color-white);
-  --sidebar-accent: hsl(260 15% 93%);
-  --sidebar-accent-foreground: hsl(260 15% 20%);
-  --sidebar-border: hsl(260 10% 90%);
-  --sidebar-ring: var(--primary);
+  /* Orca Light — neutral greyscale chrome; color is reserved for status */
+  --background: #ffffff;
+  --foreground: #0a0a0a;
+  --card: #ffffff;
+  --card-foreground: #0a0a0a;
+  --popover: #ffffff;
+  --popover-foreground: #0a0a0a;
+  --primary: #171717;
+  --primary-foreground: #fafafa;
+  --secondary: #f5f5f5;
+  --secondary-foreground: #171717;
+  --muted: #f5f5f5;
+  --muted-foreground: #737373;
+  --accent: #f5f5f5;
+  --accent-foreground: #171717;
+  --destructive: #e40014;
+  --destructive-foreground: #fcf3f3;
+  --border: #e5e5e5;
+  --input: #e5e5e5;
+  --ring: #a1a1a1;
+  --chart-1: var(--color-blue-300);
+  --chart-2: var(--color-blue-500);
+  --chart-3: var(--color-blue-600);
+  --chart-4: var(--color-blue-700);
+  --chart-5: var(--color-blue-800);
+  --sidebar: #fafafa;
+  --sidebar-foreground: #737373;
+  --sidebar-primary: #171717;
+  --sidebar-primary-foreground: #fafafa;
+  --sidebar-accent: #f5f5f5;
+  --sidebar-accent-foreground: #171717;
+  --sidebar-border: #e5e5e5;
+  --sidebar-ring: #a1a1a1;
+  --worktree-sidebar: #f5f5f5;
+  --worktree-sidebar-foreground: #0a0a0a;
+  --worktree-sidebar-accent: #eaeaea;
+  --worktree-sidebar-accent-foreground: #171717;
+  --worktree-sidebar-border: #e5e5e5;
+  --worktree-sidebar-ring: #a1a1a1;
 }
 
 .dark {
   color-scheme: dark;
-  /* Dark theme — purple-tinted surfaces (HSL 260° purple) */
-  --background: hsl(260 15% 9%);
-  --foreground: hsl(260 10% 95%);
-  --card: hsl(260 15% 11%);
-  --card-foreground: hsl(260 10% 95%);
-  --popover: hsl(260 15% 11%);
-  --popover-foreground: hsl(260 10% 95%);
-  --primary: oklch(0.588 0.217 270);
-  --primary-foreground: var(--color-white);
-  --secondary: hsl(260 15% 14%);
-  --secondary-foreground: hsl(260 10% 90%);
-  --muted: hsl(260 15% 14%);
-  --muted-foreground: hsl(260 10% 55%);
-  --accent: hsl(260 15% 14%);
-  --accent-foreground: hsl(260 10% 90%);
-  --destructive: var(--color-red-500);
-  --destructive-foreground: var(--color-white);
-  --border: hsl(260 12% 16%);
-  --input: hsl(260 12% 17%);
-  --ring: var(--primary);
-  --chart-1: oklch(70.34% 0.127 227.39);
-  --chart-2: oklch(69.26% 0.128 184.7);
-  --chart-3: oklch(98.48% 0.001 285.98);
-  --chart-4: oklch(74.11% 0.164 68.11);
-  --chart-5: oklch(65.91% 0.204 41.12);
-  --sidebar: hsl(260 15% 7%);
-  --sidebar-foreground: hsl(260 10% 55%);
-  --sidebar-primary: var(--primary);
-  --sidebar-primary-foreground: var(--color-white);
-  --sidebar-accent: hsl(260 15% 12%);
-  --sidebar-accent-foreground: hsl(260 10% 90%);
-  --sidebar-border: hsl(260 12% 16%);
-  --sidebar-ring: var(--primary);
+  /* Orca Dark — neutral greyscale chrome; faint 7%-white hairline borders */
+  --background: #0a0a0a;
+  --foreground: #fafafa;
+  --card: #171717;
+  --card-foreground: #fafafa;
+  --popover: #171717;
+  --popover-foreground: #fafafa;
+  --primary: #e5e5e5;
+  --primary-foreground: #171717;
+  --secondary: #262626;
+  --secondary-foreground: #fafafa;
+  --muted: #262626;
+  --muted-foreground: #a1a1a1;
+  --accent: #404040;
+  --accent-foreground: #fafafa;
+  --destructive: #ff6568;
+  --destructive-foreground: #ffffff;
+  --border: rgb(255 255 255 / 0.07);
+  --input: rgb(255 255 255 / 0.15);
+  --ring: #737373;
+  --chart-1: var(--color-blue-300);
+  --chart-2: var(--color-blue-500);
+  --chart-3: var(--color-blue-600);
+  --chart-4: var(--color-blue-700);
+  --chart-5: var(--color-blue-800);
+  --sidebar: #171717;
+  --sidebar-foreground: #a1a1a1;
+  --sidebar-primary: #e5e5e5;
+  --sidebar-primary-foreground: #171717;
+  --sidebar-accent: #262626;
+  --sidebar-accent-foreground: #fafafa;
+  --sidebar-border: rgb(255 255 255 / 0.07);
+  --sidebar-ring: #525252;
+  --worktree-sidebar: #1a1a1a;
+  --worktree-sidebar-foreground: #fafafa;
+  --worktree-sidebar-accent: #262626;
+  --worktree-sidebar-accent-foreground: #fafafa;
+  --worktree-sidebar-border: rgb(255 255 255 / 0.07);
+  --worktree-sidebar-ring: #737373;
 }
 
 @layer base {
@@ -172,7 +203,9 @@
   }
   body {
     @apply bg-background text-foreground;
-    font-size: 18px;
+    letter-spacing: 0.01em;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
     font-feature-settings:
       'rlig' 1,
       'calt' 1;
@@ -181,20 +214,17 @@
     font-family: var(--font-mono);
   }
 
-  /* Native-feeling scrollbars — thin, transparent, theme-aware */
+  /* Orca sleek scrollbars — 12px hit area, 6px visible square thumb inset by a
+     3px transparent border, colored from muted-foreground so they track themes */
   * {
     scrollbar-width: thin;
-    scrollbar-color: rgba(0, 0, 0, 0.15) transparent;
+    scrollbar-color: color-mix(in srgb, var(--muted-foreground, #737373) 34%, transparent)
+      transparent;
   }
 
-  *:hover {
-    scrollbar-color: rgba(0, 0, 0, 0.25) transparent;
-  }
-
-  /* WebKit scrollbar styling (Electron/Chromium) */
   ::-webkit-scrollbar {
-    width: 6px;
-    height: 6px;
+    width: 12px;
+    height: 12px;
   }
 
   ::-webkit-scrollbar-track {
@@ -202,55 +232,24 @@
   }
 
   ::-webkit-scrollbar-thumb {
-    background: rgba(0, 0, 0, 0.15);
-    border-radius: 3px;
+    background: color-mix(in srgb, var(--muted-foreground, #737373) 28%, transparent);
+    border: 3px solid transparent;
+    border-radius: 0;
+    background-clip: padding-box;
+    min-height: 28px;
   }
 
   ::-webkit-scrollbar-thumb:hover {
-    background: rgba(0, 0, 0, 0.25);
+    background-color: color-mix(in srgb, var(--muted-foreground, #737373) 48%, transparent);
   }
 
   ::-webkit-scrollbar-thumb:active {
-    background: rgba(0, 0, 0, 0.35);
+    background-color: color-mix(in srgb, var(--foreground, #171717) 36%, transparent);
   }
 
   ::-webkit-scrollbar-corner {
     background: transparent;
   }
-
-  /* Dark mode scrollbar overrides */
-  .dark * {
-    scrollbar-color: rgba(255, 255, 255, 0.1) transparent;
-  }
-
-  .dark *:hover {
-    scrollbar-color: rgba(255, 255, 255, 0.18) transparent;
-  }
-
-  .dark ::-webkit-scrollbar-thumb {
-    background: rgba(255, 255, 255, 0.1);
-  }
-
-  .dark ::-webkit-scrollbar-thumb:hover {
-    background: rgba(255, 255, 255, 0.18);
-  }
-
-  .dark ::-webkit-scrollbar-thumb:active {
-    background: rgba(255, 255, 255, 0.25);
-  }
-}
-
-/* Subtle grain texture overlay */
-body::after {
-  content: '';
-  position: fixed;
-  inset: 0;
-  z-index: 9999;
-  pointer-events: none;
-  opacity: 0.035;
-  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.7' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
-  background-repeat: repeat;
-  background-size: 256px 256px;
 }
 
 /* Electron window drag utilities */
@@ -536,8 +535,12 @@ body::after {
   background: none;
 }
 .pr-comment-html a {
-  color: var(--primary);
+  /* --primary is neutral now; links need an explicit hyperlink hue */
+  color: var(--color-blue-600);
   text-decoration: underline;
+}
+.dark .pr-comment-html a {
+  color: var(--color-blue-400);
 }
 .pr-comment-html ul,
 .pr-comment-html ol {
@@ -583,9 +586,12 @@ body::after {
   margin-right: 0.5em;
 }
 
-/* Monaco decoration: diff comment range highlight (violet tint) */
+/* Monaco decoration: diff comment range highlight (neutral chrome tint) */
 .diff-comment-range-highlight {
-  background-color: rgba(139, 92, 246, 0.15);
+  background-color: rgb(0 0 0 / 0.05);
+}
+.dark .diff-comment-range-highlight {
+  background-color: rgb(255 255 255 / 0.06);
 }
 
 /* Monaco decoration: outdated diff comment range highlight (yellow tint) */
@@ -593,9 +599,10 @@ body::after {
   background-color: rgba(234, 179, 8, 0.10);
 }
 
-/* Monaco decoration: flash highlight when jumping to a comment */
+/* Monaco decoration: flash highlight when jumping to a comment — blue so the
+   jump target reads as navigation, not selection */
 .diff-comment-jump-flash {
-  background-color: rgba(139, 92, 246, 0.35);
+  background-color: rgb(59 130 246 / 0.3);
   transition: background-color 1.5s ease-out;
 }
 
@@ -652,5 +659,502 @@ body::after {
 @media (prefers-reduced-motion: reduce) {
   .super-sparkle::before {
     animation: none;
+  }
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   Orca sidebar — CSS recipes ported verbatim from orca main.css (line refs in
+   comments). Token VALUES are Hive's own (see :root/.dark above); these rules
+   only reference them. Consumers: src/renderer/src/components/sidebar/*.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/* Tokens the reveal glow needs that Hive did not define yet (orca main.css:176-177 / 289-290). */
+:root {
+  --terminal-pane-locate: #2563eb; /* blue-600 */
+  --ai-action-accent: #8b5cf6; /* violet-500 */
+}
+
+.dark {
+  --terminal-pane-locate: #60a5fa; /* blue-400 */
+  --ai-action-accent: #a78bfa; /* violet-400 */
+}
+
+/* ── Sleek scrollbar (VS Code-like) — orca main.css:502-591 ─────────────── */
+
+.scrollbar-sleek {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--muted-foreground, #737373) 34%, transparent) transparent;
+}
+
+.scrollbar-sleek::-webkit-scrollbar {
+  width: 12px;
+  height: 12px;
+}
+
+.scrollbar-sleek::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.scrollbar-sleek::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--muted-foreground, #737373) 28%, transparent);
+  border: 3px solid transparent;
+  border-radius: 0;
+  background-clip: padding-box;
+  min-height: 28px;
+}
+
+.scrollbar-sleek::-webkit-scrollbar-thumb:hover {
+  background-color: color-mix(in srgb, var(--muted-foreground, #737373) 48%, transparent);
+}
+
+.scrollbar-sleek::-webkit-scrollbar-thumb:active {
+  background-color: color-mix(in srgb, var(--foreground, #171717) 36%, transparent);
+}
+
+.scrollbar-sleek-parent:hover .scrollbar-sleek,
+.scrollbar-sleek:hover {
+  scrollbar-color: color-mix(in srgb, var(--muted-foreground, #737373) 48%, transparent) transparent;
+}
+
+/* Why: no reserved `scrollbar-gutter` — paired with `overflow-y: auto`, a list
+   that fits shows no scrollbar (and no Windows scrollbar arrow buttons), so its
+   rows stay flush with the fixed header controls, matching macOS. The gutter is
+   only taken while actually scrolling. Thumb still fades in on hover. */
+.worktree-sidebar-scrollbar {
+  padding-right: 4px;
+  scrollbar-color: transparent transparent;
+}
+
+.worktree-sidebar-scrollbar::-webkit-scrollbar {
+  width: 8px;
+}
+
+.worktree-sidebar-scrollbar::-webkit-scrollbar-thumb {
+  background-color: transparent;
+  /* Why: no right inset — a 3px transparent right border left a visible strip
+     beside the sidebar resize seam that read like a gap in the drag handle. */
+  border-width: 3px 0 3px 0;
+}
+
+.scrollbar-sleek-parent:hover .worktree-sidebar-scrollbar,
+.worktree-sidebar-scrollbar:hover {
+  scrollbar-color: color-mix(in srgb, var(--muted-foreground, #737373) 48%, transparent) transparent;
+}
+
+.scrollbar-sleek-parent:hover .worktree-sidebar-scrollbar::-webkit-scrollbar-thumb,
+.worktree-sidebar-scrollbar:hover::-webkit-scrollbar-thumb {
+  background-color: color-mix(in srgb, var(--muted-foreground, #737373) 28%, transparent);
+}
+
+.scrollbar-sleek-parent:hover .worktree-sidebar-scrollbar::-webkit-scrollbar-thumb:hover,
+.worktree-sidebar-scrollbar:hover::-webkit-scrollbar-thumb:hover {
+  background-color: color-mix(in srgb, var(--muted-foreground, #737373) 48%, transparent);
+}
+
+.scrollbar-sleek-parent:hover .worktree-sidebar-scrollbar::-webkit-scrollbar-thumb:active,
+.worktree-sidebar-scrollbar:hover::-webkit-scrollbar-thumb:active {
+  background-color: color-mix(in srgb, var(--foreground, #171717) 36%, transparent);
+}
+
+/* ── Workspace card surface — orca main.css:1202-1240 ───────────────────── */
+
+/* Why: light-mode sidebar-accent/40 is nearly invisible on the sidebar, while
+   agent rows stack on top of the card hover. Keep nested rows quieter than the
+   workspace card without changing the established dark-mode balance. */
+.worktree-sidebar-card-hover:hover {
+  background: color-mix(in srgb, var(--sidebar-foreground) 4%, transparent);
+}
+
+.dark .worktree-sidebar-card-hover:hover {
+  background: color-mix(in srgb, var(--sidebar-accent) 40%, transparent);
+}
+
+/* Why: the brighter border carries the selected state; a translucent wash keeps
+   card text legible instead of lifting the surface toward the foreground color. */
+[data-worktree-card-surface][data-worktree-card-active='primary'] {
+  border-color: color-mix(in srgb, var(--worktree-sidebar-border) 40%, transparent);
+  background: color-mix(in srgb, var(--worktree-sidebar-foreground) 8%, transparent);
+  box-shadow: 0 1px 2px color-mix(in srgb, var(--worktree-sidebar-foreground) 4%, transparent);
+}
+
+.dark [data-worktree-card-surface][data-worktree-card-active='primary'] {
+  border-color: color-mix(
+    in srgb,
+    var(--worktree-sidebar-foreground) 18%,
+    var(--worktree-sidebar-border)
+  );
+  background: color-mix(in srgb, var(--worktree-sidebar-foreground) 10%, transparent);
+  box-shadow: 0 1px 2px color-mix(in srgb, var(--worktree-sidebar-foreground) 3%, transparent);
+}
+
+[data-worktree-card-surface][data-worktree-card-active='secondary'] {
+  border-color: color-mix(in srgb, var(--sidebar-ring) 25%, transparent);
+  background: color-mix(in srgb, var(--sidebar-accent) 45%, transparent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--sidebar-ring) 15%, transparent);
+}
+
+.dark [data-worktree-card-surface][data-worktree-card-active='secondary'] {
+  border-color: color-mix(in srgb, var(--sidebar-ring) 28%, transparent);
+  background: color-mix(in srgb, var(--sidebar-accent) 34%, transparent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--sidebar-ring) 18%, transparent);
+}
+
+/* ── Inline agent rows — orca main.css:1243-1260 ────────────────────────── */
+
+.worktree-agent-row-hover:hover {
+  background: color-mix(in srgb, var(--sidebar-foreground) 1.25%, transparent);
+}
+
+.worktree-agent-row-hover[data-focused-agent-pane='true'] {
+  /* Why: a borderless fill. --sidebar-accent ≈ --sidebar in light mode, so the
+     selection wash mixes sidebar-foreground into the accent to stay legible
+     without going so dark that muted text (timestamp) drops out. */
+  background: color-mix(in srgb, var(--sidebar-foreground) 12%, var(--sidebar-accent));
+}
+
+.dark .worktree-agent-row-hover:hover {
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+}
+
+.dark .worktree-agent-row-hover[data-focused-agent-pane='true'] {
+  background: color-mix(in srgb, var(--accent) 70%, transparent);
+}
+
+/* ── Sidebar notice card — orca main.css:1262-1316 ──────────────────────── */
+
+/* Why: one-shot sidebar education cards need stronger separation than
+   worktree-sidebar-accent, which sits almost on top of the sidebar fill. */
+.worktree-sidebar-notice-card {
+  position: relative;
+  border: 1px solid
+    color-mix(in srgb, var(--worktree-sidebar-foreground) 24%, var(--worktree-sidebar-border));
+  background: color-mix(in srgb, var(--worktree-sidebar-foreground) 9%, var(--worktree-sidebar));
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--worktree-sidebar-foreground) 8%, transparent),
+    0 1px 2px color-mix(in srgb, var(--worktree-sidebar-foreground) 10%, transparent);
+}
+
+.dark .worktree-sidebar-notice-card {
+  border-color: color-mix(
+    in srgb,
+    var(--worktree-sidebar-foreground) 32%,
+    var(--worktree-sidebar-border)
+  );
+  background: color-mix(in srgb, var(--worktree-sidebar-foreground) 14%, var(--worktree-sidebar));
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--worktree-sidebar-foreground) 12%, transparent),
+    0 1px 4px rgb(0 0 0 / 0.28);
+}
+
+/* Why: the project-order notice sits directly under the Projects header; a
+   caret aligned to that label reads as a callout instead of a random card. */
+.worktree-sidebar-notice-card--to-section-title::before {
+  content: '';
+  position: absolute;
+  top: -5px;
+  left: 1.75rem;
+  width: 10px;
+  height: 10px;
+  transform: rotate(45deg);
+  border-left: 1px solid
+    color-mix(in srgb, var(--worktree-sidebar-foreground) 24%, var(--worktree-sidebar-border));
+  border-top: 1px solid
+    color-mix(in srgb, var(--worktree-sidebar-foreground) 24%, var(--worktree-sidebar-border));
+  background: color-mix(in srgb, var(--worktree-sidebar-foreground) 9%, var(--worktree-sidebar));
+}
+
+.dark .worktree-sidebar-notice-card--to-section-title::before {
+  border-left-color: color-mix(
+    in srgb,
+    var(--worktree-sidebar-foreground) 32%,
+    var(--worktree-sidebar-border)
+  );
+  border-top-color: color-mix(
+    in srgb,
+    var(--worktree-sidebar-foreground) 32%,
+    var(--worktree-sidebar-border)
+  );
+  background: color-mix(in srgb, var(--worktree-sidebar-foreground) 14%, var(--worktree-sidebar));
+}
+
+/* ── Agent lineage rows / children — orca main.css:1400-1464 ────────────── */
+
+.worktree-agent-lineage-parent-row {
+  /* Why: inline orchestration trees have two chevron levels; the manager row
+     needs a structural cue that is quieter than the workspace card chrome. */
+  background: color-mix(in srgb, var(--sidebar-foreground) 3%, var(--sidebar));
+  box-shadow:
+    inset 2px 0 0 color-mix(in srgb, var(--sidebar-foreground) 38%, transparent),
+    inset 0 0 0 1px color-mix(in srgb, var(--sidebar-foreground) 10%, transparent);
+}
+
+.worktree-agent-lineage-parent-row.worktree-agent-row-hover:hover {
+  background: color-mix(in srgb, var(--sidebar-foreground) 6%, var(--sidebar));
+}
+
+.dark .worktree-agent-lineage-parent-row {
+  background: color-mix(in srgb, var(--accent) 22%, var(--sidebar));
+  box-shadow:
+    inset 2px 0 0 color-mix(in srgb, var(--accent) 58%, transparent),
+    inset 0 0 0 1px color-mix(in srgb, var(--accent) 22%, transparent);
+}
+
+.dark .worktree-agent-lineage-parent-row.worktree-agent-row-hover:hover {
+  background: color-mix(in srgb, var(--accent) 30%, var(--sidebar));
+}
+
+.worktree-agent-lineage-child-row {
+  position: relative;
+  background: color-mix(in srgb, var(--sidebar) 74%, var(--background));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--sidebar-foreground) 7%, transparent);
+}
+
+.worktree-agent-lineage-child-row.worktree-agent-row-hover:hover {
+  background: color-mix(in srgb, var(--sidebar-foreground) 4%, var(--sidebar));
+}
+
+.worktree-agent-lineage-child-row::before {
+  content: '';
+  position: absolute;
+  left: 0.15rem;
+  top: 50%;
+  width: 0.35rem;
+  border-top: 1px solid color-mix(in srgb, var(--sidebar-foreground) 20%, transparent);
+}
+
+.dark .worktree-agent-lineage-child-row {
+  background: color-mix(in srgb, var(--accent) 10%, var(--sidebar));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 16%, transparent);
+}
+
+.dark .worktree-agent-lineage-child-row.worktree-agent-row-hover:hover {
+  background: color-mix(in srgb, var(--accent) 18%, var(--sidebar));
+}
+
+.dark .worktree-agent-lineage-child-row::before {
+  border-top-color: color-mix(in srgb, var(--accent) 42%, transparent);
+}
+
+.worktree-agent-lineage-children {
+  margin-left: 0.75rem;
+  padding-left: 0.25rem;
+  border-left: 1px solid color-mix(in srgb, var(--sidebar-foreground) 22%, transparent);
+}
+
+.dark .worktree-agent-lineage-children {
+  border-left-color: color-mix(in srgb, var(--accent) 28%, transparent);
+}
+
+.worktree-agent-send-target-button {
+  /* Why: the row remains an ordinary agent row during send-target mode; the
+     action itself carries the AI target outline so the clickable affordance
+     is explicit without boxing the whole session. */
+  border-color: color-mix(in srgb, var(--ai-action-accent) 72%, transparent);
+  background: color-mix(in srgb, var(--ai-action-accent) 12%, transparent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--ai-action-accent) 22%, transparent);
+  color: var(--foreground);
+}
+
+.worktree-agent-send-target-button:hover {
+  border-color: color-mix(in srgb, var(--ai-action-accent) 88%, transparent);
+  background: color-mix(in srgb, var(--ai-action-accent) 18%, transparent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--ai-action-accent) 34%, transparent);
+}
+
+.worktree-agent-send-target-button:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--ring) 50%, transparent);
+}
+
+/* ── Compact agent expansion + spinner — orca main.css:1487-1616 ────────── */
+
+/* Why: the virtualized card row is height-measured; animate the grid track
+   instead of explicit height so the reveal stays CSS-owned and interruptible. */
+.compact-agent-expansion-grid {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 180ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.compact-agent-expansion-grid-expanded {
+  grid-template-rows: 1fr;
+}
+
+/* Why: must stay a compositor-driven CSS animation — a JS clock writing
+   per-element transforms blocks the renderer input thread (STA-3328: 41
+   spinners ⇒ ~490 style writes/s, keystroke p90 363ms). The component anchors
+   each animation's startTime once; steps(12) preserves the retired cadence. */
+@keyframes agent-spinner-rotate {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.agent-working-spinner {
+  animation: agent-spinner-rotate 1s steps(12, end) infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .agent-working-spinner {
+    animation: none;
+  }
+}
+
+/* Why: keyframes run when the content mounts already in its final state. */
+@keyframes compact-agent-expansion-reveal {
+  from {
+    opacity: 0;
+    transform: translateY(-2px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.compact-agent-expansion-grid-expanded .compact-agent-expansion-content {
+  animation: compact-agent-expansion-reveal 180ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* Why: the collapsed summary still uses pill spacing, while expanded compact
+   agents read as a quiet tree inside the existing worktree card. */
+.compact-agent-summary-panel {
+  padding: 2px;
+  border-radius: var(--radius-sm, 0.25rem);
+  background: transparent;
+  box-shadow: inset 0 0 0 1px transparent;
+  transition:
+    background 180ms cubic-bezier(0.16, 1, 0.3, 1),
+    box-shadow 180ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.compact-agent-summary-panel-expanded {
+  background: transparent;
+  box-shadow: inset 0 0 0 1px transparent;
+}
+
+[data-compact-agent-list='true'] {
+  margin-inline-start: -0.5rem;
+  width: calc(100% + 0.5rem);
+}
+
+/* Why: compact expanded agents live inside an already-framed worktree card.
+   Keep the tree legible with indentation and interaction states instead of
+   stacking row cards and shaded panels. */
+[data-compact-agent-list='true'] .compact-agent-row.worktree-agent-lineage-parent-row,
+[data-compact-agent-list='true'] .compact-agent-row.worktree-agent-lineage-child-row {
+  background: transparent;
+  box-shadow: none;
+}
+
+[data-compact-agent-list='true'] .compact-agent-row.worktree-agent-lineage-child-row::before {
+  content: none;
+}
+
+[data-compact-agent-list='true']
+  .compact-agent-row.worktree-agent-lineage-parent-row.worktree-agent-row-hover:hover,
+[data-compact-agent-list='true']
+  .compact-agent-row.worktree-agent-lineage-child-row.worktree-agent-row-hover:hover {
+  background: color-mix(in srgb, var(--sidebar-foreground) 1.25%, transparent);
+}
+
+.dark
+  [data-compact-agent-list='true']
+  .compact-agent-row.worktree-agent-lineage-parent-row.worktree-agent-row-hover:hover,
+.dark
+  [data-compact-agent-list='true']
+  .compact-agent-row.worktree-agent-lineage-child-row.worktree-agent-row-hover:hover {
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+}
+
+[data-compact-agent-list='true']
+  .compact-agent-row.worktree-agent-row-hover[data-focused-agent-pane='true'] {
+  background: color-mix(in srgb, var(--sidebar-foreground) 12%, var(--sidebar-accent));
+}
+
+.dark
+  [data-compact-agent-list='true']
+  .compact-agent-row.worktree-agent-row-hover[data-focused-agent-pane='true'] {
+  background: color-mix(in srgb, var(--accent) 70%, transparent);
+}
+
+[data-compact-agent-list='true'] .worktree-agent-lineage-children {
+  border-left-color: color-mix(in srgb, var(--sidebar-foreground) 16%, transparent);
+}
+
+.dark [data-compact-agent-list='true'] .worktree-agent-lineage-children {
+  border-left-color: color-mix(in srgb, var(--accent) 20%, transparent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .compact-agent-expansion-grid {
+    transition-duration: 0ms;
+  }
+
+  .compact-agent-expansion-grid-expanded .compact-agent-expansion-content {
+    animation-duration: 0ms;
+  }
+
+  .compact-agent-summary-panel {
+    transition-duration: 0ms;
+  }
+}
+
+/* ── Reveal glow (scroll-to-current) — orca main.css:1619-1673 ──────────── */
+
+.scroll-to-current-workspace-reveal-highlight {
+  position: relative;
+  isolation: isolate;
+  overflow: visible;
+}
+
+.scroll-to-current-workspace-reveal-highlight::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 30;
+  pointer-events: none;
+  border: 1.5px solid color-mix(in srgb, var(--terminal-pane-locate) 68%, transparent);
+  border-radius: inherit;
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--terminal-pane-locate) 34%, transparent),
+    0 0 14px color-mix(in srgb, var(--terminal-pane-locate) 36%, transparent);
+  animation: scroll-to-current-workspace-reveal-glow 1.5s ease-out forwards;
+}
+
+.scroll-to-current-workspace-reveal-highlight--ai::before {
+  border-color: color-mix(in srgb, var(--ai-action-accent) 68%, transparent);
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--ai-action-accent) 34%, transparent),
+    0 0 14px color-mix(in srgb, var(--ai-action-accent) 36%, transparent);
+}
+
+@keyframes scroll-to-current-workspace-reveal-glow {
+  0% {
+    opacity: 1;
+    transform: scale(0.992);
+  }
+
+  24% {
+    opacity: 0.72;
+    transform: scale(1);
+  }
+
+  60% {
+    opacity: 0.28;
+    transform: scale(1.006);
+  }
+
+  100% {
+    opacity: 0;
+    transform: scale(1.006);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .scroll-to-current-workspace-reveal-highlight::before {
+    animation: none;
+    opacity: 1;
+    transform: none;
   }
 }

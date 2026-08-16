@@ -154,9 +154,9 @@ export function HandoffSplitButton({
     <div
       ref={containerRef}
       className={cn(
-        'inline-flex h-8 items-center rounded-full border text-foreground shadow-md transition-colors duration-200',
-        isGoalModeActive ? 'relative border-primary/40 bg-primary/15' : 'border-border bg-muted/80',
-        disabled ? 'opacity-60' : isGoalModeActive ? 'hover:bg-primary/20' : 'hover:bg-muted'
+        'inline-flex h-8 items-center rounded-md border text-foreground shadow-[0_1px_2px_rgba(0,0,0,0.18)] transition-colors duration-200',
+        isGoalModeActive ? 'relative border-border bg-accent' : 'border-border bg-secondary',
+        disabled ? 'opacity-60' : isGoalModeActive ? 'hover:bg-accent/80' : 'hover:bg-accent'
       )}
       onContextMenu={(e) => {
         e.preventDefault()
@@ -166,7 +166,7 @@ export function HandoffSplitButton({
       }}
     >
       {isGoalModeActive && (
-        <span className="pointer-events-none absolute -top-4 left-1/2 -translate-x-1/2 text-[10px] font-semibold uppercase tracking-wide text-primary">
+        <span className="pointer-events-none absolute -top-4 left-1/2 -translate-x-1/2 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
           Goal mode
         </span>
       )}
@@ -186,7 +186,7 @@ export function HandoffSplitButton({
           )
         }}
         className={cn(
-          'flex min-w-0 items-center gap-1.5 rounded-full px-3 text-xs font-medium',
+          'flex min-w-0 items-center gap-1.5 rounded-md px-3 text-[11px] font-medium',
           'disabled:pointer-events-none'
         )}
       >
@@ -203,7 +203,7 @@ export function HandoffSplitButton({
           </>
         )}
         {effective.display.variant && (
-          <span className="rounded-full border border-border/80 bg-background/70 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-muted-foreground">
+          <span className="rounded border border-border bg-background/70 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-muted-foreground">
             {effective.display.variant}
           </span>
         )}
@@ -231,7 +231,7 @@ export function HandoffSplitButton({
                 disabled={disabled}
                 data-testid={chevronTestId}
                 className={cn(
-                  'flex h-full items-center justify-center rounded-r-full px-2.5 text-muted-foreground transition-colors',
+                  'flex h-full items-center justify-center rounded-r-md px-2.5 text-muted-foreground transition-colors',
                   'hover:text-foreground disabled:pointer-events-none'
                 )}
               >

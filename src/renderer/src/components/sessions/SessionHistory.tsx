@@ -255,7 +255,7 @@ function SessionPreview({ session, onLoad }: SessionPreviewProps): React.JSX.Ele
                 className={cn(
                   'p-2 rounded-lg text-sm',
                   msg.role === 'user' && 'bg-muted/50',
-                  msg.role === 'assistant' && 'bg-primary/10',
+                  msg.role === 'assistant' && 'bg-secondary',
                   msg.role === 'system' && 'bg-yellow-500/10'
                 )}
               >
@@ -446,7 +446,15 @@ export function SessionHistory(): React.JSX.Element | null {
         toast.info('Opened in read-only mode: session is from an archived worktree.')
       }
     },
-    [reopenSession, reopenConnectionSession, openOrphanedSession, closePanel, selectWorktree, selectConnection, worktreesByProject]
+    [
+      reopenSession,
+      reopenConnectionSession,
+      openOrphanedSession,
+      closePanel,
+      selectWorktree,
+      selectConnection,
+      worktreesByProject
+    ]
   )
 
   // Get selected session
@@ -461,13 +469,13 @@ export function SessionHistory(): React.JSX.Element | null {
 
   return (
     <div
-      className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm"
+      className="fixed inset-0 z-50 bg-background/60 backdrop-blur-sm"
       onClick={closePanel}
       onKeyDown={handleKeyDown}
       data-testid="session-history-overlay"
     >
       <div
-        className="fixed inset-y-0 right-0 w-full max-w-3xl bg-background shadow-xl flex"
+        className="fixed inset-y-0 right-0 w-full max-w-3xl bg-background/96 backdrop-blur-xl border-l border-border shadow-[0_24px_64px_rgba(0,0,0,0.35)] flex"
         onClick={(e) => e.stopPropagation()}
         data-testid="session-history-panel"
       >

@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Building2, LogIn, RefreshCw } from 'lucide-react'
+import { Button } from '@/components/ui/button'
 import { DEFAULT_HIVE_ENTERPRISE_SERVER_URL } from '@shared/types/settings'
 import { useSettingsStore } from '@/stores/useSettingsStore'
 import { completeHiveEnterpriseLogin, fetchHiveEnterpriseMe } from '@/api/hive-enterprise/client'
@@ -90,22 +91,20 @@ export function SettingsHiveEnterprise(): React.JSX.Element {
       </div>
 
       <div className="flex gap-2">
-        <button
-          onClick={signIn}
-          disabled={isSigningIn}
-          className="inline-flex items-center gap-2 rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground disabled:opacity-60"
-        >
+        <Button size="sm" onClick={signIn} disabled={isSigningIn} className="gap-2">
           {isSigningIn ? <RefreshCw className="h-4 w-4 animate-spin" /> : <LogIn className="h-4 w-4" />}
           Sign in with Google
-        </button>
-        <button
+        </Button>
+        <Button
+          size="sm"
+          variant="outline"
           onClick={refreshMe}
           disabled={isRefreshing || !hiveLoggedInEmail}
-          className="inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm font-medium disabled:opacity-60"
+          className="gap-2"
         >
           <RefreshCw className={isRefreshing ? 'h-4 w-4 animate-spin' : 'h-4 w-4'} />
           Refresh
-        </button>
+        </Button>
       </div>
     </div>
   )

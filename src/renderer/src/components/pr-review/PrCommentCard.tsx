@@ -72,7 +72,7 @@ export function PrCommentCard({
           className={cn(
             'flex items-center gap-2 rounded-md px-2 py-1.5 transition-colors cursor-pointer group',
             isSelected
-              ? 'bg-violet-500/10'
+              ? 'bg-accent ring-1 ring-inset ring-ring/40'
               : 'hover:bg-accent/40'
           )}
           onClick={() => onNavigate(comment)}
@@ -82,13 +82,13 @@ export function PrCommentCard({
             checked={isSelected}
             onChange={() => onToggleSelect(comment.id)}
             onClick={(e) => e.stopPropagation()}
-            className="h-3 w-3 rounded border-border accent-violet-500 cursor-pointer shrink-0"
+            className="h-3 w-3 rounded border-border accent-[var(--foreground)] cursor-pointer shrink-0"
           />
           <Avatar user={comment.user} />
           <span className="text-[11px] font-medium text-foreground shrink-0">
             {comment.user?.login ?? 'ghost'}
           </span>
-          <span className="text-[11px] text-muted-foreground font-mono shrink-0 group-hover:text-primary transition-colors">
+          <span className="text-[11px] text-muted-foreground font-mono shrink-0 group-hover:text-foreground transition-colors">
             :{line}
           </span>
           {isOutdated && (

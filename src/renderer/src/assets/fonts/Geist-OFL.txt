@@ -1,0 +1,5 @@
+Geist — Copyright 2023 Vercel, in collaboration with basement.studio
+Licensed under the SIL Open Font License, Version 1.1.
+https://github.com/vercel/geist-font/blob/main/LICENSE.txt
+This Font Software is licensed under the SIL Open Font License, Version 1.1.
+The license is available with a FAQ at: https://openfontlicense.org

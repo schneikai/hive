@@ -1,0 +1,891 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Hive Redesign — Orca Deep Dive: Terminal & Usage</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@100..900&family=Geist+Mono:wght@100..900&display=swap" rel="stylesheet">
+<style>
+/* ============================================================
+   ORCA DEEP DIVE — TERMINAL & USAGE
+   Faithful orca tokens from direction 01. Showcases:
+   1. Main-pane terminal panel open (Ghostty Default Style Dark)
+   2. Account usage popover hovered (orca glass recipe)
+   ============================================================ */
+:root {
+  --app-font: 'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-mono: 'Geist Mono', 'SF Mono', SFMono-Regular, ui-monospace, 'Cascadia Code', Menlo, Consolas, monospace;
+  --radius: 0.625rem;
+
+  --background: #0a0a0a;
+  --foreground: #fafafa;
+  --card: #171717;
+  --primary: #e5e5e5;
+  --primary-foreground: #171717;
+  --secondary: #262626;
+  --muted: #262626;
+  --muted-foreground: #a1a1a1;
+  --accent: #404040;
+  --destructive: #ff6568;
+  --border: rgb(255 255 255 / 0.07);
+  --input: rgb(255 255 255 / 0.15);
+  --ring: #737373;
+
+  --worktree-sidebar: #2a2a2a;
+  --worktree-sidebar-foreground: #fafafa;
+  --worktree-sidebar-accent: #353535;
+  --worktree-sidebar-border: rgb(255 255 255 / 0.07);
+  --sidebar: #171717;
+
+  --status-working: #eab308;
+  --status-done: #10b981;
+  --status-question: #f97316;
+  --status-plan: #60a5fa;
+  --status-error: #ef4444;
+
+  --git-added: #81b88b;
+  --git-modified: #e2c08d;
+  --git-deleted: #c74e39;
+
+  --mode-build: #3b82f6;
+  --mode-plan: #8b5cf6;
+
+  /* Ghostty Default Style Dark */
+  --term-bg: #282c34;
+  --term-fg: #ffffff;
+  --ansi-red: #cc6666;
+  --ansi-green: #b5bd68;
+  --ansi-yellow: #f0c674;
+  --ansi-blue: #81a2be;
+  --ansi-magenta: #b294bb;
+  --ansi-cyan: #8abeb7;
+  --ansi-dim: #c5c8c6;
+}
+* { box-sizing: border-box; border-color: var(--border); margin: 0; padding: 0; }
+html, body { height: 100%; overflow: hidden; }
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--app-font);
+  font-size: 13px;
+  letter-spacing: 0.01em;
+  -webkit-font-smoothing: antialiased;
+}
+button { font: inherit; letter-spacing: inherit; color: inherit; background: none; border: none; cursor: pointer; }
+.mono { font-family: var(--font-mono); }
+svg.ic { width: 16px; height: 16px; flex-shrink: 0; }
+svg.ic-sm { width: 14px; height: 14px; flex-shrink: 0; }
+svg.ic-xs { width: 12px; height: 12px; flex-shrink: 0; }
+
+/* ---------- app frame ---------- */
+.app { display: flex; flex-direction: column; height: 100vh; width: 100vw; overflow: hidden; }
+.content-area { display: flex; flex: 1; min-height: 0; }
+
+/* ---------- titlebar ---------- */
+.titlebar { display: flex; height: 36px; min-height: 36px; user-select: none; }
+.titlebar-left {
+  width: 248px; flex-shrink: 0; display: flex; align-items: center;
+  background: var(--worktree-sidebar);
+  box-shadow: inset 0 -1px 0 var(--border);
+  padding-left: 78px;
+  position: relative;
+}
+.traffic { position: absolute; left: 12px; top: 11px; display: flex; gap: 8px; }
+.traffic span { width: 12px; height: 12px; border-radius: 50%; background: #3d3d3d; }
+.titlebar-logo { height: 16px; width: 16px; opacity: 0.75; margin-right: 6px; }
+.titlebar-left .app-name { font-size: 12px; font-weight: 600; color: var(--muted-foreground); }
+.titlebar-main {
+  flex: 1; display: flex; align-items: center; gap: 4px;
+  background: var(--card); border-bottom: 1px solid var(--border);
+  padding: 0 10px;
+}
+.titlebar-title { display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 500; color: var(--foreground); }
+.titlebar-title .sep { color: var(--muted-foreground); opacity: 0.5; }
+.titlebar-title .branch { color: var(--muted-foreground); font-weight: 400; }
+.tb-spacer { flex: 1; }
+.tb-btn {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 4px 8px; border-radius: 4px; color: var(--muted-foreground);
+  font-size: 12px; font-weight: 500; transition: background 150ms, color 150ms;
+}
+.tb-btn:hover { background: var(--accent); color: var(--foreground); }
+.tb-icon-btn { padding: 4px; border-radius: 4px; color: var(--muted-foreground); display: inline-flex; transition: background 150ms, color 150ms; }
+.tb-icon-btn:hover { background: var(--accent); color: var(--foreground); }
+.tb-btn-merge {
+  display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 500;
+  padding: 3px 9px; border-radius: 6px;
+  color: var(--status-done);
+  border: 1px solid color-mix(in srgb, var(--status-done) 30%, transparent);
+  background: color-mix(in srgb, var(--status-done) 10%, transparent);
+}
+.tb-btn-merge:hover { background: color-mix(in srgb, var(--status-done) 16%, transparent); }
+.pr-badge {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: 10px; font-weight: 600; padding: 2px 7px; border-radius: 999px;
+  color: var(--muted-foreground); border: 1px solid var(--border); background: var(--secondary);
+}
+.tb-divider { width: 1px; height: 16px; background: var(--border); margin: 0 4px; }
+
+/* ---------- left sidebar ---------- */
+.sidebar-left {
+  width: 248px; flex-shrink: 0; display: flex; flex-direction: column; min-height: 0;
+  background: var(--worktree-sidebar); color: var(--worktree-sidebar-foreground);
+  border-right: 1px solid var(--worktree-sidebar-border);
+}
+.sidebar-nav { padding: 8px 8px 4px; display: flex; flex-direction: column; gap: 1px; }
+.nav-row {
+  display: flex; width: 100%; align-items: center; gap: 8px;
+  border-radius: 6px; padding: 5px 8px; text-align: left;
+  font-size: 13px; font-weight: 500; letter-spacing: -0.01em;
+  color: color-mix(in srgb, var(--worktree-sidebar-foreground) 60%, transparent);
+  transition: background 120ms, color 120ms;
+}
+.nav-row svg { color: color-mix(in srgb, var(--worktree-sidebar-foreground) 30%, transparent); }
+.nav-row:hover { background: color-mix(in srgb, var(--worktree-sidebar-foreground) 8%, transparent); }
+.nav-row.active { background: var(--worktree-sidebar-accent); color: var(--worktree-sidebar-foreground); }
+.nav-row.active svg { color: var(--worktree-sidebar-foreground); }
+.search-field {
+  margin: 4px 8px 2px; position: relative; display: flex; align-items: center;
+  height: 28px; border-radius: 6px;
+  border: 1px solid color-mix(in srgb, var(--worktree-sidebar-border) 70%, transparent);
+  background: color-mix(in srgb, var(--worktree-sidebar-foreground) 5%, transparent);
+  padding-left: 28px; font-size: 12px; font-weight: 500; letter-spacing: -0.01em;
+  color: color-mix(in srgb, var(--worktree-sidebar-foreground) 45%, transparent);
+}
+.search-field svg { position: absolute; left: 9px; width: 12px; height: 12px; }
+.search-field .keycap {
+  margin-left: auto; margin-right: 6px; font-size: 9px; padding: 1px 4px;
+  border: 1px solid var(--worktree-sidebar-border); border-radius: 4px;
+  color: color-mix(in srgb, var(--worktree-sidebar-foreground) 40%, transparent);
+}
+.sidebar-header {
+  margin-top: 8px; display: flex; height: 32px; align-items: center; justify-content: space-between;
+  padding: 0 8px 0 12px;
+}
+.sidebar-header .label { font-size: 12px; font-weight: 600; color: color-mix(in srgb, var(--muted-foreground) 80%, transparent); }
+.sidebar-header .actions { display: flex; gap: 2px; }
+.icon-xs-btn {
+  width: 24px; height: 24px; display: inline-flex; align-items: center; justify-content: center;
+  border-radius: 6px; color: var(--muted-foreground); transition: background 120ms, color 120ms;
+}
+.icon-xs-btn:hover { background: color-mix(in srgb, var(--worktree-sidebar-foreground) 8%, transparent); color: var(--worktree-sidebar-foreground); }
+
+.wt-scroll { flex: 1; overflow-y: auto; min-height: 0; padding: 0 6px 8px 4px; }
+.wt-scroll::-webkit-scrollbar { width: 8px; }
+.wt-scroll::-webkit-scrollbar-thumb { background: transparent; border-radius: 0; }
+.wt-scroll:hover::-webkit-scrollbar-thumb { background: color-mix(in srgb, var(--muted-foreground) 28%, transparent); background-clip: padding-box; border: 2px solid transparent; }
+
+.section-head {
+  display: flex; height: 28px; align-items: center; gap: 6px; padding: 0 8px 0 8px;
+  position: sticky; top: 0; z-index: 5; background: var(--worktree-sidebar);
+}
+.section-head .proj-glyph {
+  width: 16px; height: 16px; border-radius: 4px; display: inline-flex; align-items: center; justify-content: center;
+  border: 1px solid var(--worktree-sidebar-border); background: color-mix(in srgb, var(--worktree-sidebar-accent) 55%, transparent);
+  font-size: 9px; font-weight: 700; color: var(--muted-foreground);
+}
+.section-head .label { font-size: 13px; font-weight: 600; line-height: 1; }
+.section-head .count { font-size: 10px; color: var(--muted-foreground); }
+.section-head .chev { margin-left: auto; color: var(--muted-foreground); opacity: 0; transition: opacity 120ms; }
+.section-head:hover .chev { opacity: 1; }
+
+.wt-card {
+  position: relative; display: flex; cursor: pointer; margin-left: 4px; margin-bottom: 1px;
+  padding: 6px 6px 6px 4px; border-radius: 8px; border: 1px solid transparent;
+  transition: background 200ms, border-color 200ms, box-shadow 200ms;
+}
+.wt-card:hover { background: color-mix(in srgb, var(--worktree-sidebar-accent) 40%, transparent); }
+.wt-card.active {
+  border-color: color-mix(in srgb, var(--worktree-sidebar-border) 40%, transparent);
+  background: color-mix(in srgb, var(--worktree-sidebar-foreground) 8%, transparent);
+  box-shadow: 0 1px 2px color-mix(in srgb, var(--worktree-sidebar-foreground) 4%, transparent);
+}
+.wt-lane { width: 20px; flex-shrink: 0; display: flex; justify-content: center; padding-top: 3px; }
+.wt-body { flex: 1; min-width: 0; }
+.wt-title-row { display: flex; align-items: center; gap: 6px; }
+.wt-title { font-size: 13px; line-height: 20px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.wt-badge {
+  height: 16px; padding: 0 6px; font-size: 10px; font-weight: 500; border-radius: 4px;
+  display: inline-flex; align-items: center; line-height: 1; flex-shrink: 0;
+  color: color-mix(in srgb, var(--foreground) 70%, transparent);
+  border: 1px solid color-mix(in srgb, var(--foreground) 20%, transparent);
+  background: color-mix(in srgb, var(--foreground) 6%, transparent);
+}
+.wt-meta-row { display: flex; align-items: center; gap: 6px; margin-top: 2px; min-width: 0; }
+.branch-chip {
+  display: inline-flex; align-items: center; gap: 4px; flex-shrink: 0;
+  padding: 2px 6px; border-radius: 4px;
+  background: color-mix(in srgb, var(--worktree-sidebar-accent) 50%, transparent);
+  border: 1px solid color-mix(in srgb, var(--worktree-sidebar-border) 60%, transparent);
+}
+.branch-chip span { font-size: 10px; font-weight: 600; line-height: 1; text-transform: lowercase; color: var(--foreground); }
+.branch-chip svg { width: 10px; height: 10px; color: var(--muted-foreground); }
+.wt-path { font-family: var(--font-mono); font-size: 10px; color: var(--muted-foreground); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.agent-row {
+  display: flex; height: 24px; align-items: center; gap: 5px; margin-top: 2px;
+  border-radius: 4px; padding: 0 4px; font-size: 11px; line-height: 1; color: var(--muted-foreground);
+  transition: background 120ms;
+}
+.agent-row:hover { background: color-mix(in srgb, var(--accent) 18%, transparent); }
+.agent-row.selected { background: var(--worktree-sidebar-accent); color: var(--foreground); }
+.agent-row .a-label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.agent-row .a-model { font-family: var(--font-mono); font-size: 10px; opacity: 0.8; margin-left: auto; flex-shrink: 0; }
+.agent-row .a-time { font-size: 10px; font-variant-numeric: tabular-nums; flex-shrink: 0; opacity: 0.7; }
+
+.spinner {
+  width: 12px; height: 12px; border-radius: 50%;
+  border: 2px solid var(--status-working); border-top-color: transparent;
+  animation: agent-spin 1s steps(12, end) infinite;
+}
+@keyframes agent-spin { to { transform: rotate(360deg); } }
+.dot { width: 8px; height: 8px; border-radius: 50%; }
+.dot-done { background: var(--status-done); }
+.dot-idle { background: color-mix(in srgb, #737373 40%, transparent); }
+.dot-error { background: var(--status-error); }
+.q-icon { color: var(--status-question); }
+.plan-icon { color: var(--status-plan); }
+
+/* sidebar footer */
+.sidebar-footer { border-top: 1px solid var(--worktree-sidebar-border); flex-shrink: 0; }
+.update-pill {
+  margin: 8px 10px 0; display: flex; align-items: center; gap: 6px;
+  font-size: 11px; font-weight: 500; padding: 5px 9px; border-radius: 6px;
+  background: color-mix(in srgb, var(--status-done) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--status-done) 25%, transparent);
+  color: var(--status-done);
+}
+.usage { padding: 8px 10px 6px; margin: 2px 4px; border-radius: 6px; }
+.usage.hovered { background: color-mix(in srgb, var(--worktree-sidebar-foreground) 6%, transparent); }
+.usage-head { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }
+.usage-head .email { font-size: 11px; color: var(--muted-foreground); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.usage-head .active-pill {
+  margin-left: auto; font-size: 9px; font-weight: 600; padding: 1px 6px; border-radius: 999px;
+  background: color-mix(in srgb, var(--foreground) 12%, transparent); color: var(--foreground);
+}
+.usage-bar-row { display: flex; align-items: center; gap: 6px; margin-top: 4px; }
+.usage-bar-row .tag { font-family: var(--font-mono); font-size: 9px; color: var(--muted-foreground); width: 16px; }
+.usage-track { flex: 1; height: 3px; border-radius: 2px; background: color-mix(in srgb, var(--foreground) 8%, transparent); overflow: hidden; }
+.usage-fill { height: 100%; border-radius: 2px; background: var(--muted-foreground); }
+.usage-bar-row .pct { font-size: 9px; font-variant-numeric: tabular-nums; color: var(--muted-foreground); width: 26px; text-align: right; }
+.usage-reset { font-size: 9px; color: color-mix(in srgb, var(--muted-foreground) 70%, transparent); margin-top: 4px; }
+.sidebar-toolbar { display: flex; align-items: center; justify-content: space-between; padding: 6px 8px; border-top: 1px solid var(--worktree-sidebar-border); }
+.sidebar-toolbar .grp { display: flex; gap: 2px; }
+
+/* ---------- usage popover (orca glass) ---------- */
+.usage-popover {
+  position: fixed; left: 12px; bottom: 96px; width: 300px; z-index: 80;
+  border-radius: 11px;
+  border: 1px solid rgb(255 255 255 / 0.14);
+  background: rgba(0, 0, 0, 0.72);
+  box-shadow: 0 16px 36px rgba(0,0,0,0.24), inset 0 1px 0 rgba(255,255,255,0.04);
+  backdrop-filter: blur(24px);
+  padding: 10px;
+  color: #fafafa;
+}
+.up-account { padding: 2px 2px 6px; }
+.up-head { display: flex; align-items: center; gap: 7px; }
+.up-head .email { font-size: 12px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.up-head .active-pill {
+  margin-left: auto; font-size: 9px; font-weight: 600; padding: 1px 7px; border-radius: 999px;
+  background: color-mix(in srgb, var(--foreground) 12%, transparent); color: var(--foreground);
+}
+.up-head .idle-tag { margin-left: auto; font-size: 10px; color: var(--muted-foreground); }
+.up-bar-row { display: flex; align-items: center; gap: 8px; margin-top: 7px; }
+.up-bar-row .tag { font-family: var(--font-mono); font-size: 9px; color: var(--muted-foreground); width: 16px; }
+.up-track { flex: 1; height: 4px; border-radius: 2px; background: rgb(255 255 255 / 0.09); overflow: hidden; }
+.up-fill { height: 100%; border-radius: 2px; background: var(--muted-foreground); }
+.up-bar-row .pct { font-size: 10px; font-variant-numeric: tabular-nums; color: var(--foreground); width: 30px; text-align: right; }
+.up-bar-row .reset { font-size: 9px; color: color-mix(in srgb, var(--muted-foreground) 80%, transparent); width: 88px; text-align: right; white-space: nowrap; }
+.up-chips { display: flex; gap: 5px; margin-top: 8px; }
+.up-chip {
+  font-size: 10px; font-weight: 500; padding: 2px 8px; border-radius: 5px;
+  border: 1px solid rgb(255 255 255 / 0.14); color: var(--muted-foreground);
+  transition: background 120ms, color 120ms;
+}
+.up-chip:hover { background: rgb(255 255 255 / 0.14); color: #fff; }
+.up-sep { height: 1px; background: color-mix(in srgb, rgb(255 255 255 / 0.14) 70%, transparent); margin: 6px 0; }
+.up-note {
+  display: flex; align-items: center; gap: 5px; margin-top: 4px; padding: 2px 2px 0;
+  font-size: 10px; color: #f59e0b;
+}
+.up-note svg { width: 11px; height: 11px; }
+
+/* fake cursor */
+.fake-cursor { position: fixed; left: 148px; bottom: 66px; z-index: 90; width: 17px; height: 22px; pointer-events: none; filter: drop-shadow(0 1px 2px rgba(0,0,0,0.6)); }
+
+/* ---------- center pane ---------- */
+.center { flex: 1; min-width: 0; display: flex; flex-direction: column; background: var(--background); }
+
+.tabstrip { display: flex; height: 32px; flex-shrink: 0; background: var(--card); border-bottom: 1px solid var(--border); }
+.tab {
+  position: relative; display: flex; align-items: center; gap: 6px; height: 100%;
+  width: 180px; min-width: 88px; padding: 0 10px; font-size: 12px; cursor: pointer;
+  border-right: 1px solid var(--border);
+  background: var(--card); color: var(--muted-foreground);
+}
+.tab:hover { color: var(--foreground); }
+.tab.active {
+  background: color-mix(in srgb, var(--foreground) 6%, var(--card));
+  color: var(--foreground);
+}
+.tab.active::after {
+  content: ''; position: absolute; inset: auto 0 0 0; height: 2px;
+  background: color-mix(in srgb, var(--foreground) 60%, var(--card));
+}
+.tab .t-label { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tab .t-close { opacity: 0; display: inline-flex; border-radius: 4px; padding: 1px; }
+.tab:hover .t-close { opacity: 0.6; }
+.tab .t-close:hover { opacity: 1; background: var(--accent); }
+.tab-board { width: auto; padding: 0 12px; }
+.tab-plus { display: flex; align-items: center; justify-content: center; width: 32px; color: var(--muted-foreground); }
+.tab-plus:hover { color: var(--foreground); background: color-mix(in srgb, var(--foreground) 4%, var(--card)); }
+.unread-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--status-plan); }
+
+/* chat area (shortened) */
+.chat { flex: 1; min-height: 0; overflow-y: auto; padding: 20px 0 12px; }
+.chat::-webkit-scrollbar { width: 12px; }
+.chat::-webkit-scrollbar-thumb { background: color-mix(in srgb, var(--muted-foreground) 28%, transparent); border: 3px solid transparent; background-clip: padding-box; min-height: 28px; }
+.chat-inner { max-width: 760px; margin: 0 auto; padding: 0 24px; display: flex; flex-direction: column; gap: 14px; }
+.msg-user {
+  align-self: flex-end; max-width: 85%;
+  background: var(--secondary); border: 1px solid var(--border);
+  border-radius: 10px; padding: 8px 12px; font-size: 13px; line-height: 1.55;
+}
+.msg-assistant { font-size: 13px; line-height: 1.65; color: color-mix(in srgb, var(--foreground) 92%, transparent); }
+.msg-assistant code { font-family: var(--font-mono); font-size: 12px; background: var(--secondary); border: 1px solid var(--border); border-radius: 4px; padding: 1px 5px; }
+.tool-card {
+  display: flex; align-items: center; gap: 8px;
+  border: 1px solid var(--border); background: var(--card);
+  border-radius: 8px; padding: 7px 10px; font-size: 12px;
+}
+.tool-card .tc-name { font-weight: 600; }
+.tool-card .tc-target { font-family: var(--font-mono); font-size: 11px; color: var(--muted-foreground); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tool-card .tc-diff { margin-left: auto; font-family: var(--font-mono); font-size: 11px; flex-shrink: 0; }
+.tc-diff .add { color: var(--git-added); }
+.tc-diff .del { color: var(--git-deleted); }
+.tool-card .tc-check { color: var(--status-done); }
+
+/* pane divider (orca split divider) */
+.pane-divider { height: 3px; flex-shrink: 0; background: #3f3f46; opacity: 0.55; }
+
+/* ---------- terminal panel ---------- */
+.term-panel { flex-shrink: 0; height: 45%; min-height: 0; display: flex; flex-direction: column; background: var(--card); }
+.term-tabs { display: flex; align-items: center; height: 30px; flex-shrink: 0; background: var(--card); border-bottom: 1px solid var(--border); }
+.term-tab {
+  position: relative; display: flex; align-items: center; gap: 6px; height: 100%;
+  padding: 0 12px; font-size: 11px; cursor: pointer;
+  border-right: 1px solid var(--border);
+  background: var(--card); color: var(--muted-foreground);
+}
+.term-tab:hover { color: var(--foreground); }
+.term-tab.active {
+  background: color-mix(in srgb, var(--foreground) 6%, var(--card));
+  color: var(--foreground);
+}
+.term-tab.active::after {
+  content: ''; position: absolute; inset: auto 0 0 0; height: 2px;
+  background: color-mix(in srgb, var(--foreground) 60%, var(--card));
+}
+.term-tab svg { width: 11px; height: 11px; }
+.term-plus { display: flex; align-items: center; justify-content: center; width: 28px; height: 100%; color: var(--muted-foreground); }
+.term-plus:hover { color: var(--foreground); background: color-mix(in srgb, var(--foreground) 4%, var(--card)); }
+.term-toolbar { margin-left: auto; display: flex; align-items: center; gap: 2px; padding-right: 6px; }
+.term-toolbar .tb-icon-btn { padding: 3px; }
+
+.term-surface {
+  flex: 1; min-height: 0; overflow-y: auto;
+  background: var(--term-bg); color: var(--term-fg);
+  font-family: var(--font-mono); font-size: 12px; line-height: 1.6;
+  padding: 10px 14px;
+}
+.term-surface::-webkit-scrollbar { width: 14px; }
+.term-surface::-webkit-scrollbar-thumb { background: rgba(121,121,121,0.4); border: 3px solid transparent; border-radius: 7px; background-clip: padding-box; }
+.t-red { color: var(--ansi-red); }
+.t-green { color: var(--ansi-green); }
+.t-yellow { color: var(--ansi-yellow); }
+.t-blue { color: var(--ansi-blue); }
+.t-magenta { color: var(--ansi-magenta); }
+.t-cyan { color: var(--ansi-cyan); }
+.t-dim { color: var(--ansi-dim); }
+.t-bold { font-weight: 700; }
+.term-cursor { display: inline-block; width: 7px; height: 14px; background: #ffffff; vertical-align: -2px; }
+
+/* ---------- right sidebar ---------- */
+.sidebar-right {
+  width: 280px; flex-shrink: 0; display: flex; flex-direction: column; min-height: 0;
+  background: var(--sidebar); border-left: 1px solid var(--border);
+}
+.rs-header {
+  display: flex; align-items: center; height: 32px; min-height: 32px; padding: 0 4px;
+  border-bottom: 1px solid var(--border);
+}
+.rs-tab {
+  padding: 0 10px; height: 100%; display: inline-flex; align-items: center; gap: 5px;
+  font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em;
+  color: var(--muted-foreground); position: relative;
+}
+.rs-tab.active { color: var(--foreground); }
+.rs-tab.active::after { content: ''; position: absolute; inset: auto 8px 0; height: 2px; background: color-mix(in srgb, var(--foreground) 60%, transparent); }
+.rs-body { flex: 1; min-height: 0; overflow-y: auto; padding: 8px; }
+.file-group-label { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted-foreground); padding: 4px 6px; display: flex; align-items: center; justify-content: space-between; }
+.file-group-label .ops { display: flex; gap: 8px; text-transform: none; letter-spacing: 0; font-weight: 500; }
+.file-group-label .ops button { font-size: 10px; color: var(--muted-foreground); }
+.file-group-label .ops button:hover { color: var(--foreground); }
+.file-row {
+  display: flex; align-items: center; gap: 7px; padding: 3px 6px; border-radius: 5px;
+  font-size: 12px; cursor: pointer;
+}
+.file-row:hover { background: color-mix(in srgb, var(--foreground) 4%, transparent); }
+.file-row .f-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.file-row .f-dir { color: var(--muted-foreground); font-size: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.f-status { font-family: var(--font-mono); font-size: 10px; font-weight: 700; width: 12px; text-align: center; flex-shrink: 0; }
+.f-m { color: var(--git-modified); }
+.f-a { color: var(--git-added); }
+.f-d { color: var(--git-deleted); }
+.commit-box { margin: 8px 2px 2px; }
+.commit-input {
+  width: 100%; border: 1px solid var(--input); border-radius: 6px; background: color-mix(in srgb, var(--input) 30%, transparent);
+  font-size: 12px; padding: 6px 8px; color: color-mix(in srgb, var(--muted-foreground) 60%, transparent);
+}
+.commit-btn {
+  margin-top: 6px; width: 100%; height: 26px; border-radius: 6px;
+  background: var(--secondary); color: var(--foreground); font-size: 12px; font-weight: 500;
+}
+.commit-btn:hover { background: color-mix(in srgb, var(--secondary) 80%, transparent); }
+
+.bottom-panel { border-top: 1px solid var(--border); flex-shrink: 0; display: flex; flex-direction: column; height: 220px; }
+.bp-tabs { display: flex; align-items: center; height: 30px; padding: 0 4px; border-bottom: 1px solid var(--border); }
+.bp-tab { position: relative; height: 100%; padding: 0 10px; display: inline-flex; align-items: center; font-size: 11px; font-weight: 500; color: var(--muted-foreground); }
+.bp-tab.active { color: var(--foreground); }
+.bp-tab.active::after { content: ''; position: absolute; inset: auto 8px 0; height: 2px; background: color-mix(in srgb, var(--foreground) 60%, transparent); }
+.bp-url { margin-left: auto; display: inline-flex; align-items: center; gap: 4px; font-size: 10px; font-family: var(--font-mono); color: var(--muted-foreground); padding-right: 6px; }
+.bp-url svg { width: 11px; height: 11px; }
+.bp-term { flex: 1; min-height: 0; overflow: hidden; padding: 8px 10px; font-family: var(--font-mono); font-size: 11px; line-height: 1.7; background: var(--background); }
+.bp-term .p { color: var(--status-done); }
+.bp-term .cmd { color: var(--foreground); }
+.bp-term .out { color: var(--muted-foreground); }
+.bp-term .url { color: #60a5fa; }
+
+/* direction chip */
+.direction-chip {
+  position: fixed; bottom: 14px; right: 14px; z-index: 99;
+  display: flex; align-items: center; gap: 8px;
+  padding: 7px 12px; border-radius: 11px;
+  border: 1px solid rgb(255 255 255 / 0.14);
+  background: rgba(0, 0, 0, 0.72);
+  box-shadow: 0 16px 36px rgba(0,0,0,0.24), inset 0 1px 0 rgba(255,255,255,0.04);
+  backdrop-filter: blur(24px);
+  font-size: 11px; color: #fafafa;
+}
+.direction-chip b { font-weight: 600; }
+.direction-chip a { color: #a1a1a1; text-decoration: none; font-weight: 600; padding: 2px 6px; border-radius: 5px; }
+.direction-chip a:hover { background: rgb(255 255 255 / 0.14); color: #fff; }
+</style>
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="i-hive" viewBox="0 0 24 24"><path d="M12 2l8 4.6v9.2L12 22l-8-4.6V6.6L12 2z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M12 7.2l4 2.3v4.6l-4 2.3-4-2.3V9.5l4-2.3z" fill="currentColor" opacity="0.55"/></symbol>
+    <symbol id="i-panel-left" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><line x1="9" y1="4" x2="9" y2="20"/></symbol>
+    <symbol id="i-panel-right" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><line x1="15" y1="4" x2="15" y2="20"/></symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></symbol>
+    <symbol id="i-folder-plus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.7-.9L9.2 3.9A2 2 0 0 0 7.5 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2z"/><line x1="12" y1="10" x2="12" y2="16"/><line x1="9" y1="13" x2="15" y2="13"/></symbol>
+    <symbol id="i-search" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.5" y2="16.5"/></symbol>
+    <symbol id="i-chevron-d" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></symbol>
+    <symbol id="i-branch" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="6" y1="3" x2="6" y2="15"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/></symbol>
+    <symbol id="i-map" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3l6 2.5L21 3v15l-6 2.5L9 18l-6 2.5V5.5L9 3z"/><line x1="9" y1="3" x2="9" y2="18"/><line x1="15" y1="5.5" x2="15" y2="20.5"/></symbol>
+    <symbol id="i-question" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.4 8.4 0 0 1-8.5 8.4 8.6 8.6 0 0 1-3.7-.8L3 21l1.9-5.7a8.4 8.4 0 1 1 16.1-3.8z"/><path d="M9.6 9.5a2.4 2.4 0 0 1 4.7.8c0 1.6-2.4 2.1-2.4 3.2"/><line x1="12" y1="16.8" x2="12" y2="16.9"/></symbol>
+    <symbol id="i-check-c" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><polyline points="8.5 12.5 11 15 15.5 9.5"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"><polyline points="5 13 10 18 19 7"/></symbol>
+    <symbol id="i-terminal" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><polyline points="7 9 10 12 7 15"/><line x1="12.5" y1="15" x2="17" y2="15"/></symbol>
+    <symbol id="i-kanban" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M6 4v10"/><path d="M12 4v16"/><path d="M18 4v6"/></symbol>
+    <symbol id="i-clock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15.5 13.5"/></symbol>
+    <symbol id="i-gear" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.6-1 1.7 1.7 0 0 0-.3-1.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.9.3h0a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5h0a1.7 1.7 0 0 0 1.9-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9v0a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></symbol>
+    <symbol id="i-pr" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="18" r="3"/><line x1="6" y1="9" x2="6" y2="15"/><path d="M13 6h2a3 3 0 0 1 3 3v6"/><polyline points="10 3 13 6 10 9"/></symbol>
+    <symbol id="i-merge" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><path d="M6 21V9a9 9 0 0 0 9 9"/></symbol>
+    <symbol id="i-arrow-up" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></symbol>
+    <symbol id="i-globe" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><line x1="3" y1="12" x2="21" y2="12"/><path d="M12 3a13.5 13.5 0 0 1 0 18a13.5 13.5 0 0 1 0-18z"/></symbol>
+    <symbol id="i-x" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></symbol>
+    <symbol id="i-folder" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.7-.9L9.2 3.9A2 2 0 0 0 7.5 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2z"/></symbol>
+    <symbol id="i-sparkle" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.9 5.7L19.6 10l-5.7 1.9L12 17.6l-1.9-5.7L4.4 10l5.7-1.9L12 3z"/></symbol>
+    <symbol id="i-claude" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M12 6.5c-3 0-5.5 2.5-5.5 5.5s2.5 5.5 5.5 5.5c1.6 0 3-.7 4-1.7l-2-1.6a2.9 2.9 0 1 1 0-4.3l2-1.7a5.5 5.5 0 0 0-4-1.7z" fill="currentColor" opacity="0.7"/></symbol>
+    <symbol id="i-eraser" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="m7 21-4.3-4.3c-1-1-1-2.5 0-3.4l9.6-9.6c1-1 2.5-1 3.4 0l5.6 5.6c1 1 1 2.5 0 3.4L13 21"/><path d="M22 21H7"/><path d="m5 11 9 9"/></symbol>
+    <symbol id="i-rotate" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.6-6.4"/><polyline points="21 3 21 9 15 9"/></symbol>
+    <symbol id="i-alert-t" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 2.5 19.5a1 1 0 0 0 .9 1.5h17.2a1 1 0 0 0 .9-1.5L12 3z"/><line x1="12" y1="10" x2="12" y2="14"/><line x1="12" y1="17.5" x2="12" y2="17.6"/></symbol>
+  </defs>
+</svg>
+
+<div class="app">
+
+  <!-- ============ TITLEBAR ============ -->
+  <div class="titlebar">
+    <div class="titlebar-left">
+      <div class="traffic"><span></span><span></span><span></span></div>
+      <svg class="titlebar-logo" style="color:#fafafa"><use href="#i-hive"/></svg>
+      <span class="app-name">Hive</span>
+    </div>
+    <div class="titlebar-main">
+      <div class="titlebar-title">
+        <span>hive-electron</span>
+        <span class="sep">/</span>
+        <svg class="ic-xs" style="color:var(--muted-foreground)"><use href="#i-branch"/></svg>
+        <span class="branch">redesign</span>
+      </div>
+      <div class="tb-divider"></div>
+      <button class="tb-btn"><svg class="ic-xs"><use href="#i-terminal"/></svg>VS Code</button>
+      <button class="tb-btn">Ghostty</button>
+      <button class="tb-btn">Copy Path</button>
+      <button class="tb-btn">Finder</button>
+      <div class="tb-spacer"></div>
+      <button class="tb-btn-merge"><svg class="ic-xs"><use href="#i-merge"/></svg>Merge PR</button>
+      <button class="tb-btn">Review<svg class="ic-xs"><use href="#i-chevron-d"/></svg></button>
+      <button class="tb-btn" style="font-family:var(--font-mono);font-size:11px">vs origin/main</button>
+      <span class="pr-badge"><svg class="ic-xs" style="width:10px;height:10px"><use href="#i-pr"/></svg>PR #642</span>
+      <div class="tb-divider"></div>
+      <button class="tb-icon-btn" title="Open Board"><svg class="ic-sm"><use href="#i-kanban"/></svg></button>
+      <button class="tb-icon-btn" title="Session History (⌘K)"><svg class="ic-sm"><use href="#i-clock"/></svg></button>
+      <button class="tb-icon-btn" title="Settings (⌘,)"><svg class="ic-sm"><use href="#i-gear"/></svg></button>
+      <button class="tb-icon-btn" title="Hide sidebar"><svg class="ic-sm"><use href="#i-panel-right"/></svg></button>
+    </div>
+  </div>
+
+  <div class="content-area">
+
+    <!-- ============ LEFT SIDEBAR ============ -->
+    <aside class="sidebar-left">
+      <nav class="sidebar-nav">
+        <button class="nav-row active"><svg class="ic"><use href="#i-folder"/></svg>Projects</button>
+        <button class="nav-row"><svg class="ic"><use href="#i-kanban"/></svg>Board</button>
+        <button class="nav-row"><svg class="ic"><use href="#i-sparkle"/></svg>Board Assistant</button>
+      </nav>
+      <div class="search-field">
+        <svg><use href="#i-search"/></svg>
+        Filter projects…
+        <span class="keycap">⌘P</span>
+      </div>
+
+      <div class="sidebar-header">
+        <span class="label">Projects</span>
+        <span class="actions">
+          <button class="icon-xs-btn"><svg class="ic-xs"><use href="#i-folder-plus"/></svg></button>
+          <button class="icon-xs-btn"><svg class="ic-xs"><use href="#i-plus"/></svg></button>
+        </span>
+      </div>
+
+      <div class="wt-scroll">
+        <div class="section-head">
+          <span class="proj-glyph">HE</span>
+          <span class="label">hive-electron</span>
+          <span class="count">3</span>
+          <svg class="ic-xs chev"><use href="#i-plus"/></svg>
+        </div>
+
+        <div class="wt-card active">
+          <div class="wt-lane"><span class="spinner"></span></div>
+          <div class="wt-body">
+            <div class="wt-title-row">
+              <span class="wt-title">redesign</span>
+              <span class="wt-badge">primary</span>
+            </div>
+            <div class="wt-meta-row">
+              <span class="branch-chip"><svg><use href="#i-branch"/></svg><span>redesign</span></span>
+              <span class="wt-path">~/.hive-worktrees/…/redesign</span>
+            </div>
+            <div class="agent-row selected">
+              <span class="spinner" style="width:10px;height:10px;border-width:1.5px"></span>
+              <svg class="ic-xs" style="color:#d97757"><use href="#i-claude"/></svg>
+              <span class="a-label">Working — restyling sidebar</span>
+              <span class="a-model mono">sonnet-5</span>
+              <span class="a-time">2m</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="wt-card">
+          <div class="wt-lane"><svg class="ic-xs plan-icon"><use href="#i-map"/></svg></div>
+          <div class="wt-body">
+            <div class="wt-title-row"><span class="wt-title">usage-bug</span></div>
+            <div class="agent-row">
+              <svg class="ic-xs plan-icon"><use href="#i-map"/></svg>
+              <svg class="ic-xs" style="color:#d97757"><use href="#i-claude"/></svg>
+              <span class="a-label">Plan ready</span>
+              <span class="a-time">1h</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="wt-card">
+          <div class="wt-lane"><span class="dot dot-done"></span></div>
+          <div class="wt-body">
+            <div class="wt-title-row"><span class="wt-title">fileschanges-context-menu</span></div>
+            <div class="agent-row">
+              <span class="dot dot-done" style="width:6px;height:6px"></span>
+              <svg class="ic-xs" style="color:#d97757"><use href="#i-claude"/></svg>
+              <span class="a-label">Ready</span>
+              <span class="a-time">3h</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="section-head">
+          <span class="proj-glyph">TP</span>
+          <span class="label">test-python</span>
+          <span class="count">2</span>
+        </div>
+
+        <div class="wt-card">
+          <div class="wt-lane"><svg class="ic-xs q-icon"><use href="#i-question"/></svg></div>
+          <div class="wt-body">
+            <div class="wt-title-row"><span class="wt-title">api-refactor</span></div>
+            <div class="agent-row">
+              <svg class="ic-xs q-icon"><use href="#i-question"/></svg>
+              <svg class="ic-xs" style="color:var(--muted-foreground)"><use href="#i-sparkle"/></svg>
+              <span class="a-label" style="color:var(--status-question)">Answer questions</span>
+              <span class="a-time">5m</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="wt-card">
+          <div class="wt-lane"><span class="dot dot-idle"></span></div>
+          <div class="wt-body">
+            <div class="wt-title-row"><span class="wt-title">main</span></div>
+            <div class="agent-row">
+              <span class="dot dot-idle" style="width:6px;height:6px"></span>
+              <span class="a-label">Idle</span>
+              <span class="a-time">2d</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="section-head">
+          <span class="proj-glyph">OI</span>
+          <span class="label">orca-importer</span>
+          <span class="count">1</span>
+        </div>
+        <div class="wt-card">
+          <div class="wt-lane"><span class="dot dot-error"></span></div>
+          <div class="wt-body">
+            <div class="wt-title-row"><span class="wt-title">fix-conflicts</span></div>
+            <div class="agent-row">
+              <span class="dot dot-error" style="width:6px;height:6px"></span>
+              <span class="a-label" style="color:var(--status-error)">Merge conflicts</span>
+              <span class="a-time">40m</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- footer with hovered usage row -->
+      <div class="sidebar-footer">
+        <div class="update-pill"><svg class="ic-xs"><use href="#i-arrow-up"/></svg>Update ready — restart to apply</div>
+        <div class="usage hovered">
+          <div class="usage-head">
+            <svg class="ic-xs" style="color:#d97757"><use href="#i-claude"/></svg>
+            <span class="email">dershdor@gmail.com</span>
+            <span class="active-pill">active</span>
+          </div>
+          <div class="usage-bar-row"><span class="tag">5h</span><span class="usage-track"><span class="usage-fill" style="width:42%"></span></span><span class="pct">42%</span></div>
+          <div class="usage-bar-row"><span class="tag">7d</span><span class="usage-track"><span class="usage-fill" style="width:61%"></span></span><span class="pct">61%</span></div>
+          <div class="usage-reset">resets 6:00 PM</div>
+        </div>
+        <div class="sidebar-toolbar">
+          <span class="grp">
+            <button class="icon-xs-btn"><svg class="ic-sm"><use href="#i-gear"/></svg></button>
+          </span>
+          <span class="grp">
+            <button class="icon-xs-btn"><svg class="ic-sm"><use href="#i-kanban"/></svg></button>
+            <button class="icon-xs-btn"><svg class="ic-sm"><use href="#i-panel-left"/></svg></button>
+          </span>
+        </div>
+      </div>
+    </aside>
+
+    <!-- ============ CENTER ============ -->
+    <main class="center">
+      <div class="tabstrip">
+        <div class="tab active">
+          <span class="spinner" style="width:10px;height:10px;border-width:1.5px"></span>
+          <span class="t-label">redesign</span>
+          <span class="t-close"><svg class="ic-xs"><use href="#i-x"/></svg></span>
+        </div>
+        <div class="tab">
+          <svg class="ic-xs" style="color:var(--status-done)"><use href="#i-check"/></svg>
+          <span class="t-label">fix-usage</span>
+          <span class="t-close"><svg class="ic-xs"><use href="#i-x"/></svg></span>
+        </div>
+        <div class="tab">
+          <svg class="ic-xs" style="color:var(--status-done)"><use href="#i-terminal"/></svg>
+          <span class="t-label">terminal</span>
+          <span class="unread-dot"></span>
+          <span class="t-close"><svg class="ic-xs"><use href="#i-x"/></svg></span>
+        </div>
+        <div class="tab tab-board">
+          <svg class="ic-xs"><use href="#i-kanban"/></svg>
+          <span class="t-label">Board</span>
+        </div>
+        <button class="tab-plus" title="Create new session"><svg class="ic-sm"><use href="#i-plus"/></svg></button>
+        <div style="flex:1;border-bottom:0"></div>
+      </div>
+
+      <!-- shortened chat -->
+      <div class="chat">
+        <div class="chat-inner">
+          <div class="msg-user">Run the test suite and fix whatever the usage-indicator change broke.</div>
+
+          <div class="msg-assistant">
+            I'll run the suite in a terminal below and fix the failures. Watching <span class="mono" style="font-size:12px">vitest</span> output now.
+          </div>
+
+          <div class="tool-card">
+            <svg class="ic-sm tc-check"><use href="#i-check-c"/></svg>
+            <span class="tc-name">Edit</span>
+            <span class="tc-target">src/renderer/src/components/layout/UsageIndicator.tsx</span>
+            <span class="tc-diff"><span class="add">+9</span> <span class="del">−3</span></span>
+          </div>
+
+          <div class="tool-card">
+            <span class="spinner" style="width:12px;height:12px"></span>
+            <span class="tc-name">Bash</span>
+            <span class="tc-target">pnpm test</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="pane-divider"></div>
+
+      <!-- ============ TERMINAL PANEL ============ -->
+      <div class="term-panel">
+        <div class="term-tabs">
+          <div class="term-tab active">
+            <svg style="color:var(--status-done)"><use href="#i-terminal"/></svg>
+            <span>zsh</span>
+          </div>
+          <div class="term-tab">
+            <svg><use href="#i-terminal"/></svg>
+            <span>dev server</span>
+          </div>
+          <button class="term-plus" title="New Terminal"><svg class="ic-xs"><use href="#i-plus"/></svg></button>
+          <div class="term-toolbar">
+            <button class="tb-icon-btn" title="Search (Cmd+F)"><svg class="ic-xs"><use href="#i-search"/></svg></button>
+            <button class="tb-icon-btn" title="Clear terminal (Cmd+K)"><svg class="ic-xs"><use href="#i-eraser"/></svg></button>
+            <button class="tb-icon-btn" title="Restart"><svg class="ic-xs"><use href="#i-rotate"/></svg></button>
+            <button class="tb-icon-btn" title="Collapse"><svg class="ic-xs"><use href="#i-chevron-d"/></svg></button>
+          </div>
+        </div>
+        <div class="term-surface">
+          <div><span class="t-green t-bold">mor@hive</span> <span class="t-blue">~/.hive-worktrees/hive-electron/redesign</span> <span class="t-magenta">(redesign)</span> <span class="t-dim">$</span> pnpm test</div>
+          <div class="t-dim">&gt; hive-electron@1.2.31 test</div>
+          <div class="t-dim">&gt; vitest run</div>
+          <div>&nbsp;</div>
+          <div><span class="t-cyan t-bold"> RUN </span> <span class="t-dim">v3.2.1 /Users/mor/.hive-worktrees/hive-electron/redesign</span></div>
+          <div>&nbsp;</div>
+          <div><span class="t-green"> ✓</span> src/renderer/src/stores/settings-store.test.ts <span class="t-dim">(12 tests) 84ms</span></div>
+          <div><span class="t-green"> ✓</span> src/main/services/pty-service.test.ts <span class="t-dim">(9 tests) 132ms</span></div>
+          <div><span class="t-green"> ✓</span> src/shared/utils/usage-window.test.ts <span class="t-dim">(21 tests) 45ms</span></div>
+          <div><span class="t-red t-bold"> ✗</span> src/renderer/src/components/layout/UsageIndicator.test.tsx <span class="t-dim">&gt;</span> renders reset time</div>
+          <div>&nbsp;&nbsp;&nbsp;<span class="t-red">→ expected</span> <span class="t-green">'resets 6:00 PM'</span> <span class="t-red">to equal</span> <span class="t-yellow">'resets 5:00 PM'</span></div>
+          <div>&nbsp;&nbsp;&nbsp;<span class="t-dim">at UsageIndicator.test.tsx:148:29</span></div>
+          <div>&nbsp;</div>
+          <div><span class="t-bold"> Tests </span> <span class="t-red t-bold">1 failed</span> <span class="t-dim">|</span> <span class="t-green t-bold">42 passed</span> <span class="t-dim">(43)</span></div>
+          <div><span class="t-bold"> Duration </span> <span class="t-dim">3.42s</span></div>
+          <div>&nbsp;</div>
+          <div><span class="t-green t-bold">mor@hive</span> <span class="t-blue">~/…/redesign</span> <span class="t-magenta">(redesign)</span> <span class="t-dim">$</span> <span class="term-cursor"></span></div>
+        </div>
+      </div>
+    </main>
+
+    <!-- ============ RIGHT SIDEBAR ============ -->
+    <aside class="sidebar-right">
+      <div class="rs-header">
+        <span class="rs-tab active">Changes</span>
+        <span class="rs-tab">Files</span>
+      </div>
+      <div class="rs-body">
+        <div class="file-group-label">
+          Unstaged — 4
+          <span class="ops"><button>Stage All</button><button>Discard</button></span>
+        </div>
+        <div class="file-row"><span class="f-status f-m">M</span><span class="f-name">globals.css</span><span class="f-dir">src/renderer/src/styles</span></div>
+        <div class="file-row"><span class="f-status f-m">M</span><span class="f-name">LeftSidebar.tsx</span><span class="f-dir">src/renderer/…/layout</span></div>
+        <div class="file-row"><span class="f-status f-a">A</span><span class="f-name">worktree-card.tsx</span><span class="f-dir">src/renderer/…/worktrees</span></div>
+        <div class="file-row"><span class="f-status f-d">D</span><span class="f-name">old-theme.ts</span><span class="f-dir">src/renderer/src/lib</span></div>
+        <div class="commit-box">
+          <div class="commit-input">Commit message…</div>
+          <button class="commit-btn">Commit 4 files</button>
+        </div>
+      </div>
+      <div class="bottom-panel">
+        <div class="bp-tabs">
+          <span class="bp-tab">Setup</span>
+          <span class="bp-tab active">Run</span>
+          <span class="bp-tab">Terminal</span>
+          <span class="bp-url"><svg><use href="#i-globe"/></svg>localhost:5173</span>
+        </div>
+        <div class="bp-term">
+          <div><span class="p">➜</span> <span class="cmd">pnpm dev</span></div>
+          <div class="out">VITE v6.3.5  ready in 743 ms</div>
+          <div class="out">➜  Local: <span class="url">http://localhost:5173/</span></div>
+          <div class="out">➜  press h + enter to show help</div>
+          <div class="out">[electron] main process started</div>
+          <div class="out">[server] listening on 4923</div>
+        </div>
+      </div>
+    </aside>
+
+  </div>
+</div>
+
+<!-- ============ USAGE POPOVER (hovered) ============ -->
+<div class="usage-popover">
+  <div class="up-account">
+    <div class="up-head">
+      <svg class="ic-xs" style="color:#d97757"><use href="#i-claude"/></svg>
+      <span class="email">dershdor@gmail.com</span>
+      <span class="active-pill">active</span>
+    </div>
+    <div class="up-bar-row"><span class="tag">5h</span><span class="up-track"><span class="up-fill" style="width:42%"></span></span><span class="pct">42%</span><span class="reset">resets 6:00 PM</span></div>
+    <div class="up-bar-row"><span class="tag">7d</span><span class="up-track"><span class="up-fill" style="width:61%"></span></span><span class="pct">61%</span><span class="reset">resets Wed 9:00 AM</span></div>
+    <div class="up-chips">
+      <button class="up-chip">Switch</button>
+      <button class="up-chip">Refresh</button>
+      <button class="up-chip">Schedule</button>
+    </div>
+  </div>
+  <div class="up-sep"></div>
+  <div class="up-account">
+    <div class="up-head">
+      <svg class="ic-xs" style="color:#d97757"><use href="#i-claude"/></svg>
+      <span class="email">work@stably.ai</span>
+      <span class="idle-tag">idle</span>
+    </div>
+    <div class="up-bar-row"><span class="tag">5h</span><span class="up-track"><span class="up-fill" style="width:8%"></span></span><span class="pct">8%</span><span class="reset">resets 4:00 PM</span></div>
+    <div class="up-bar-row"><span class="tag">7d</span><span class="up-track"><span class="up-fill" style="width:23%"></span></span><span class="pct">23%</span><span class="reset">resets Thu 2:00 PM</span></div>
+    <div class="up-chips">
+      <button class="up-chip">Switch</button>
+      <button class="up-chip">Refresh</button>
+      <button class="up-chip">Schedule</button>
+    </div>
+  </div>
+  <div class="up-sep"></div>
+  <div class="up-note"><svg><use href="#i-alert-t"/></svg>Auto-switching accounts at 90% usage</div>
+</div>
+
+<!-- fake cursor over the usage row -->
+<svg class="fake-cursor" viewBox="0 0 17 22">
+  <path d="M1 1 L1 16.5 L4.8 13.2 L7.3 19.5 L10.1 18.3 L7.6 12.2 L12.5 12 Z" fill="#ffffff" stroke="#000000" stroke-width="1.2" stroke-linejoin="round"/>
+</svg>
+
+<div class="direction-chip">
+  <b>Orca deep dive — Terminal &amp; Usage</b>
+  <a href="index.html">all</a>
+  <a href="06-board.html">←</a>
+  <a href="08-pr.html">→</a>
+</div>
+
+</body>
+</html>

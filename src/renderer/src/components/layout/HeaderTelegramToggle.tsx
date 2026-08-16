@@ -90,7 +90,8 @@ export function HeaderTelegramToggle(): React.JSX.Element {
         if (!configured) openSettings('telegram')
       }}
       className={cn(
-        isHere && 'bg-[#229ED9]/10 text-[#229ED9] hover:bg-[#229ED9]/15 hover:text-[#229ED9]'
+        'size-6 rounded-md text-muted-foreground hover:bg-accent hover:text-foreground',
+        isHere && 'bg-accent text-foreground hover:bg-accent'
       )}
       title={
         !configured
@@ -102,9 +103,9 @@ export function HeaderTelegramToggle(): React.JSX.Element {
       data-testid="telegram-forwarding-toggle"
     >
       <span className="relative inline-flex">
-        <Send className={cn('h-4 w-4', isHere && 'text-[#229ED9]')} />
+        <Send className="h-4 w-4" />
         {isHere && activeForwardingMode && (
-          <span className="absolute -right-2 -top-2 text-[9px] leading-3 min-w-3 h-3 rounded-full bg-[#229ED9] text-white">
+          <span className="absolute -right-2 -top-2 text-[9px] leading-3 min-w-3 h-3 rounded-full bg-foreground text-background">
             {activeForwardingMode === 'questions' ? 'Q' : 'A'}
           </span>
         )}

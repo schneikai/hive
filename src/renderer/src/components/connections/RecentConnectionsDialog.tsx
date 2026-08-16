@@ -469,8 +469,8 @@ export function RecentConnectionsDialog({
                     <button
                       className={cn(
                         'flex flex-col w-full px-3 py-2 text-sm text-left',
-                        'bg-primary/10 hover:bg-primary/15 transition-colors',
-                        selectedId === SELECTED_COMBO_ID && 'bg-primary/20'
+                        'bg-accent/40 hover:bg-accent/60 transition-colors',
+                        selectedId === SELECTED_COMBO_ID && 'bg-accent'
                       )}
                       onClick={() => setSelectedId(SELECTED_COMBO_ID)}
                       data-testid="recent-connection-row-selected-combo"
@@ -497,7 +497,7 @@ export function RecentConnectionsDialog({
                           onKeyDown={handleNoteKeyDown}
                           onBlur={handleNoteBlur}
                           onClick={(e) => e.stopPropagation()}
-                          className="bg-background border border-border rounded px-1.5 py-0.5 text-sm w-full focus:outline-none focus:ring-1 focus:ring-ring"
+                          className="bg-background border border-border rounded-md px-1.5 py-0.5 text-[13px] w-full outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:border-ring"
                           placeholder="Add a note..."
                           data-testid="recent-connection-note-input"
                         />
@@ -517,8 +517,8 @@ export function RecentConnectionsDialog({
                               // same way as the synthetic row -- tint it to match
                               entry.id === exactSelectionEntry?.id &&
                                 (selectedId === entry.id
-                                  ? 'bg-primary/20 hover:bg-primary/20'
-                                  : 'bg-primary/10 hover:bg-primary/15')
+                                  ? 'bg-accent hover:bg-accent'
+                                  : 'bg-accent/40 hover:bg-accent/60')
                             )}
                             onClick={() => setSelectedId(entry.id)}
                             data-testid={`recent-connection-row-${entry.id}`}
@@ -526,7 +526,7 @@ export function RecentConnectionsDialog({
                             <span className="truncate">
                               {entry.note && (
                                 <span
-                                  className="italic text-primary"
+                                  className="italic text-foreground"
                                   data-testid={`recent-connection-note-${entry.id}`}
                                 >
                                   {entry.note}

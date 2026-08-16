@@ -442,7 +442,7 @@ describe('merge conflicts ticket button', () => {
     })
   })
 
-  test('running conflict flow renders a fuchsia progress bar instead of the button', () => {
+  test('running conflict flow renders a red progress bar instead of the button', () => {
     useWorktreeStatusStore.setState({
       mergeConflictSessionByWorktree: { 'wt-1': 'conflict-session-1' },
       mergeConflictFlowByWorktree: {
@@ -455,10 +455,9 @@ describe('merge conflicts ticket button', () => {
     expect(screen.queryByTestId('kanban-ticket-fix-conflicts')).not.toBeInTheDocument()
     const progress = screen.getByTestId('kanban-ticket-conflict-progress')
     expect(progress).toBeInTheDocument()
-    expect(screen.getByRole('progressbar', { name: 'Fixing merge conflicts' })).toHaveClass(
-      'bg-fuchsia-500/15'
-    )
-    expect(progress.querySelector('.bg-fuchsia-500')).toBeInTheDocument()
+    expect(screen.getByRole('progressbar', { name: 'Fixing merge conflicts' })).toBeInTheDocument()
+    // Orca styling: neutral track, conflict state distinguished by a red bar
+    expect(progress.querySelector('.bg-red-500')).toBeInTheDocument()
   })
 
   test('clicking the running progress bar opens the attached conflict session', () => {

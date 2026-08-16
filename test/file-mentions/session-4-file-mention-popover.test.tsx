@@ -119,7 +119,7 @@ describe('Session 4: FileMentionPopover', () => {
     expect(screen.getByText('src/utils/helpers.ts')).toBeTruthy()
   })
 
-  test('highlights the selected item with bg-accent', () => {
+  test('highlights the selected item with the orca selection background', () => {
     render(
       <FileMentionPopover
         suggestions={mockSuggestions}
@@ -132,11 +132,15 @@ describe('Session 4: FileMentionPopover', () => {
     )
 
     const items = screen.getAllByTestId('file-mention-item')
-    // The third item (index 2) should have bg-accent class
-    expect(items[2].className).toContain('bg-accent')
-    // Other items should NOT have bg-accent
-    expect(items[0].className).not.toContain('bg-accent')
-    expect(items[1].className).not.toContain('bg-accent')
+    // The third item (index 2) should have the orca selection highlight classes
+    expect(items[2].className).toContain('bg-black/6')
+    expect(items[2].className).toContain('dark:bg-white/8')
+    expect(items[2]).toHaveAttribute('aria-selected', 'true')
+    // Other items should NOT have the selection highlight
+    expect(items[0].className).not.toContain('bg-black/6')
+    expect(items[1].className).not.toContain('bg-black/6')
+    expect(items[0]).toHaveAttribute('aria-selected', 'false')
+    expect(items[1]).toHaveAttribute('aria-selected', 'false')
   })
 
   test('calls onSelect when Enter is pressed with correct file', () => {

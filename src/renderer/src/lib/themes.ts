@@ -38,31 +38,32 @@ export const THEME_CSS_PROPERTIES = [
 ] as const
 
 export const THEME_PRESETS: ThemePreset[] = [
-  // Glass themes (CSS-native)
+  // Orca themes (CSS-native) — the default neutral design system.
+  // ids keep the legacy "glass-*" values so saved user settings keep working.
   {
     id: 'glass-dark',
-    name: 'Glass Dark',
+    name: 'Orca Dark',
     type: 'dark',
     cssNative: true,
     colors: {},
     previewColors: {
-      background: '#1a1626',
-      sidebar: '#150f22',
-      primary: '#7c5ce0',
-      'muted-foreground': '#736b8a'
+      background: '#0a0a0a',
+      sidebar: '#1a1a1a',
+      primary: '#e5e5e5',
+      'muted-foreground': '#a1a1a1'
     }
   },
   {
     id: 'glass-light',
-    name: 'Glass Light',
+    name: 'Orca Light',
     type: 'light',
     cssNative: true,
     colors: {},
     previewColors: {
-      background: '#f9f7fd',
-      sidebar: '#f3effa',
-      primary: '#6932d4',
-      'muted-foreground': '#6b6382'
+      background: '#ffffff',
+      sidebar: '#f5f5f5',
+      primary: '#171717',
+      'muted-foreground': '#737373'
     }
   },
 
@@ -73,39 +74,40 @@ export const THEME_PRESETS: ThemePreset[] = [
     type: 'dark',
     cssNative: false,
     colors: {
-      background: 'hsl(260 15% 8%)',
-      foreground: 'hsl(260 10% 95%)',
-      card: 'hsl(260 15% 10%)',
-      'card-foreground': 'hsl(260 10% 95%)',
-      popover: 'hsl(260 15% 10%)',
-      'popover-foreground': 'hsl(260 10% 95%)',
+      // Neutral greyscale surfaces (orca chrome) with a violet accent
+      background: 'hsl(0 0% 7%)',
+      foreground: 'hsl(0 0% 95%)',
+      card: 'hsl(0 0% 9%)',
+      'card-foreground': 'hsl(0 0% 95%)',
+      popover: 'hsl(0 0% 9%)',
+      'popover-foreground': 'hsl(0 0% 95%)',
       primary: 'hsl(270 60% 55%)',
       'primary-foreground': 'hsl(0 0% 100%)',
-      secondary: 'hsl(260 15% 16%)',
-      'secondary-foreground': 'hsl(260 10% 90%)',
-      muted: 'hsl(260 15% 16%)',
-      'muted-foreground': 'hsl(260 10% 55%)',
-      accent: 'hsl(260 15% 16%)',
-      'accent-foreground': 'hsl(260 10% 90%)',
+      secondary: 'hsl(0 0% 15%)',
+      'secondary-foreground': 'hsl(0 0% 90%)',
+      muted: 'hsl(0 0% 15%)',
+      'muted-foreground': 'hsl(0 0% 55%)',
+      accent: 'hsl(0 0% 15%)',
+      'accent-foreground': 'hsl(0 0% 90%)',
       destructive: 'hsl(0 62% 50%)',
       'destructive-foreground': 'hsl(0 0% 100%)',
-      border: 'hsl(260 15% 18%)',
-      input: 'hsl(260 15% 18%)',
+      border: 'hsl(0 0% 17%)',
+      input: 'hsl(0 0% 17%)',
       ring: 'hsl(270 60% 55%)',
-      sidebar: 'hsl(260 15% 7%)',
-      'sidebar-foreground': 'hsl(260 10% 55%)',
+      sidebar: 'hsl(0 0% 6%)',
+      'sidebar-foreground': 'hsl(0 0% 55%)',
       'sidebar-primary': 'hsl(270 60% 55%)',
       'sidebar-primary-foreground': 'hsl(0 0% 100%)',
-      'sidebar-accent': 'hsl(260 15% 14%)',
-      'sidebar-accent-foreground': 'hsl(260 10% 90%)',
-      'sidebar-border': 'hsl(260 15% 18%)',
+      'sidebar-accent': 'hsl(0 0% 13%)',
+      'sidebar-accent-foreground': 'hsl(0 0% 90%)',
+      'sidebar-border': 'hsl(0 0% 17%)',
       'sidebar-ring': 'hsl(270 60% 55%)'
     },
     previewColors: {
-      background: 'hsl(260 15% 8%)',
-      sidebar: 'hsl(260 15% 7%)',
+      background: 'hsl(0 0% 7%)',
+      sidebar: 'hsl(0 0% 6%)',
       primary: 'hsl(270 60% 55%)',
-      'muted-foreground': 'hsl(260 10% 55%)'
+      'muted-foreground': 'hsl(0 0% 55%)'
     }
   },
   {
@@ -321,39 +323,40 @@ export const THEME_PRESETS: ThemePreset[] = [
     type: 'light',
     cssNative: false,
     colors: {
+      // Neutral greyscale surfaces (orca chrome) with a violet accent
       background: 'hsl(0 0% 100%)',
-      foreground: 'hsl(260 15% 12%)',
+      foreground: 'hsl(0 0% 10%)',
       card: 'hsl(0 0% 100%)',
-      'card-foreground': 'hsl(260 15% 12%)',
+      'card-foreground': 'hsl(0 0% 10%)',
       popover: 'hsl(0 0% 100%)',
-      'popover-foreground': 'hsl(260 15% 12%)',
+      'popover-foreground': 'hsl(0 0% 10%)',
       primary: 'hsl(270 60% 50%)',
       'primary-foreground': 'hsl(0 0% 100%)',
-      secondary: 'hsl(260 15% 95%)',
-      'secondary-foreground': 'hsl(260 15% 20%)',
-      muted: 'hsl(260 15% 95%)',
-      'muted-foreground': 'hsl(260 10% 45%)',
-      accent: 'hsl(260 15% 95%)',
-      'accent-foreground': 'hsl(260 15% 20%)',
+      secondary: 'hsl(0 0% 96%)',
+      'secondary-foreground': 'hsl(0 0% 15%)',
+      muted: 'hsl(0 0% 96%)',
+      'muted-foreground': 'hsl(0 0% 45%)',
+      accent: 'hsl(0 0% 96%)',
+      'accent-foreground': 'hsl(0 0% 15%)',
       destructive: 'hsl(0 62% 50%)',
       'destructive-foreground': 'hsl(0 0% 100%)',
-      border: 'hsl(260 10% 90%)',
-      input: 'hsl(260 10% 90%)',
+      border: 'hsl(0 0% 90%)',
+      input: 'hsl(0 0% 90%)',
       ring: 'hsl(270 60% 50%)',
-      sidebar: 'hsl(260 15% 97%)',
-      'sidebar-foreground': 'hsl(260 10% 45%)',
+      sidebar: 'hsl(0 0% 98%)',
+      'sidebar-foreground': 'hsl(0 0% 45%)',
       'sidebar-primary': 'hsl(270 60% 50%)',
       'sidebar-primary-foreground': 'hsl(0 0% 100%)',
-      'sidebar-accent': 'hsl(260 15% 93%)',
-      'sidebar-accent-foreground': 'hsl(260 15% 20%)',
-      'sidebar-border': 'hsl(260 10% 90%)',
+      'sidebar-accent': 'hsl(0 0% 93%)',
+      'sidebar-accent-foreground': 'hsl(0 0% 15%)',
+      'sidebar-border': 'hsl(0 0% 90%)',
       'sidebar-ring': 'hsl(270 60% 50%)'
     },
     previewColors: {
       background: 'hsl(0 0% 100%)',
-      sidebar: 'hsl(260 15% 97%)',
+      sidebar: 'hsl(0 0% 98%)',
       primary: 'hsl(270 60% 50%)',
-      'muted-foreground': 'hsl(260 10% 45%)'
+      'muted-foreground': 'hsl(0 0% 45%)'
     }
   },
   {

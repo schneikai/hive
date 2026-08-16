@@ -11,8 +11,6 @@ import {
   GitBranchPlus,
   KanbanSquare,
   Link,
-  Loader2,
-  Map as MapIcon,
   MoreHorizontal,
   Pencil,
   Pin,
@@ -67,6 +65,35 @@ import { formatRelativeTime } from '@/lib/format-utils'
 import { ModelIcon } from '@/components/worktrees/ModelIcon'
 import { PulseAnimation } from '@/components/worktrees/PulseAnimation'
 import { LanguageIcon } from '@/components/projects/LanguageIcon'
+import {
+  AGENT_LIST,
+  AGENT_LIST_AFTER_TITLE,
+  AGENT_ROW_ICON_WRAP,
+  AGENT_TIME,
+  AGENT_WORKING_SPINNER,
+  AgentStateDot,
+  CARD_CONTENT_COLUMN,
+  CARD_CONTENT_COLUMN_OVERFLOW_VISIBLE,
+  CARD_LANE,
+  CARD_LANE_SLOT,
+  CARD_LANE_UNREAD_DOT,
+  CARD_LANE_UNREAD_WRAP,
+  CARD_PARENT_ROW,
+  CARD_PARENT_ROW_ALIGN,
+  CARD_TITLE_ACTIONS,
+  CARD_TITLE_EDITING_INPUT,
+  CARD_TITLE_IS_DIM,
+  CARD_TITLE_IS_UNREAD,
+  CARD_TITLE_ROW,
+  CARD_TITLE_ROW_LEFT,
+  SECTION_HEADER_ACTION_BUTTON,
+  SECTION_HEADER_ICON,
+  SidebarAgentRow,
+  SidebarSectionHeader,
+  WorkspaceCardSurface,
+  getFlushWorktreeCardPaddingLeft,
+  type AgentDotState
+} from '@/components/sidebar'
 import { ArchiveConfirmDialog } from '@/components/worktrees/ArchiveConfirmDialog'
 import { AddAttachmentDialog } from '@/components/worktrees/AddAttachmentDialog'
 import { ManageConnectionWorktreesDialog } from '@/components/connections/ManageConnectionWorktreesDialog'
@@ -107,15 +134,22 @@ export function PinnedList(): React.JSX.Element | null {
   }
 
   return (
-    <div className="mb-1" data-testid="pinned-list">
-      <div className="flex items-center gap-1.5 px-2 py-1 text-xs font-medium text-muted-foreground">
-        <Pin className="h-3 w-3" />
-        <span>Pinned</span>
-        <div className="ml-auto">
+    // Orca virtual-row rhythm: ROW_GAP (6px) between header and every card; the
+    // trailing pb-2.5 (= ROW_GAP + GROUP_HEADER_TOP_MARGIN) gives the next
+    // section header its 6px gap + pt-1 spacer.
+    <div className="flex flex-col gap-1.5 pb-2.5" data-testid="pinned-list">
+      <SidebarSectionHeader
+        sticky
+        icon={<Pin className={SECTION_HEADER_ICON} />}
+        label="Pinned"
+        count={items.length}
+        actions={
           <Tooltip>
             <TooltipTrigger asChild>
               <button
-                onClick={() => {
+                type="button"
+                onClick={(event) => {
+                  event.stopPropagation()
                   if (!isPinnedBoardActive) {
                     const fileStore = useFileViewerStore.getState()
                     fileStore.setActiveFile(null)
@@ -124,20 +158,25 @@ export function PinnedList(): React.JSX.Element | null {
                   }
                   togglePinnedBoard()
                 }}
+                // data-state=open keeps the orca hover cluster revealed while the board is
+                // active (spread so an inactive button keeps Radix Tooltip's own data-state)
+                {...(isPinnedBoardActive ? { 'data-state': 'open' } : {})}
+                aria-pressed={isPinnedBoardActive}
                 className={cn(
-                  'p-0.5 rounded hover:bg-muted transition-colors',
-                  isPinnedBoardActive && 'text-primary bg-muted'
+                  SECTION_HEADER_ACTION_BUTTON,
+                  'inline-flex items-center justify-center',
+                  isPinnedBoardActive && 'bg-accent text-foreground'
                 )}
               >
-                <KanbanSquare className="h-3 w-3" />
+                <KanbanSquare className="size-3.5" />
               </button>
             </TooltipTrigger>
             <TooltipContent side="right" sideOffset={4}>
               Pinned Projects Board
             </TooltipContent>
           </Tooltip>
-        </div>
-      </div>
+        }
+      />
       {items.map((item) =>
         item.kind === 'worktree' ? (
           <PinnedWorktreeItem key={`wt-${item.id}`} worktreeId={item.id} />
@@ -145,7 +184,62 @@ export function PinnedList(): React.JSX.Element | null {
           <PinnedConnectionItem key={`conn-${item.id}`} connectionId={item.id} />
         )
       )}
-      <div className="border-b border-border/50 mx-2 mt-1 mb-1" />
+    </div>
+  )
+}
+
+// ── Orca card helpers ──────────────────────────────────────────
+
+/** Hover-revealed title-row action (orca worktree-card-header.tsx:294-297 geometry, neutral hover). */
+const MORE_BUTTON_CLASS =
+  'inline-flex size-4 items-center justify-center rounded bg-transparent p-0 opacity-0 transition-opacity group-hover/worktree-card:opacity-100 group-focus-within/worktree-card:opacity-100 focus-visible:opacity-100 data-[state=open]:opacity-100 text-muted-foreground hover:bg-accent/70 hover:text-foreground'
+
+/** Map Hive session status → orca AgentStateDot vocabulary. */
+function statusToDotState(status: string | null): AgentDotState {
+  switch (status) {
+    case 'working':
+    case 'planning':
+      return 'working'
+    case 'answering':
+    case 'permission':
+    case 'command_approval':
+    case 'plan_ready':
+      return 'question'
+    default:
+      // completed / unread / idle all read as the emerald "ready" dot (orca StatusIndicator)
+      return 'done'
+  }
+}
+
+/** Human status label for the inline agent row. */
+function statusLabel(status: string | null): string {
+  switch (status) {
+    case 'answering':
+      return 'Answer questions'
+    case 'permission':
+      return 'Permission'
+    case 'command_approval':
+      return 'Approve command'
+    case 'planning':
+      return 'Planning'
+    case 'working':
+      return 'Working'
+    case 'plan_ready':
+      return 'Plan ready'
+    default:
+      return 'Ready'
+  }
+}
+
+/** Orca status lane: 20px slot, 12px StatusIndicator glyph, amber unread overlay dot. */
+function StatusLane({ status }: { status: string | null }): React.JSX.Element {
+  const unread = status === 'unread'
+  return (
+    <div className={CARD_LANE}>
+      <span className={unread ? CARD_LANE_UNREAD_WRAP : CARD_LANE_SLOT}>
+        <AgentStateDot state={statusToDotState(status)} size="md" />
+        {unread && <span className={CARD_LANE_UNREAD_DOT} data-worktree-unread-dot="" />}
+      </span>
     </div>
   )
 }
@@ -424,23 +518,15 @@ function PinnedWorktreeItem({ worktreeId }: { worktreeId: string }): React.JSX.E
   if (!worktree || !project) return null
 
   const displayBranch = liveBranch?.name ?? worktree.name
+  // Single-line identity "project › worktree"; the primary worktree shows its
+  // real branch instead of the placeholder worktree name.
+  const secondaryLabel = worktree.is_default
+    ? (liveBranch?.name ?? worktree.branch_name ?? displayBranch)
+    : displayBranch
   const hasNamedBranch = Boolean(worktree.branch_name)
 
-  // Derive display status text + color
-  const { displayStatus, statusClass } =
-    worktreeStatus === 'answering'
-      ? { displayStatus: 'Answer questions', statusClass: 'font-semibold text-amber-500' }
-      : worktreeStatus === 'permission'
-        ? { displayStatus: 'Permission', statusClass: 'font-semibold text-amber-500' }
-        : worktreeStatus === 'planning'
-          ? { displayStatus: 'Planning', statusClass: 'font-semibold text-blue-400' }
-          : worktreeStatus === 'working'
-            ? { displayStatus: 'Working', statusClass: 'font-semibold text-primary' }
-            : worktreeStatus === 'plan_ready'
-              ? { displayStatus: 'Plan ready', statusClass: 'font-semibold text-blue-400' }
-              : worktreeStatus === 'completed'
-                ? { displayStatus: 'Ready', statusClass: 'font-semibold text-green-400' }
-                : { displayStatus: 'Ready', statusClass: 'text-muted-foreground' }
+  const displayStatus = statusLabel(worktreeStatus)
+  const isUnread = worktreeStatus === 'unread'
 
   const handleClick = (): void => {
     selectWorktree(worktreeId)
@@ -605,152 +691,168 @@ function PinnedWorktreeItem({ worktreeId }: { worktreeId: string }): React.JSX.E
   return (
     <ContextMenu>
       <ContextMenuTrigger asChild>
-        <div
-          className={cn(
-            'group flex items-center gap-1.5 px-2 py-1 rounded-md cursor-pointer',
-            'transition-colors mx-1',
-            isSelected ? 'bg-accent text-accent-foreground' : 'hover:bg-accent/50'
-          )}
+        <WorkspaceCardSurface
+          active={isSelected ? 'primary' : false}
+          renaming={isRenamingBranch}
+          className="group/worktree-card"
+          style={{ paddingLeft: getFlushWorktreeCardPaddingLeft(0) }}
           onClick={handleClick}
           data-testid={`pinned-worktree-${worktreeId}`}
         >
-          <LanguageIcon
-            language={project.language}
-            customIcon={project.custom_icon}
-            detectedIcon={project.detected_icon}
-          />
+          <div className={cn(CARD_PARENT_ROW, CARD_PARENT_ROW_ALIGN)}>
+            <StatusLane status={worktreeStatus} />
 
-          {isRunProcessAlive && <PulseAnimation className="h-3.5 w-3.5 text-green-500 shrink-0" />}
-          {(worktreeStatus === 'working' || worktreeStatus === 'planning') && (
-            <Loader2 className="h-3.5 w-3.5 text-primary shrink-0 animate-spin" />
-          )}
-          {(worktreeStatus === 'answering' || worktreeStatus === 'permission') && (
-            <AlertCircle className="h-3.5 w-3.5 text-amber-500 shrink-0" />
-          )}
-          {worktreeStatus === 'plan_ready' && (
-            <MapIcon className="h-3.5 w-3.5 text-blue-400 shrink-0" />
-          )}
+            <div className={cn(CARD_CONTENT_COLUMN, CARD_CONTENT_COLUMN_OVERFLOW_VISIBLE)}>
+              {/* Title row: project icon + "project › worktree" (or inline rename) + hover actions */}
+              <div className={CARD_TITLE_ROW}>
+                <div className={CARD_TITLE_ROW_LEFT}>
+                  <LanguageIcon
+                    language={project.language}
+                    customIcon={project.custom_icon}
+                    detectedIcon={project.detected_icon}
+                  />
+                  {isRenamingBranch ? (
+                    <input
+                      ref={renameInputRef}
+                      autoFocus
+                      value={branchNameInput}
+                      onChange={(e) => setBranchNameInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          handleBranchRename()
+                        }
+                        if (e.key === 'Escape') {
+                          intentionalCloseRef.current = true
+                          if (blurTimerRef.current) clearTimeout(blurTimerRef.current)
+                          setIsRenamingBranch(false)
+                        }
+                      }}
+                      onBlur={() => {
+                        // Skip scheduling timer if we're intentionally closing via Escape/Enter
+                        if (intentionalCloseRef.current) {
+                          intentionalCloseRef.current = false
+                          return
+                        }
 
-          <div className="flex-1 min-w-0">
-            {isRenamingBranch ? (
-              <input
-                ref={renameInputRef}
-                autoFocus
-                value={branchNameInput}
-                onChange={(e) => setBranchNameInput(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    handleBranchRename()
-                  }
-                  if (e.key === 'Escape') {
-                    intentionalCloseRef.current = true
-                    if (blurTimerRef.current) clearTimeout(blurTimerRef.current)
-                    setIsRenamingBranch(false)
-                  }
-                }}
-                onBlur={() => {
-                  // Skip scheduling timer if we're intentionally closing via Escape/Enter
-                  if (intentionalCloseRef.current) {
-                    intentionalCloseRef.current = false
-                    return
-                  }
+                        // Ignore blur events that happen too soon after starting rename (menu closing)
+                        const timeSinceStart = Date.now() - renameStartTimeRef.current
+                        if (timeSinceStart < 500) {
+                          // Always refocus during the first 500ms (menu closing period)
+                          // User can press Escape to cancel if needed
+                          setTimeout(() => {
+                            if (
+                              renameInputRef.current &&
+                              document.activeElement !== renameInputRef.current
+                            ) {
+                              renameInputRef.current.focus()
+                              renameInputRef.current.select()
+                            }
+                          }, 0)
+                          return
+                        }
 
-                  // Ignore blur events that happen too soon after starting rename (menu closing)
-                  const timeSinceStart = Date.now() - renameStartTimeRef.current
-                  if (timeSinceStart < 500) {
-                    // Always refocus during the first 500ms (menu closing period)
-                    // User can press Escape to cancel if needed
-                    setTimeout(() => {
-                      if (
-                        renameInputRef.current &&
-                        document.activeElement !== renameInputRef.current
-                      ) {
-                        renameInputRef.current.focus()
-                        renameInputRef.current.select()
-                      }
-                    }, 0)
-                    return
-                  }
+                        // Delay blur to allow for normal focus changes
+                        if (blurTimerRef.current) clearTimeout(blurTimerRef.current)
+                        blurTimerRef.current = setTimeout(() => {
+                          blurTimerRef.current = null
+                          // Only close if the input is still not focused
+                          if (document.activeElement !== renameInputRef.current) {
+                            setIsRenamingBranch(false)
+                          }
+                        }, 100)
+                      }}
+                      onClick={(e) => e.stopPropagation()}
+                      className={cn(
+                        CARD_TITLE_EDITING_INPUT,
+                        'w-full min-w-0 flex-1 text-[13px] leading-5'
+                      )}
+                      data-testid="branch-rename-input"
+                    />
+                  ) : (
+                    <span
+                      className={isUnread ? CARD_TITLE_IS_UNREAD : CARD_TITLE_IS_DIM}
+                      title={worktree.path}
+                    >
+                      {project.name} <span className="text-muted-foreground">›</span>{' '}
+                      {secondaryLabel}
+                    </span>
+                  )}
+                </div>
 
-                  // Delay blur to allow for normal focus changes
-                  if (blurTimerRef.current) clearTimeout(blurTimerRef.current)
-                  blurTimerRef.current = setTimeout(() => {
-                    blurTimerRef.current = null
-                    // Only close if the input is still not focused
-                    if (document.activeElement !== renameInputRef.current) {
-                      setIsRenamingBranch(false)
-                    }
-                  }, 100)
-                }}
-                onClick={(e) => e.stopPropagation()}
-                className="bg-background border border-border rounded px-1.5 py-0.5 text-xs w-full focus:outline-none focus:ring-1 focus:ring-ring"
-                data-testid="branch-rename-input"
-              />
-            ) : (
-              <span className="text-sm truncate block" title={worktree.path}>
-                {project.name} <span className="text-muted-foreground">›</span> {displayBranch}
-              </span>
-            )}
-            <div className="flex items-center pr-1">
-              <ModelIcon worktreeId={worktreeId} className="h-2.5 w-2.5 mr-1 shrink-0" />
-              <span className={cn('text-[11px]', statusClass)} data-testid="pinned-status-text">
-                {displayStatus}
-              </span>
-              {worktree.is_default && (
-                <SiblingCountChips projectId={project.id} excludeId={worktree.id} />
-              )}
-              <span className="flex-1" />
-              {lastMessageTime && (
-                <span
-                  className="text-[10px] text-muted-foreground/60 tabular-nums shrink-0"
-                  title={new Date(lastMessageTime).toLocaleString()}
-                  data-testid="pinned-last-message-time"
-                >
-                  {formatRelativeTime(lastMessageTime)}
-                </span>
-              )}
+                <div className={CARD_TITLE_ACTIONS}>
+                  {hint && vimModeEnabled && vimMode === 'normal' && (
+                    <HintBadge
+                      code={hint}
+                      mode={hintMode}
+                      pendingChar={hintPendingChar}
+                      actionMode={hintActionMode}
+                    />
+                  )}
+
+                  {/* More Options Dropdown (visible on hover) */}
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className={MORE_BUTTON_CLASS}
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <MoreHorizontal className="size-3.5" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent className="w-52" align="end">
+                      {worktreeMenuItems(
+                        DropdownMenuItem,
+                        DropdownMenuSeparator,
+                        DropdownMenuSub,
+                        DropdownMenuSubTrigger,
+                        DropdownMenuSubContent
+                      )}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
+              </div>
+
+              {/* Inline agent row (orca compact agent row): state dot · model · status · sibling chips · time */}
+              <div
+                className={cn(AGENT_LIST, AGENT_LIST_AFTER_TITLE)}
+                data-compact-agent-list="true"
+              >
+                <SidebarAgentRow
+                  leading={
+                    <>
+                      <AgentStateDot state={statusToDotState(worktreeStatus)} size="sm" />
+                      {isRunProcessAlive && (
+                        <PulseAnimation className="size-3 shrink-0 text-blue-500" />
+                      )}
+                      <span className={AGENT_ROW_ICON_WRAP}>
+                        <ModelIcon worktreeId={worktreeId} className="size-[13px] shrink-0" />
+                      </span>
+                    </>
+                  }
+                  label={<span data-testid="pinned-status-text">{displayStatus}</span>}
+                  trailing={
+                    <>
+                      {worktree.is_default && (
+                        <SiblingCountChips projectId={project.id} excludeId={worktree.id} />
+                      )}
+                      {lastMessageTime && (
+                        <span
+                          className={AGENT_TIME}
+                          title={new Date(lastMessageTime).toLocaleString()}
+                          data-testid="pinned-last-message-time"
+                        >
+                          {formatRelativeTime(lastMessageTime)}
+                        </span>
+                      )}
+                    </>
+                  }
+                />
+              </div>
             </div>
           </div>
-
-          {hint && vimModeEnabled && vimMode === 'normal' && (
-            <HintBadge
-              code={hint}
-              mode={hintMode}
-              pendingChar={hintPendingChar}
-              actionMode={hintActionMode}
-            />
-          )}
-
-          {worktreeStatus === 'unread' && (
-            <span className="h-2 w-2 rounded-full bg-primary shrink-0" />
-          )}
-
-          {/* More Options Dropdown (visible on hover) */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                className={cn(
-                  'h-5 w-5 p-0 opacity-0 group-hover:opacity-100 transition-opacity',
-                  'hover:bg-accent'
-                )}
-                onClick={(e) => e.stopPropagation()}
-              >
-                <MoreHorizontal className="h-3.5 w-3.5" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent className="w-52" align="end">
-              {worktreeMenuItems(
-                DropdownMenuItem,
-                DropdownMenuSeparator,
-                DropdownMenuSub,
-                DropdownMenuSubTrigger,
-                DropdownMenuSubContent
-              )}
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
+        </WorkspaceCardSurface>
       </ContextMenuTrigger>
 
       <ArchiveConfirmDialog
@@ -800,14 +902,14 @@ function SiblingCountChips({
       {working.count > 0 && (
         <SiblingChip
           bucket={working}
-          icon={<Loader2 className="h-2.5 w-2.5 text-primary animate-spin" />}
+          icon={<span className={cn(AGENT_WORKING_SPINNER, 'size-2.5 border-[1.5px]')} />}
           testId="pinned-sibling-working"
         />
       )}
       {ready.count > 0 && (
         <SiblingChip
           bucket={ready}
-          icon={<CheckCircle2 className="h-2.5 w-2.5 text-green-400" />}
+          icon={<CheckCircle2 className="h-2.5 w-2.5 text-emerald-500" />}
           testId="pinned-sibling-ready"
         />
       )}
@@ -835,7 +937,7 @@ function SiblingChip({
     <Tooltip>
       <TooltipTrigger asChild>
         <span
-          className="ml-1.5 inline-flex items-center gap-0.5 text-[11px] tabular-nums text-muted-foreground shrink-0"
+          className="ml-1 inline-flex shrink-0 items-center gap-0.5 text-[10px] tabular-nums text-muted-foreground/70"
           data-testid={testId}
         >
           {icon}
@@ -1002,21 +1104,8 @@ function PinnedConnectionItem({
     ? connection.custom_name!
     : projectNames || connection.name || 'Connection'
 
-  // Derive display status text + color
-  const { displayStatus, statusClass } =
-    connectionStatus === 'answering'
-      ? { displayStatus: 'Answer questions', statusClass: 'font-semibold text-amber-500' }
-      : connectionStatus === 'permission'
-        ? { displayStatus: 'Permission', statusClass: 'font-semibold text-amber-500' }
-        : connectionStatus === 'planning'
-          ? { displayStatus: 'Planning', statusClass: 'font-semibold text-blue-400' }
-          : connectionStatus === 'working'
-            ? { displayStatus: 'Working', statusClass: 'font-semibold text-primary' }
-            : connectionStatus === 'plan_ready'
-              ? { displayStatus: 'Plan ready', statusClass: 'font-semibold text-blue-400' }
-              : connectionStatus === 'completed'
-                ? { displayStatus: 'Ready', statusClass: 'font-semibold text-green-400' }
-                : { displayStatus: 'Ready', statusClass: 'text-muted-foreground' }
+  const displayStatus = statusLabel(connectionStatus)
+  const isUnread = connectionStatus === 'unread'
 
   const handleClick = (): void => {
     selectConnection(connectionId)
@@ -1069,129 +1158,135 @@ function PinnedConnectionItem({
   return (
     <ContextMenu>
       <ContextMenuTrigger asChild>
-        <div
-          className={cn(
-            'group flex items-center gap-1.5 px-2 py-1 rounded-md cursor-pointer',
-            'transition-colors mx-1',
-            isSelected ? 'bg-accent text-accent-foreground' : 'hover:bg-accent/50'
-          )}
+        <WorkspaceCardSurface
+          active={isSelected ? 'primary' : false}
+          renaming={isRenaming}
+          className="group/worktree-card"
+          style={{ paddingLeft: getFlushWorktreeCardPaddingLeft(0) }}
           onClick={handleClick}
           data-testid={`pinned-connection-${connectionId}`}
         >
-          {connection.color ? (
-            <span
-              className="h-2.5 w-2.5 rounded-full flex-shrink-0"
-              style={{ backgroundColor: parseColorQuad(connection.color)[1] }}
-              aria-hidden="true"
-            />
-          ) : (
-            <Link className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-          )}
+          <div className={cn(CARD_PARENT_ROW, CARD_PARENT_ROW_ALIGN)}>
+            <StatusLane status={connectionStatus} />
 
-          {(connectionStatus === 'working' || connectionStatus === 'planning') && (
-            <Loader2 className="h-3.5 w-3.5 text-primary shrink-0 animate-spin" />
-          )}
-          {(connectionStatus === 'answering' || connectionStatus === 'permission') && (
-            <AlertCircle className="h-3.5 w-3.5 text-amber-500 shrink-0" />
-          )}
-          {connectionStatus === 'plan_ready' && (
-            <MapIcon className="h-3.5 w-3.5 text-blue-400 shrink-0" />
-          )}
+            <div className={cn(CARD_CONTENT_COLUMN, CARD_CONTENT_COLUMN_OVERFLOW_VISIBLE)}>
+              {/* Title row: connection color dot / link glyph + name (or inline rename) + hover actions */}
+              <div className={CARD_TITLE_ROW}>
+                <div className={CARD_TITLE_ROW_LEFT}>
+                  <span className="inline-flex size-4 shrink-0 items-center justify-center">
+                    {connection.color ? (
+                      <span
+                        className="h-2.5 w-2.5 shrink-0 rounded-full"
+                        style={{ backgroundColor: parseColorQuad(connection.color)[1] }}
+                        aria-hidden="true"
+                      />
+                    ) : (
+                      <Link className="size-3.5 shrink-0 text-muted-foreground" />
+                    )}
+                  </span>
+                  {isRenaming ? (
+                    <input
+                      ref={renameInputRef}
+                      autoFocus
+                      value={nameInput}
+                      onChange={(e) => setNameInput(e.target.value)}
+                      onKeyDown={handleRenameKeyDown}
+                      onBlur={() => {
+                        // Skip scheduling timer if we're intentionally closing via Escape/Enter
+                        if (intentionalCloseRef.current) {
+                          intentionalCloseRef.current = false
+                          return
+                        }
 
-          <div className="flex-1 min-w-0">
-            {isRenaming ? (
-              <input
-                ref={renameInputRef}
-                autoFocus
-                value={nameInput}
-                onChange={(e) => setNameInput(e.target.value)}
-                onKeyDown={handleRenameKeyDown}
-                onBlur={() => {
-                  // Skip scheduling timer if we're intentionally closing via Escape/Enter
-                  if (intentionalCloseRef.current) {
-                    intentionalCloseRef.current = false
-                    return
-                  }
+                        // Ignore blur events that happen too soon after starting rename (menu closing)
+                        const timeSinceStart = Date.now() - renameStartTimeRef.current
+                        if (timeSinceStart < 500) {
+                          // Always refocus during the first 500ms (menu closing period)
+                          // User can press Escape to cancel if needed
+                          setTimeout(() => {
+                            if (
+                              renameInputRef.current &&
+                              document.activeElement !== renameInputRef.current
+                            ) {
+                              renameInputRef.current.focus()
+                              renameInputRef.current.select()
+                            }
+                          }, 0)
+                          return
+                        }
 
-                  // Ignore blur events that happen too soon after starting rename (menu closing)
-                  const timeSinceStart = Date.now() - renameStartTimeRef.current
-                  if (timeSinceStart < 500) {
-                    // Always refocus during the first 500ms (menu closing period)
-                    // User can press Escape to cancel if needed
-                    setTimeout(() => {
-                      if (
-                        renameInputRef.current &&
-                        document.activeElement !== renameInputRef.current
-                      ) {
-                        renameInputRef.current.focus()
-                        renameInputRef.current.select()
-                      }
-                    }, 0)
-                    return
-                  }
-
-                  // Delay blur to allow for normal focus changes
-                  if (blurTimerRef.current) clearTimeout(blurTimerRef.current)
-                  blurTimerRef.current = setTimeout(() => {
-                    blurTimerRef.current = null
-                    // Only close if the input is still not focused
-                    if (document.activeElement !== renameInputRef.current) {
-                      setIsRenaming(false)
-                    }
-                  }, 100)
-                }}
-                onClick={(e) => e.stopPropagation()}
-                className="bg-background border border-border rounded px-1.5 py-0.5 text-sm w-full focus:outline-none focus:ring-1 focus:ring-ring"
-                placeholder={projectNames || 'Connection name'}
-              />
-            ) : (
-              <>
-                <span className="text-sm truncate block" title={displayName}>
-                  {displayName}
-                </span>
-                <span className={cn('text-[11px]', statusClass)} data-testid="pinned-status-text">
-                  {displayStatus}
-                  {hasCustomName && projectNames && (
-                    <span className="text-muted-foreground font-normal"> · {projectNames}</span>
+                        // Delay blur to allow for normal focus changes
+                        if (blurTimerRef.current) clearTimeout(blurTimerRef.current)
+                        blurTimerRef.current = setTimeout(() => {
+                          blurTimerRef.current = null
+                          // Only close if the input is still not focused
+                          if (document.activeElement !== renameInputRef.current) {
+                            setIsRenaming(false)
+                          }
+                        }, 100)
+                      }}
+                      onClick={(e) => e.stopPropagation()}
+                      className={cn(
+                        CARD_TITLE_EDITING_INPUT,
+                        'w-full min-w-0 flex-1 text-[13px] leading-5'
+                      )}
+                      placeholder={projectNames || 'Connection name'}
+                    />
+                  ) : (
+                    <span
+                      className={isUnread ? CARD_TITLE_IS_UNREAD : CARD_TITLE_IS_DIM}
+                      title={displayName}
+                    >
+                      {displayName}
+                    </span>
                   )}
-                </span>
-              </>
-            )}
+                </div>
+
+                <div className={CARD_TITLE_ACTIONS}>
+                  {hint && vimModeEnabled && vimMode === 'normal' && (
+                    <HintBadge
+                      code={hint}
+                      mode={hintMode}
+                      pendingChar={hintPendingChar}
+                      actionMode={hintActionMode}
+                    />
+                  )}
+
+                  {/* More Options Dropdown (visible on hover) */}
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className={MORE_BUTTON_CLASS}
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <MoreHorizontal className="size-3.5" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent className="w-52" align="end">
+                      {connectionMenuItems(DropdownMenuItem, DropdownMenuSeparator)}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
+              </div>
+
+              {/* Inline agent row: state dot · status (+ member projects) — hidden while renaming */}
+              {!isRenaming && (
+                <div
+                  className={cn(AGENT_LIST, AGENT_LIST_AFTER_TITLE)}
+                  data-compact-agent-list="true"
+                >
+                  <SidebarAgentRow
+                    leading={<AgentStateDot state={statusToDotState(connectionStatus)} size="sm" />}
+                    label={<span data-testid="pinned-status-text">{displayStatus}</span>}
+                    secondary={hasCustomName && projectNames ? projectNames : undefined}
+                  />
+                </div>
+              )}
+            </div>
           </div>
-
-          {hint && vimModeEnabled && vimMode === 'normal' && (
-            <HintBadge
-              code={hint}
-              mode={hintMode}
-              pendingChar={hintPendingChar}
-              actionMode={hintActionMode}
-            />
-          )}
-
-          {connectionStatus === 'unread' && (
-            <span className="h-2 w-2 rounded-full bg-primary shrink-0" />
-          )}
-
-          {/* More Options Dropdown (visible on hover) */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                className={cn(
-                  'h-5 w-5 p-0 opacity-0 group-hover:opacity-100 transition-opacity',
-                  'hover:bg-accent'
-                )}
-                onClick={(e) => e.stopPropagation()}
-              >
-                <MoreHorizontal className="h-3.5 w-3.5" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent className="w-52" align="end">
-              {connectionMenuItems(DropdownMenuItem, DropdownMenuSeparator)}
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
+        </WorkspaceCardSurface>
       </ContextMenuTrigger>
 
       {/* Context Menu (right-click) */}

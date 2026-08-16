@@ -37,8 +37,10 @@ const COLUMNS: { key: KanbanTicketColumn; label: string; color: string; activeCo
   { key: 'todo', label: 'To Do', color: 'border-zinc-600 text-zinc-400', activeColor: 'border-zinc-400 bg-zinc-400/15 text-zinc-200' },
   { key: 'in_progress', label: 'In Progress', color: 'border-blue-600/50 text-blue-400/70', activeColor: 'border-blue-500 bg-blue-500/15 text-blue-300' },
   { key: 'review', label: 'Review', color: 'border-amber-600/50 text-amber-400/70', activeColor: 'border-amber-500 bg-amber-500/15 text-amber-300' },
-  { key: 'merged', label: 'Merged', color: 'border-purple-600/50 text-purple-400/70', activeColor: 'border-purple-500 bg-purple-500/15 text-purple-300' },
-  { key: 'done', label: 'Done', color: 'border-emerald-600/50 text-emerald-400/70', activeColor: 'border-emerald-500 bg-emerald-500/15 text-emerald-300' }
+  // Merged = emerald (orca done/merge token, filled tint); Done = neutral
+  // outline so the two states stay distinguishable side by side
+  { key: 'merged', label: 'Merged', color: 'border-emerald-600/50 text-emerald-400/70', activeColor: 'border-emerald-500 bg-emerald-500/15 text-emerald-300' },
+  { key: 'done', label: 'Done', color: 'border-border text-muted-foreground/70', activeColor: 'border-muted-foreground/50 bg-transparent text-foreground' }
 ]
 
 // ── Column badge for ticket rows ────────────────────────────────────
@@ -178,7 +180,7 @@ export function TicketPickerModal({
               placeholder="Search tickets by title..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-8 pr-3 py-1.5 text-sm bg-muted/50 border border-border rounded-md placeholder:text-muted-foreground/60 focus:outline-none focus:ring-1 focus:ring-ring"
+              className="w-full pl-8 pr-3 py-1.5 text-sm bg-input/30 border border-input rounded-md placeholder:text-muted-foreground/60 focus-visible:outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
               data-testid="ticket-search-input"
               autoFocus
             />

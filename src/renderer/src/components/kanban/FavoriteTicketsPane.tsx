@@ -14,6 +14,7 @@ import {
 } from '@/components/ui/context-menu'
 import { FavoriteTicketCreateModal } from './FavoriteTicketCreateModal'
 import { FavoriteTicketEditModal } from './FavoriteTicketEditModal'
+import { ticketPillClass } from './pill'
 
 interface FavoriteTicketCardProps {
   favorite: FavoriteTicket
@@ -53,10 +54,10 @@ function FavoriteTicketCard({
         <div
           data-testid={`favorite-ticket-${favorite.id}`}
           data-favorite-ticket-id={favorite.id}
-          className="group cursor-pointer rounded-md border border-border/60 bg-card shadow-sm p-2 transition-all duration-200 hover:bg-muted/40"
+          className="group cursor-pointer rounded-md border border-border bg-card px-2.5 pt-2.5 pb-2 transition-[border-color,background-color] duration-150 hover:border-muted-foreground/35"
           onClick={() => onCreate(favorite)}
         >
-          <p className="text-sm font-medium leading-snug text-foreground break-words">
+          <p className="text-[13px] font-medium leading-[1.4] text-foreground break-words">
             {favorite.title}
           </p>
           {favorite.description && (
@@ -67,14 +68,14 @@ function FavoriteTicketCard({
           {(favorite.goal_mode || placeholderCount > 0) && (
             <div className="mt-1.5 flex flex-wrap items-center gap-1">
               {favorite.goal_mode && (
-                <span className="inline-flex items-center gap-1 rounded-full bg-muted/40 px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
-                  <Target className="h-3 w-3" />
+                <span className={ticketPillClass}>
+                  <Target className="h-2.5 w-2.5" />
                   Goal
                 </span>
               )}
               {placeholderCount > 0 && (
-                <span className="inline-flex items-center gap-1 rounded-full bg-muted/40 px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
-                  <Braces className="h-3 w-3" />
+                <span className={ticketPillClass}>
+                  <Braces className="h-2.5 w-2.5" />
                   {placeholderCount} placeholder{placeholderCount === 1 ? '' : 's'}
                 </span>
               )}
@@ -103,7 +104,7 @@ function FavoriteTicketCard({
         <ContextMenuItem
           data-testid="ctx-favorite-unfavorite"
           onClick={() => void handleUnfavorite()}
-          className="gap-2 text-red-500 focus:text-red-500"
+          className="gap-2 text-destructive focus:text-destructive"
         >
           <StarOff className="h-3.5 w-3.5" />
           Unfavorite
@@ -129,22 +130,24 @@ export function FavoriteTicketsPane(): React.JSX.Element {
 
   return (
     <div
-      className="w-72 shrink-0 border-l border-border flex flex-col min-h-0 bg-background"
+      className="w-72 shrink-0 border-l border-border flex flex-col min-h-0 bg-sidebar"
       data-testid="favorite-tickets-pane"
     >
       {/* Header */}
-      <div className="px-3 py-2 border-b border-border flex items-center justify-between">
+      <div className="h-8 px-3 border-b border-border flex shrink-0 items-center justify-between">
         <div className="flex items-center gap-1.5">
           <Star className="h-3.5 w-3.5 text-muted-foreground" />
-          <span className="text-xs font-medium">Favorite Tickets</span>
-          <span className="rounded-full bg-muted/40 px-1.5 text-[11px] text-muted-foreground">
+          <span className="text-[11px] font-semibold uppercase tracking-[0.05em] text-muted-foreground">
+            Favorite Tickets
+          </span>
+          <span className="rounded-full bg-secondary px-[7px] text-[10px] font-semibold tabular-nums text-muted-foreground">
             {favorites.length}
           </span>
         </div>
         <Button
           variant="ghost"
           size="icon"
-          className="h-6 w-6"
+          className="h-6 w-6 rounded-md"
           data-testid="favorite-tickets-pane-close"
           onClick={() => setPaneOpen(false)}
         >
@@ -192,7 +195,7 @@ export function FavoriteTicketsPane(): React.JSX.Element {
               // A failed reload keeps the cached cards — say so instead of
               // silently presenting a possibly stale list
               <div
-                className="flex items-center justify-between gap-2 rounded-md border border-destructive/30 bg-destructive/10 px-2 py-1.5 text-[11px] text-destructive"
+                className="flex items-center justify-between gap-2 rounded-[5px] border border-destructive/30 bg-destructive/8 px-2 py-1.5 text-[11px] text-destructive"
                 data-testid="favorite-tickets-reload-error"
               >
                 <span>Refresh failed — list may be stale.</span>

@@ -107,15 +107,18 @@ export function BottomPanel({
 
   return (
     <div className="flex flex-col min-h-0 flex-1" data-testid="bottom-panel">
-      <div className="flex border-b border-border" data-testid="bottom-panel-tabs">
-        <div className="flex overflow-x-auto scrollbar-hide min-w-0">
+      <div
+        className="flex items-center h-[30px] px-1 border-b border-border"
+        data-testid="bottom-panel-tabs"
+      >
+        <div className="flex h-full items-stretch overflow-x-auto scrollbar-hide min-w-0">
           {visibleTabs.map((tab) => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`text-xs px-3 py-1.5 transition-colors relative ${
+              className={`h-full px-2.5 text-[11px] font-medium rounded-none transition-colors relative ${
                 resolvedTab === tab.id
-                  ? 'text-foreground'
+                  ? 'text-foreground bg-[color-mix(in_srgb,var(--foreground)_6%,var(--card))]'
                   : 'text-muted-foreground hover:text-foreground'
               }`}
               data-testid={`bottom-panel-tab-${tab.id}`}
@@ -123,14 +126,14 @@ export function BottomPanel({
             >
               {vimModeEnabled ? (
                 <>
-                  <span className="text-primary">{tab.keybind}</span>
+                  <span className="text-foreground">{tab.keybind}</span>
                   {tab.label.slice(1)}
                 </>
               ) : (
                 tab.label
               )}
               {resolvedTab === tab.id && (
-                <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary" />
+                <span className="absolute bottom-0 left-2 right-2 h-0.5 bg-[color-mix(in_srgb,var(--foreground)_60%,var(--card))]" />
               )}
             </button>
           ))}
@@ -165,7 +168,7 @@ export function BottomPanel({
               <span className="text-[11px]">{detectedUrl}</span>
             </button>
             {chromeConfigOpen && (
-              <div className="absolute right-0 top-full mt-1 z-50 bg-popover border rounded-md shadow-md p-3 w-80">
+              <div className="absolute right-0 top-full mt-1 z-50 rounded-[11px] border border-black/14 dark:border-white/14 bg-[rgba(255,255,255,0.82)] dark:bg-[rgba(0,0,0,0.72)] backdrop-blur-2xl shadow-[0_16px_36px_rgba(0,0,0,0.24),inset_0_1px_0_rgba(255,255,255,0.04)] p-3 w-80">
                 <label className="text-xs font-medium block mb-1">Custom Chrome Command</label>
                 <p className="text-[10px] text-muted-foreground mb-2">
                   Use {'{url}'} as placeholder. Leave empty for default browser.
@@ -180,13 +183,13 @@ export function BottomPanel({
                         ? 'xdg-open {url}'
                         : 'start chrome {url}'
                   }
-                  className="w-full text-xs bg-background border rounded px-2 py-1 mb-2"
+                  className="w-full text-[12px] bg-input/30 border border-input rounded-md px-2 py-1 mb-2 outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:border-ring"
                   onKeyDown={(e) => e.stopPropagation()}
                 />
                 <div className="flex justify-end gap-1">
                   <button
                     onClick={() => setChromeConfigOpen(false)}
-                    className="text-xs px-2 py-1 rounded hover:bg-accent"
+                    className="text-xs px-2 py-1 rounded-md hover:bg-accent"
                   >
                     Cancel
                   </button>
@@ -198,7 +201,7 @@ export function BottomPanel({
                       setChromeConfigOpen(false)
                       toast.success('Chrome command saved')
                     }}
-                    className="text-xs px-2 py-1 rounded bg-primary text-primary-foreground hover:bg-primary/90"
+                    className="text-xs px-2 py-1 rounded-md bg-primary text-primary-foreground hover:bg-primary/90"
                   >
                     Save
                   </button>

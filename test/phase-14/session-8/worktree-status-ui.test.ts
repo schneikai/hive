@@ -85,18 +85,18 @@ describe('Session 8: Worktree Status UI', () => {
         'utf-8'
       )
 
-      // Should use 11px text size
-      expect(source).toContain('text-[11px]')
+      // 11px text size comes from the kit SidebarAgentRow (orca AGENT_ROW recipe)
+      expect(source).toContain('SidebarAgentRow')
       // Active statuses should be bold
       expect(source).toContain('font-semibold')
       // Per-status colors
       expect(source).toContain('text-amber-500') // answering
       expect(source).toContain('text-blue-400') // planning
-      expect(source).toContain('text-primary') // working
+      expect(source).toContain('text-yellow-500') // working (orca status color)
       expect(source).toContain('text-muted-foreground') // ready / archiving
     })
 
-    test('name area uses flex-col wrapper with min-w-0', async () => {
+    test('name area uses the kit content column and title recipes', async () => {
       const fs = await import('fs')
       const path = await import('path')
       source = fs.readFileSync(
@@ -104,10 +104,39 @@ describe('Session 8: Worktree Status UI', () => {
         'utf-8'
       )
 
-      // Should wrap name + status in a flex-col container
-      expect(source).toContain('flex-1 min-w-0')
-      // Name should use block display for proper stacking
-      expect(source).toContain('truncate block')
+      // Should wrap name + status in the orca content column (flex min-w-0 flex-1 flex-col gap-1.5)
+      expect(source).toContain('CARD_CONTENT_COLUMN')
+      // Name uses the orca title recipe (block truncate 13px/20px; semibold when unread)
+      expect(source).toContain('CARD_TITLE_IS_UNREAD')
+      expect(source).toContain('CARD_TITLE_IS_DIM')
+    })
+
+    test('row renders as an orca workspace card with a status lane and inline agent row', async () => {
+      const fs = await import('fs')
+      const path = await import('path')
+      source = fs.readFileSync(
+        path.resolve(__dirname, '../../../src/renderer/src/components/worktrees/WorktreeItem.tsx'),
+        'utf-8'
+      )
+
+      // Card shell: kit WorkspaceCardSurface (orca pt-1.25 pb-1.5, ml-1, rounded-lg,
+      // data-worktree-card-surface + data-worktree-card-active='primary' when selected)
+      expect(source).toContain("from '@/components/sidebar'")
+      expect(source).toContain('WorkspaceCardSurface')
+      expect(source).toContain("active={isSelected ? 'primary' : false}")
+      // Card supplies no inter-row gap; the list wrapper owns the 6px ROW_GAP
+      expect(source).not.toContain('mb-1.5')
+      // 20px status lane holding exactly one glyph
+      expect(source).toContain('CARD_LANE')
+      expect(source).toContain('CARD_LANE_SLOT')
+      // Status line is the orca inline agent row (h-6, 11px, muted) inside a compact list
+      expect(source).toContain('SidebarAgentRow')
+      expect(source).toContain('data-compact-agent-list="true"')
+      // Status vocabulary: kit AgentStateDot (working ring / done dot / question glyph),
+      // plus Hive's blue unread dot and blue plan-ready map
+      expect(source).toContain('AgentStateDot')
+      expect(source).toContain('bg-blue-500')
+      expect(source).toContain('text-blue-400')
     })
 
     test('has data-testid on status text element', async () => {
@@ -129,14 +158,14 @@ describe('Session 8: Worktree Status UI', () => {
         'utf-8'
       )
 
-      // Spinner should show for both working and planning
+      // Working ring should show for both working and planning
       expect(source).toContain("worktreeStatus === 'working' || worktreeStatus === 'planning'")
-      // AlertCircle icon should be used for answering
+      expect(source).toContain("? 'working'")
+      // Question glyph should be used for answering / permission / command approval
       expect(source).toContain("worktreeStatus === 'answering'")
-      expect(source).toContain('AlertCircle')
-      // Fallback icon condition should exclude all active statuses
-      expect(source).toContain("worktreeStatus !== 'planning'")
-      expect(source).toContain("worktreeStatus !== 'answering'")
+      expect(source).toContain("? 'question'")
+      // Everything else (idle / completed) falls back to the emerald done dot
+      expect(source).toContain(": 'done'")
     })
   })
 

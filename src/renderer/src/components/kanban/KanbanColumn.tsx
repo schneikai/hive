@@ -101,7 +101,7 @@ function MarkdownInvalidCardPlaceholder({ placeholder }: { placeholder: Markdown
       <ContextMenuTrigger asChild>
         <div
           data-testid="kanban-invalid-card-placeholder"
-          className="rounded-md border border-destructive/35 bg-destructive/5 p-2 text-sm shadow-sm"
+          className="rounded-md border border-destructive/30 bg-destructive/8 p-2 text-[13px]"
           title={`${placeholder.filePath}\n${placeholder.message}`}
         >
           <div className="flex items-start gap-2">
@@ -398,10 +398,10 @@ export function KanbanColumn({
           onClick={handleTransitionSortToggle}
           disabled={isForcedDateSorted}
           className={cn(
-            'flex h-5 w-5 items-center justify-center rounded transition-colors',
+            'flex h-6 w-6 items-center justify-center rounded-md transition-colors',
             isDateSortedColumn
-              ? 'text-primary hover:bg-muted/40'
-              : 'text-muted-foreground/50 hover:text-muted-foreground hover:bg-muted/40',
+              ? 'text-foreground hover:bg-accent'
+              : 'text-muted-foreground/50 hover:text-muted-foreground hover:bg-accent',
             isForcedDateSorted && 'cursor-default opacity-60 hover:bg-transparent'
           )}
         >
@@ -838,7 +838,7 @@ export function KanbanColumn({
   const dropIndicator = (
     <div
       data-testid={`drop-indicator-${column}`}
-      className="h-0.5 rounded-full bg-primary mx-1 shrink-0 transition-opacity duration-150"
+      className="h-0.5 rounded-full bg-ring mx-1 shrink-0 transition-opacity duration-150"
     />
   )
 
@@ -849,12 +849,12 @@ export function KanbanColumn({
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
       className={cn(
-        'flex flex-1 min-w-[220px] max-w-[300px] flex-col rounded-lg border-2 bg-card/50 p-2 transition-all duration-200',
+        'flex w-[268px] min-w-[268px] flex-col min-h-0 rounded-lg border transition-colors duration-200',
         isDragOver
-          ? 'border-dashed border-primary bg-primary/[0.03]'
+          ? 'border-dashed border-ring bg-foreground/[0.02]'
           : isDragging
-            ? 'border-dashed border-muted-foreground/25'
-            : 'border-solid border-border/20'
+            ? 'border-dashed border-ring/50'
+            : 'border-transparent'
       )}
     >
       {/* Column header */}
@@ -863,28 +863,16 @@ export function KanbanColumn({
           <div
             ref={headerRef}
             data-title-mode={isInProgressColumn ? titleMode : 'centered'}
-            className="relative flex items-center px-2 pb-3"
+            className="relative flex items-center gap-[7px] px-1.5 pt-1 pb-2.5"
           >
-            {/* Left spacer — mirrors right toggle width to keep title centered.
-                For In Progress, only rendered in 'centered' mode so that
-                'right'/'abbreviated' modes can reclaim that space. */}
-            {(isDoneColumn || (isInProgressColumn && titleMode === 'centered')) && (
-              <div className="w-[50px] shrink" aria-hidden="true" />
-            )}
-
-            {/* Title group — centered, or right-aligned when In Progress can't fit centered */}
-            <div
-              className={cn(
-                'flex flex-1 items-center gap-2',
-                isInProgressColumn && titleMode !== 'centered' ? 'justify-end' : 'justify-center'
-              )}
-            >
+            {/* Title group — left-aligned (orca board .col-head) */}
+            <div className="flex min-w-0 flex-1 items-center gap-[7px]">
               {/* Collapse toggle for Done column */}
               {isDoneColumn && (
                 <button
                   data-testid="kanban-column-done-toggle"
                   onClick={handleToggleCollapse}
-                  className="flex h-5 w-5 items-center justify-center rounded text-muted-foreground hover:bg-muted/40 transition-colors"
+                  className="flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground hover:bg-accent transition-colors"
                 >
                   {isCollapsed ? (
                     <ChevronRight className="h-3.5 w-3.5" />
@@ -894,7 +882,7 @@ export function KanbanColumn({
                 </button>
               )}
 
-              <h3 className="whitespace-nowrap text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              <h3 className="whitespace-nowrap text-[11px] font-semibold uppercase tracking-[0.05em] text-muted-foreground">
                 {isInProgressColumn && titleMode === 'abbreviated'
                   ? 'In Prog'
                   : COLUMN_TITLES[column]}
@@ -902,11 +890,11 @@ export function KanbanColumn({
 
               <span
                 ref={badgeRef}
-                className="inline-flex h-5 min-w-[20px] items-center justify-center gap-0.5 rounded-full bg-muted/40 px-1.5 text-[11px] font-medium text-muted-foreground"
+                className="inline-flex items-center justify-center gap-0.5 rounded-full bg-secondary px-[7px] py-px text-[10px] font-semibold tabular-nums tracking-normal text-muted-foreground"
               >
                 {showArchived && archivedTickets && archivedTickets.length > 0 ? (
                   <>
-                    {tickets.length}+<span className="italic">{archivedTickets.length}</span>
+                    {tickets.length}+<span className="italic opacity-65">{archivedTickets.length}</span>
                   </>
                 ) : (
                   tickets.length
@@ -920,7 +908,7 @@ export function KanbanColumn({
             {isInProgressColumn && (
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <div ref={toggleRef} className="ml-2 flex shrink-0 items-center gap-1.5">
+                  <div ref={toggleRef} className="ml-auto flex shrink-0 items-center gap-1.5">
                     {transitionSortButton}
                     <Zap
                       className={cn(
@@ -944,7 +932,7 @@ export function KanbanColumn({
 
             {/* Archive toggle — right of title, vertically centered */}
             {isDoneColumn && (
-              <div className="ml-2 flex shrink-0 items-center gap-1.5">
+              <div className="ml-auto flex shrink-0 items-center gap-1.5">
                 {transitionSortButton}
                 <Archive
                   className={cn(
@@ -963,7 +951,7 @@ export function KanbanColumn({
 
             {/* Transition-sort toggle for columns without other right-side controls */}
             {!isInProgressColumn && !isDoneColumn && (
-              <div className="ml-2 flex shrink-0 items-center">{transitionSortButton}</div>
+              <div className="ml-auto flex shrink-0 items-center">{transitionSortButton}</div>
             )}
 
             {/* Hidden measurement spans — inherit font styles via cascade; used
@@ -975,13 +963,13 @@ export function KanbanColumn({
               >
                 <span
                   ref={fullTextMeasureRef}
-                  className="text-xs font-semibold uppercase tracking-wider"
+                  className="text-[11px] font-semibold uppercase tracking-[0.05em]"
                 >
                   In Progress
                 </span>
                 <span
                   ref={shortTextMeasureRef}
-                  className="text-xs font-semibold uppercase tracking-wider"
+                  className="text-[11px] font-semibold uppercase tracking-[0.05em]"
                 >
                   In Prog
                 </span>
@@ -1022,9 +1010,9 @@ export function KanbanColumn({
               <button
                 data-testid="kanban-add-ticket-card"
                 onClick={() => setIsCreateModalOpen(true)}
-                className="flex items-center justify-center gap-1.5 rounded-md border border-dashed border-border/60 p-2 text-sm text-muted-foreground/60 hover:border-primary/40 hover:text-muted-foreground hover:bg-muted/20 transition-colors cursor-pointer"
+                className="flex items-center justify-center gap-1.5 rounded-md border border-dashed border-border p-2 text-[13px] text-muted-foreground/60 hover:border-muted-foreground/35 hover:text-muted-foreground hover:bg-secondary/40 transition-colors cursor-pointer"
               >
-                <Plus className="h-4 w-4" />
+                <Plus className="h-3.5 w-3.5" />
                 <span>New ticket</span>
               </button>
             ) : (
@@ -1077,11 +1065,11 @@ export function KanbanColumn({
               {isDoneColumn && showArchived && archivedTickets && archivedTickets.length > 0 && (
                 <>
                   <div className="flex items-center gap-2 px-2 py-1">
-                    <div className="flex-1 border-t border-border/40" />
-                    <span className="text-[10px] font-medium text-muted-foreground/50 uppercase tracking-wider">
+                    <div className="flex-1 border-t border-border" />
+                    <span className="text-[11px] font-semibold text-muted-foreground/50 uppercase tracking-[0.05em]">
                       Archived
                     </span>
-                    <div className="flex-1 border-t border-border/40" />
+                    <div className="flex-1 border-t border-border" />
                   </div>
                   {archivedTickets.map((ticket, index) => {
                     const occurrenceKey = fallbackArchivedCardIdentityKeys?.[index] ?? ticketKey(ticket.project_id, ticket.id)
@@ -1106,9 +1094,9 @@ export function KanbanColumn({
                 <button
                   data-testid="kanban-add-ticket-card"
                   onClick={() => setIsCreateModalOpen(true)}
-                  className="flex items-center justify-center gap-1.5 rounded-md border border-dashed border-border/60 p-2 text-sm text-muted-foreground/60 hover:border-primary/40 hover:text-muted-foreground hover:bg-muted/20 transition-colors cursor-pointer"
+                  className="flex items-center justify-center gap-1.5 rounded-md border border-dashed border-border p-2 text-[13px] text-muted-foreground/60 hover:border-muted-foreground/35 hover:text-muted-foreground hover:bg-secondary/40 transition-colors cursor-pointer"
                 >
-                  <Plus className="h-4 w-4" />
+                  <Plus className="h-3.5 w-3.5" />
                   <span>New ticket</span>
                 </button>
               )}

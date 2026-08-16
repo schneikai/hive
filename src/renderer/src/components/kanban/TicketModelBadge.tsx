@@ -12,6 +12,7 @@ import {
   isClaudeCliFallbackModelId
 } from '@shared/types/claude-cli-fallback-models'
 import { cn } from '@/lib/utils'
+import { ticketPillClass } from './pill'
 import type { KanbanTicket } from '../../../../main/db/types'
 
 /**
@@ -61,12 +62,15 @@ export function TicketModelBadge({
     <span
       title={title}
       className={cn(
-        'inline-flex items-center gap-1 rounded-full border border-transparent bg-muted/40 px-2 py-0.5 text-[11px] font-medium text-muted-foreground',
+        ticketPillClass,
+        'font-mono text-[9px]',
         isUltraVariant(variant) && 'border-2 border-violet-500',
         className
       )}
     >
-      {icon && <img src={icon.src} alt={icon.alt} className="h-3 w-3 shrink-0" draggable={false} />}
+      {icon && (
+        <img src={icon.src} alt={icon.alt} className="h-2.5 w-2.5 shrink-0" draggable={false} />
+      )}
       {displayName}
       {isFallback && (
         <span

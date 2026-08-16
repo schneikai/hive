@@ -13,10 +13,7 @@ export interface TaskListWidgetProps {
   topOffsetPx: number
 }
 
-export function TaskListWidget({
-  todos,
-  topOffsetPx
-}: TaskListWidgetProps): React.JSX.Element {
+export function TaskListWidget({ todos, topOffsetPx }: TaskListWidgetProps): React.JSX.Element {
   const collapsed = useSettingsStore((s) => s.taskListCollapsed)
   const updateSetting = useSettingsStore((s) => s.updateSetting)
 
@@ -27,7 +24,7 @@ export function TaskListWidget({
     <div
       data-testid="task-list-widget"
       style={{ top: `${topOffsetPx}px` }}
-      className="absolute right-4 z-20 w-72 rounded-lg border border-border bg-background/95 backdrop-blur shadow-md transition-all duration-150"
+      className="absolute right-4 z-20 w-72 rounded-[11px] border border-black/14 dark:border-white/14 bg-[rgba(255,255,255,0.82)] dark:bg-[rgba(0,0,0,0.72)] backdrop-blur-2xl shadow-[0_16px_36px_rgba(0,0,0,0.24),inset_0_1px_0_rgba(255,255,255,0.04)] transition-all duration-150"
     >
       {collapsed ? (
         <button

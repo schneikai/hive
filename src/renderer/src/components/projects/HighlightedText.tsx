@@ -14,7 +14,7 @@ export function HighlightedText({
     <span className={className}>
       {text.split('').map((char, i) =>
         set.has(i) ? (
-          <span key={i} className="text-primary font-semibold">
+          <span key={i} className="text-foreground font-semibold">
             {char}
           </span>
         ) : (

@@ -48,10 +48,13 @@ describe('Session 7: Header Branding', () => {
       expect(source).toContain('selectedProject.name')
     })
 
-    test('shows branch name in parentheses with primary color', () => {
+    test('shows branch name in parentheses with muted color (orca)', () => {
       expect(source).toContain('selectedWorktree?.branch_name')
       expect(source).toMatch(/\(\s*\{selectedWorktree\.branch_name\}\s*\)/)
-      expect(source).toContain('text-primary')
+      // Orca design: branch name is de-emphasized with muted foreground
+      expect(source).toMatch(
+        /<span className="text-muted-foreground font-normal">\s*\{' '\}\s*\(\{selectedWorktree\.branch_name\}\)/
+      )
     })
 
     test('shows "Hive" fallback when no project selected', () => {

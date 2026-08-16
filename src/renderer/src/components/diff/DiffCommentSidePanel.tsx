@@ -338,7 +338,7 @@ function CommentCard({
       type="button"
       className={cn(
         'w-full text-left px-4 py-1.5 cursor-pointer hover:bg-accent/50 transition-colors',
-        sectionKey === 'active' && 'border-l-2 border-violet-500/30',
+        sectionKey === 'active' && 'border-l-2 border-border',
         sectionKey === 'outdated' && 'border-l-2 border-yellow-500/40',
         sectionKey === 'missing' && 'opacity-60'
       )}

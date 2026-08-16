@@ -59,10 +59,10 @@ export function PlanReadyImplementFab({
         <button
           onClick={onSaveAsTicket}
           className={cn(
-            'h-8 rounded-full px-3',
-            'text-xs font-medium',
-            'bg-muted/80 text-foreground border border-border',
-            'shadow-md hover:bg-muted transition-colors duration-200',
+            'h-8 rounded-md px-3',
+            'text-[11px] font-medium',
+            'bg-secondary text-foreground border border-border',
+            'shadow-[0_1px_2px_rgba(0,0,0,0.18)] hover:bg-accent transition-colors duration-200',
             'cursor-pointer',
             visible ? 'opacity-100' : 'opacity-0'
           )}
@@ -76,10 +76,10 @@ export function PlanReadyImplementFab({
         <button
           onClick={onSaveAsFile}
           className={cn(
-            'h-8 rounded-full px-3',
-            'text-xs font-medium',
-            'bg-muted/80 text-foreground border border-border',
-            'shadow-md hover:bg-muted transition-colors duration-200',
+            'h-8 rounded-md px-3',
+            'text-[11px] font-medium',
+            'bg-secondary text-foreground border border-border',
+            'shadow-[0_1px_2px_rgba(0,0,0,0.18)] hover:bg-accent transition-colors duration-200',
             'cursor-pointer',
             visible ? 'opacity-100' : 'opacity-0'
           )}
@@ -96,10 +96,10 @@ export function PlanReadyImplementFab({
       <button
         onClick={onCopyPlan}
         className={cn(
-          'h-8 rounded-full px-3',
-          'text-xs font-medium',
-          'bg-muted/80 text-foreground border border-border',
-          'shadow-md hover:bg-muted transition-colors duration-200',
+          'h-8 rounded-md px-3',
+          'text-[11px] font-medium',
+          'bg-secondary text-foreground border border-border',
+          'shadow-[0_1px_2px_rgba(0,0,0,0.18)] hover:bg-accent transition-colors duration-200',
           'cursor-pointer',
           visible ? 'opacity-100' : 'opacity-0'
         )}
@@ -120,10 +120,10 @@ export function PlanReadyImplementFab({
         <button
           onClick={onSuperpowersLocal}
           className={cn(
-            'h-8 rounded-full px-3',
-            'text-xs font-medium',
-            'border border-violet-600 text-violet-600 bg-background hover:bg-violet-100 dark:hover:bg-violet-950',
-            'shadow-md transition-colors duration-200',
+            'h-8 rounded-md px-3',
+            'text-[11px] font-medium',
+            'bg-secondary text-foreground border border-border hover:bg-accent',
+            'shadow-[0_1px_2px_rgba(0,0,0,0.18)] transition-colors duration-200',
             'cursor-pointer',
             visible ? 'opacity-100' : 'opacity-0'
           )}
@@ -141,10 +141,10 @@ export function PlanReadyImplementFab({
         <button
           onClick={onSuperpowers}
           className={cn(
-            'h-8 rounded-full px-3',
-            'text-xs font-medium',
-            'bg-violet-600 text-white',
-            'shadow-md hover:bg-violet-700 transition-colors duration-200',
+            'h-8 rounded-md px-3',
+            'text-[11px] font-medium',
+            'bg-secondary text-foreground border border-border',
+            'shadow-[0_1px_2px_rgba(0,0,0,0.18)] hover:bg-accent transition-colors duration-200',
             'cursor-pointer',
             visible ? 'opacity-100' : 'opacity-0'
           )}
@@ -157,10 +157,10 @@ export function PlanReadyImplementFab({
       <button
         onClick={onImplement}
         className={cn(
-          'h-8 rounded-full px-3',
-          'text-xs font-medium',
+          'h-8 rounded-md px-3',
+          'text-[11px] font-medium',
           'bg-primary text-primary-foreground',
-          'shadow-md hover:bg-primary/90 transition-colors duration-200',
+          'shadow-[0_1px_2px_rgba(0,0,0,0.18)] hover:bg-primary/90 transition-colors duration-200',
           'cursor-pointer',
           visible ? 'opacity-100' : 'opacity-0 pointer-events-none'
         )}

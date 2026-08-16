@@ -135,7 +135,7 @@ export function DiscordProvisionModal({
               placeholder="Filter projects..."
               value={filter}
               onChange={(e) => setFilter(e.target.value)}
-              className="w-full rounded-md border border-border bg-muted/50 py-1.5 pl-8 pr-3 text-sm placeholder:text-muted-foreground/60 focus:outline-none focus:ring-1 focus:ring-ring"
+              className="w-full rounded-md border border-border bg-muted/50 py-1.5 pl-8 pr-3 text-sm placeholder:text-muted-foreground/60 outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:border-ring"
               data-testid="discord-project-filter-input"
             />
           </div>
@@ -177,9 +177,9 @@ export function DiscordProvisionModal({
 
           {(provisioning || progress) && (
             <div className="space-y-2">
-              <div className="h-2 overflow-hidden rounded-full bg-muted">
+              <div className="h-2 overflow-hidden rounded-full bg-secondary">
                 <div
-                  className="h-full bg-primary transition-all"
+                  className="h-full bg-foreground transition-all"
                   style={{ width: `${percent}%` }}
                 />
               </div>

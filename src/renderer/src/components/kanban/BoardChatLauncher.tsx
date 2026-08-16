@@ -39,19 +39,19 @@ export function BoardChatLauncher({
         disabled={disabled}
         title={disabledReason}
         className={cn(
-          'h-12 rounded-full border-border/70 pl-4 pr-5 shadow-sm',
+          'h-7 rounded-md border-border bg-card px-2.5 shadow-none',
           disabled
-            ? 'bg-muted/30 text-muted-foreground'
-            : 'bg-card text-foreground hover:bg-muted/60'
+            ? 'text-muted-foreground'
+            : 'text-muted-foreground hover:bg-secondary hover:text-foreground hover:border-muted-foreground/35'
         )}
       >
         {disabled ? (
-          <Bot className="h-4 w-4" />
+          <Bot className="h-3 w-3" />
         ) : (
-          <span className={cn('h-2.5 w-2.5 rounded-full', getStatusTone(status))} />
+          <span className={cn('h-2 w-2 rounded-full', getStatusTone(status))} />
         )}
-        <MessageSquareText className="h-4 w-4" />
-        <span className="text-sm font-medium">Board Assistant</span>
+        <MessageSquareText className="h-3 w-3" />
+        <span className="text-[12px] font-medium">Board Assistant</span>
       </Button>
     </div>
   )

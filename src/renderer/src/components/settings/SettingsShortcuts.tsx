@@ -193,12 +193,12 @@ function ShortcutCategorySection({
                 <button
                   onClick={() => onStartRecording(shortcut.id)}
                   className={cn(
-                    'min-w-[100px] px-2.5 py-1 rounded border text-xs font-mono text-right transition-colors',
+                    'min-w-[100px] px-2.5 py-1 rounded-md border text-[11px] font-mono text-right transition-colors',
                     isRecording
-                      ? 'border-primary bg-primary/10 text-primary animate-pulse'
+                      ? 'border-orange-500 bg-orange-500/10 text-orange-500 animate-pulse'
                       : isCustomized
-                        ? 'border-primary/50 bg-primary/5 text-foreground hover:border-primary'
-                        : 'border-border text-muted-foreground hover:border-primary/50 hover:text-foreground'
+                        ? 'border-ring/50 bg-accent text-foreground hover:border-ring'
+                        : 'border-border text-muted-foreground hover:border-ring/50 hover:text-foreground'
                   )}
                   data-testid={`shortcut-binding-${shortcut.id}`}
                 >

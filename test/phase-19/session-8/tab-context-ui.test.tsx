@@ -323,8 +323,10 @@ describe('Session 8: Tab Context Menus UI', () => {
 
       render(<SessionTabs />)
       const boardAssistantTab = screen.getByTestId('board-assistant-tab')
-      expect(boardAssistantTab.className).toContain('text-sm')
-      expect(boardAssistantTab.className).not.toContain('text-xs')
+      // Orca design: session-level tabs use the 12px tab typography, not the
+      // smaller 11px auxiliary-button style used by the tab-bar action buttons
+      expect(boardAssistantTab.className).toContain('text-[12px]')
+      expect(boardAssistantTab.className).not.toContain('text-[11px]')
 
       fireEvent.click(boardAssistantTab)
 
