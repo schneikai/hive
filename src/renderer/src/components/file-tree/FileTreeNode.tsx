@@ -170,7 +170,7 @@ export const VirtualFileTreeNode = memo(function VirtualFileTreeNode({
       <span
         className={cn(
           'text-xs truncate flex-1',
-          isFiltered && matchesFilter(node, filter) && 'font-medium text-primary'
+          isFiltered && matchesFilter(node, filter) && 'font-medium text-foreground'
         )}
         title={node.relativePath}
       >

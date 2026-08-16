@@ -13,6 +13,12 @@ interface AgentPickerDialogProps {
   availableSdks: { opencode: boolean; claude: boolean; codex: boolean }
 }
 
+const sdkCardClass = cn(
+  'flex-1 px-4 py-3 rounded-md border border-border',
+  'hover:border-ring/50 hover:bg-accent transition-colors',
+  'text-center cursor-pointer'
+)
+
 export function AgentPickerDialog({
   onSelect,
   availableSdks
@@ -34,27 +40,19 @@ export function AgentPickerDialog({
           {availableSdks.opencode && (
             <button
               onClick={() => onSelect('opencode')}
-              className={cn(
-                'flex-1 px-4 py-3 rounded-lg border-2 border-border',
-                'hover:border-primary hover:bg-accent/50 transition-colors',
-                'text-center cursor-pointer'
-              )}
+              className={sdkCardClass}
             >
-              <div className="text-sm font-medium">OpenCode</div>
-              <div className="text-xs text-muted-foreground mt-1">Open-source AI coding agent</div>
+              <div className="text-[13px] font-medium">OpenCode</div>
+              <div className="text-[11px] text-muted-foreground mt-1">Open-source AI coding agent</div>
             </button>
           )}
           {availableSdks.claude && (
             <button
               onClick={() => onSelect('claude-code')}
-              className={cn(
-                'flex-1 px-4 py-3 rounded-lg border-2 border-border',
-                'hover:border-primary hover:bg-accent/50 transition-colors',
-                'text-center cursor-pointer'
-              )}
+              className={sdkCardClass}
             >
-              <div className="text-sm font-medium">Claude Code</div>
-              <div className="text-xs text-muted-foreground mt-1">
+              <div className="text-[13px] font-medium">Claude Code</div>
+              <div className="text-[11px] text-muted-foreground mt-1">
                 Anthropic&apos;s coding assistant
               </div>
             </button>
@@ -62,14 +60,10 @@ export function AgentPickerDialog({
           {availableSdks.codex && (
             <button
               onClick={() => onSelect('codex')}
-              className={cn(
-                'flex-1 px-4 py-3 rounded-lg border-2 border-border',
-                'hover:border-primary hover:bg-accent/50 transition-colors',
-                'text-center cursor-pointer'
-              )}
+              className={sdkCardClass}
             >
-              <div className="text-sm font-medium">Codex</div>
-              <div className="text-xs text-muted-foreground mt-1">OpenAI&apos;s coding agent</div>
+              <div className="text-[13px] font-medium">Codex</div>
+              <div className="text-[11px] text-muted-foreground mt-1">OpenAI&apos;s coding agent</div>
             </button>
           )}
         </div>

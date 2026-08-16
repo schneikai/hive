@@ -29,7 +29,7 @@ function getStateBadgeClass(state: string): string {
     case 'OPEN':
       return 'bg-green-500/20 text-green-400 border border-green-500/30'
     case 'MERGED':
-      return 'bg-violet-500/20 text-violet-400 border border-violet-500/30'
+      return 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
     case 'CLOSED':
       return 'bg-red-500/20 text-red-400 border border-red-500/30'
     default:
@@ -347,7 +347,7 @@ export function AttachPRPopover({ ticket, open, onOpenChange }: AttachPRPopoverP
         {isLoading ? (
           <div className="px-3 py-4 text-xs text-muted-foreground text-center">Loading PRs…</div>
         ) : error ? (
-          <div className="px-3 py-4 text-xs text-red-500 text-center">{error}</div>
+          <div className="px-3 py-4 text-xs text-destructive text-center">{error}</div>
         ) : (
           <>
             {/* Looked-up PR (numeric search, not in open list) */}

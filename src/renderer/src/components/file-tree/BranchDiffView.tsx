@@ -196,7 +196,7 @@ export function BranchDiffView({ worktreePath }: BranchDiffViewProps): React.JSX
         </button>
 
         {dropdownOpen && (
-          <div className="absolute left-0 right-0 mt-1 mx-2 z-50 bg-popover border border-border rounded-md shadow-md max-h-64 flex flex-col">
+          <div className="absolute left-0 right-0 mt-1 mx-2 z-50 rounded-[11px] border border-black/14 dark:border-white/14 bg-[rgba(255,255,255,0.82)] dark:bg-[rgba(0,0,0,0.72)] backdrop-blur-2xl shadow-[0_16px_36px_rgba(0,0,0,0.24),inset_0_1px_0_rgba(255,255,255,0.04)] max-h-64 flex flex-col overflow-hidden">
             {/* Search input */}
             <div className="flex items-center gap-1.5 px-2 py-1.5 border-b border-border">
               <Search className="h-3 w-3 text-muted-foreground shrink-0" />
@@ -222,7 +222,7 @@ export function BranchDiffView({ worktreePath }: BranchDiffViewProps): React.JSX
                       key={branch.name}
                       type="button"
                       className={cn(
-                        'flex items-center gap-1.5 w-full px-2 py-1 text-xs hover:bg-accent/50',
+                        'flex items-center gap-1.5 w-full px-2 py-1 text-xs hover:bg-black/6 dark:hover:bg-white/8',
                         branch.name === selectedBranch && 'bg-accent text-accent-foreground'
                       )}
                       onClick={() => handleSelectBranch(branch.name)}
@@ -248,7 +248,7 @@ export function BranchDiffView({ worktreePath }: BranchDiffViewProps): React.JSX
                       key={branch.name}
                       type="button"
                       className={cn(
-                        'flex items-center gap-1.5 w-full px-2 py-1 text-xs hover:bg-accent/50',
+                        'flex items-center gap-1.5 w-full px-2 py-1 text-xs hover:bg-black/6 dark:hover:bg-white/8',
                         branch.name === selectedBranch && 'bg-accent text-accent-foreground'
                       )}
                       onClick={() => handleSelectBranch(branch.name)}

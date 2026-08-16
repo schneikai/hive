@@ -14,7 +14,7 @@ export function DesktopWindowEscapeChrome({
   boot = false,
   muted = false
 }: DesktopWindowEscapeChromeProps): React.JSX.Element | null {
-  const barClass = cn('h-12 border-b shrink-0 select-none', muted ? 'bg-muted' : 'bg-background')
+  const barClass = cn('h-9 border-b shrink-0 select-none bg-card')
 
   const dragStrip = (
     <div
@@ -46,7 +46,7 @@ export function DesktopWindowEscapeChrome({
         <Button
           variant="ghost"
           size="icon"
-          className="h-12 w-12 rounded-none hover:bg-red-600 hover:text-white"
+          className="h-9 w-9 rounded-none hover:bg-red-600 hover:text-white"
           onClick={() => void bridge.windowClose()}
           title="Close"
           data-testid="window-escape-close"

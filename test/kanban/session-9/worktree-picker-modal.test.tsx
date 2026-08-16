@@ -518,11 +518,11 @@ describe('Session 9: Worktree Picker Modal', () => {
 
     // "New worktree" should be auto-selected (has ring highlight), not the global worktree
     const newWtItem = screen.getByTestId('worktree-item-new')
-    expect(newWtItem.className).toContain('ring-primary')
+    expect(newWtItem.className).toContain('ring-inset')
 
     // Existing worktree should NOT be highlighted
     const wt2Item = screen.getByTestId('worktree-item-wt-2')
-    expect(wt2Item.className).not.toContain('ring-primary')
+    expect(wt2Item.className).not.toContain('ring-inset')
 
     // Send button should be enabled since "New worktree" is auto-selected
     const sendBtn = screen.getByTestId('wt-picker-send-btn')
@@ -545,7 +545,7 @@ describe('Session 9: Worktree Picker Modal', () => {
 
     // "New worktree" should still be selected — send button enabled
     const newWtItem = screen.getByTestId('worktree-item-new')
-    expect(newWtItem.className).toContain('ring-primary')
+    expect(newWtItem.className).toContain('ring-inset')
 
     const sendBtn = screen.getByTestId('wt-picker-send-btn')
     expect(sendBtn).not.toBeDisabled()

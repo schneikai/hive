@@ -4,7 +4,7 @@ import { join } from 'path'
 import type { IpcMainInvokeEvent } from 'electron'
 
 const TRANSPARENT_TITLE_BAR_OVERLAY = '#00000000'
-const HEADER_HEIGHT = 48
+const HEADER_HEIGHT = 36
 const DEFAULT_SYMBOL_COLOR = '#fafafa'
 
 interface WindowBounds {
@@ -96,7 +96,7 @@ export function getMainWindowChromeOptions(): Electron.BrowserWindowConstructorO
   if (process.platform === 'darwin') {
     return {
       titleBarStyle: 'hiddenInset',
-      trafficLightPosition: { x: 15, y: 10 }
+      trafficLightPosition: { x: 12, y: 12 }
     }
   }
   if (process.platform === 'win32') {

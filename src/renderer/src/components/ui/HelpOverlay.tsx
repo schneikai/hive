@@ -20,7 +20,7 @@ function MnemonicLabel({ letter, label }: { letter: string; label: string }): Re
   return (
     <span>
       {label.slice(0, index)}
-      <span className="text-primary font-bold bg-primary/15 px-0.5 rounded-sm underline underline-offset-2 decoration-primary decoration-2">
+      <span className="text-foreground font-bold bg-foreground/12 px-0.5 rounded-sm underline underline-offset-2 decoration-foreground/60 decoration-2">
         {label[index]}
       </span>
       {label.slice(index + 1)}
@@ -34,7 +34,7 @@ function MnemonicLabel({ letter, label }: { letter: string; label: string }): Re
 
 function KeyBadge({ children }: { children: React.ReactNode }): React.JSX.Element {
   return (
-    <kbd className="inline-flex items-center justify-center min-w-[22px] h-[22px] px-1.5 font-mono text-[11px] font-medium rounded border border-border/60 bg-muted/40 text-foreground">
+    <kbd className="inline-flex items-center justify-center min-w-[22px] h-[22px] px-1.5 font-mono text-[11px] font-medium rounded-[5px] border border-border bg-secondary text-muted-foreground">
       {children}
     </kbd>
   )
@@ -184,7 +184,7 @@ export function HelpOverlay(): React.JSX.Element | null {
       {/* Backdrop */}
       <div
         data-testid="help-overlay-backdrop"
-        className="fixed inset-0 z-50 bg-black/60"
+        className="fixed inset-0 z-50 bg-black/50 backdrop-blur-[2px]"
         onClick={() => useVimModeStore.getState().setHelpOverlayOpen(false)}
       />
 
@@ -193,7 +193,7 @@ export function HelpOverlay(): React.JSX.Element | null {
         data-testid="help-overlay"
         className="fixed inset-0 z-50 flex items-center justify-center pointer-events-none"
       >
-        <div className="pointer-events-auto w-[640px] max-h-[80vh] overflow-y-auto rounded-lg border border-border bg-background shadow-2xl p-5">
+        <div className="pointer-events-auto w-[640px] max-h-[80vh] overflow-y-auto rounded-[11px] border border-black/14 dark:border-white/14 bg-background/96 backdrop-blur-xl shadow-[0_24px_64px_rgba(0,0,0,0.35)] p-5">
           {/* Header with mode pill */}
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-sm font-semibold text-foreground">Keyboard Shortcuts</h2>
@@ -202,7 +202,7 @@ export function HelpOverlay(): React.JSX.Element | null {
                 'text-[10px] font-mono px-1.5 py-0.5 rounded border select-none',
                 mode === 'normal'
                   ? 'text-muted-foreground bg-muted/50 border-border/50'
-                  : 'text-primary bg-primary/10 border-primary/30'
+                  : 'text-emerald-500 bg-emerald-500/12 border-emerald-500/30'
               )}
             >
               {mode === 'normal' ? 'NORMAL' : 'INSERT'}

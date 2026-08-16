@@ -11,9 +11,7 @@ describe('TicketModelBadge', () => {
 
   it('renders nothing when the ticket has no model_id', () => {
     const { container } = render(
-      <TicketModelBadge
-        ticket={{ model_provider_id: null, model_id: null, model_variant: null }}
-      />
+      <TicketModelBadge ticket={{ model_provider_id: null, model_id: null, model_variant: null }} />
     )
 
     expect(container.firstChild).toBeNull()
@@ -148,10 +146,13 @@ describe('TicketModelBadge', () => {
       />
     )
 
-    expect(screen.getByText('gpt-5.6-sol').closest('span')).toHaveClass('border-2', 'border-violet-500')
+    expect(screen.getByText('gpt-5.6-sol').closest('span')).toHaveClass(
+      'border-2',
+      'border-violet-500'
+    )
   })
 
-  it('keeps the border transparent for non-ultra variants', () => {
+  it('keeps the hairline border for non-ultra variants', () => {
     render(
       <TicketModelBadge
         ticket={{ model_provider_id: 'claude-code', model_id: 'opus', model_variant: 'xhigh' }}
@@ -160,7 +161,7 @@ describe('TicketModelBadge', () => {
 
     const badge = screen.getByText('opus').closest('span')
     expect(badge).not.toHaveClass('border-violet-500')
-    expect(badge).toHaveClass('border-transparent')
+    expect(badge).toHaveClass('border-border')
   })
 
   it('names a non-selectable safety fallback (opus-4-8 → Opus 4.8) and tags it', () => {

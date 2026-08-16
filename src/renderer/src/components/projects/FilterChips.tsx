@@ -15,7 +15,7 @@ export function FilterChips({ languages, onRemove }: FilterChipsProps): React.JS
           key={lang}
           onClick={() => onRemove(lang)}
           title={lang}
-          className="flex items-center justify-center h-6 w-6 rounded-md border border-border/50 bg-muted/50 hover:bg-destructive/20 hover:border-destructive/50 transition-colors cursor-pointer"
+          className="flex size-5 cursor-pointer items-center justify-center rounded-md border border-worktree-sidebar-border/80 bg-worktree-sidebar-foreground/5 transition-colors hover:border-destructive/50 hover:bg-destructive/20"
           data-testid={`filter-chip-${lang}`}
         >
           <LanguageIcon language={lang} />

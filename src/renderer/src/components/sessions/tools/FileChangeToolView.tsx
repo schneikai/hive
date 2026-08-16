@@ -33,7 +33,7 @@ function kindBadge(kind: FileChange['kind']) {
       )
     default:
       return (
-        <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-zinc-500/20 text-zinc-400">
+        <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-foreground/10 text-muted-foreground">
           {(kind as { type: string }).type}
         </span>
       )
@@ -79,9 +79,9 @@ function classifyLine(
     }
   }
   if (line.startsWith('@@')) {
-    return { bg: '', color: 'text-zinc-500', prefix: ' ' }
+    return { bg: '', color: 'text-muted-foreground/70', prefix: ' ' }
   }
-  return { bg: '', color: 'text-zinc-300', prefix: ' ' }
+  return { bg: '', color: 'text-foreground/80', prefix: ' ' }
 }
 
 function parseDiffLines(diff: string, kind: FileChange['kind']['type']): string[] {
@@ -105,10 +105,10 @@ function FileDiffSection({ change }: { change: FileChange }) {
     <div className="space-y-1.5">
       {/* File header */}
       <div className="flex items-center gap-2 flex-wrap">
-        <span className="font-mono text-xs text-zinc-200 break-all">{change.path}</span>
+        <span className="font-mono text-xs text-foreground break-all">{change.path}</span>
         {kindBadge(change.kind)}
         {change.kind.type === 'update' && change.kind.move_path && (
-          <span className="text-[10px] text-zinc-400">
+          <span className="text-[10px] text-muted-foreground">
             &rarr; <span className="font-mono">{change.kind.move_path}</span>
           </span>
         )}
@@ -116,7 +116,7 @@ function FileDiffSection({ change }: { change: FileChange }) {
 
       {/* Diff block */}
       {allLines.length > 0 ? (
-        <div className="bg-zinc-900/50 rounded-md overflow-hidden">
+        <div className="bg-secondary border border-border rounded-md overflow-hidden">
           <div className="font-mono text-xs overflow-x-auto">
             {displayedLines.map((line, i) => {
               const { bg, color, prefix, testId } = classifyLine(line, change.kind.type)
@@ -132,7 +132,7 @@ function FileDiffSection({ change }: { change: FileChange }) {
                   className={cn('flex px-3 py-px', bg)}
                   {...(testId ? { 'data-testid': testId } : {})}
                 >
-                  <span className="text-zinc-600 select-none w-8 text-right pr-3 shrink-0">
+                  <span className="text-muted-foreground/50 select-none w-8 text-right pr-3 shrink-0">
                     {i + 1}
                   </span>
                   <span className={cn('select-none shrink-0 w-4', color)}>{prefix}</span>
@@ -143,7 +143,7 @@ function FileDiffSection({ change }: { change: FileChange }) {
               )
             })}
             {needsTruncation && !showAll && hiddenCount > 0 && (
-              <div className="px-3 py-0.5 text-zinc-600 text-[10px]">
+              <div className="px-3 py-0.5 text-muted-foreground/50 text-[10px]">
                 ... {hiddenCount} more lines
               </div>
             )}

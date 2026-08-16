@@ -92,7 +92,7 @@ export function TerminalToolbar({
             onChange={(e) => onSearchChange(e.target.value)}
             onKeyDown={handleSearchKeyDown}
             placeholder="Search..."
-            className="h-5 w-44 px-1.5 text-xs bg-background border border-border rounded focus:outline-none focus:ring-1 focus:ring-ring"
+            className="h-5 w-44 px-1.5 text-xs bg-background border border-border rounded-md outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:border-ring"
             data-testid="terminal-search-input"
           />
           <button

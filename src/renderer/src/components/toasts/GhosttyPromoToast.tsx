@@ -10,7 +10,7 @@ export function GhosttyPromoToast({
   onDismiss
 }: GhosttyPromoToastProps): React.JSX.Element {
   return (
-    <div className="flex w-[360px] flex-col gap-3 rounded-xl border border-border bg-background p-4 shadow-xl">
+    <div className="flex w-[360px] flex-col gap-3 rounded-[11px] border border-black/14 dark:border-white/14 bg-[rgba(255,255,255,0.82)] dark:bg-[rgba(0,0,0,0.72)] backdrop-blur-2xl shadow-[0_16px_36px_rgba(0,0,0,0.24),inset_0_1px_0_rgba(255,255,255,0.04)] p-4">
       <div className="flex items-start gap-3">
         <img src={ghosttyIcon} alt="Ghostty" className="h-10 w-10 shrink-0 rounded-lg" />
         <div className="flex flex-col gap-1">

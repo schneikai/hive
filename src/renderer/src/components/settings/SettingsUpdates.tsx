@@ -51,7 +51,7 @@ export function SettingsUpdates(): React.JSX.Element {
           <button
             onClick={() => updateSetting('updateChannel', 'stable')}
             className={cn(
-              'px-3 py-1.5 rounded-md text-sm border transition-colors',
+              'px-3 py-1.5 rounded-md text-[13px] border transition-colors',
               updateChannel === 'stable'
                 ? 'bg-primary text-primary-foreground border-primary'
                 : 'bg-muted/50 text-muted-foreground border-border hover:bg-accent/50'
@@ -63,7 +63,7 @@ export function SettingsUpdates(): React.JSX.Element {
           <button
             onClick={() => updateSetting('updateChannel', 'canary')}
             className={cn(
-              'px-3 py-1.5 rounded-md text-sm border transition-colors',
+              'px-3 py-1.5 rounded-md text-[13px] border transition-colors',
               updateChannel === 'canary'
                 ? 'bg-primary text-primary-foreground border-primary'
                 : 'bg-muted/50 text-muted-foreground border-border hover:bg-accent/50'

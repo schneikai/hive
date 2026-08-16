@@ -17,7 +17,7 @@ function getBarColor(percent: number): string {
   if (percent >= 90) return 'bg-red-500'
   if (percent >= 80) return 'bg-orange-500'
   if (percent >= 60) return 'bg-yellow-500'
-  return 'bg-green-500'
+  return 'bg-emerald-500'
 }
 
 export const ContextIndicator = memo(function ContextIndicator({
@@ -61,17 +61,23 @@ export const ContextIndicator = memo(function ContextIndicator({
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <div className="w-[120px] flex-shrink-0 cursor-default" data-testid="context-indicator">
-          <div className="h-1.5 rounded-full bg-muted overflow-hidden">
+        <div
+          className="flex items-center gap-1.5 flex-shrink-0 cursor-default"
+          data-testid="context-indicator"
+        >
+          <div className="w-14 h-[3px] rounded-[2px] bg-[color-mix(in_srgb,var(--foreground)_8%,transparent)] overflow-hidden">
             <div
               className={cn(
-                'h-full rounded-full transition-all duration-300',
+                'h-full rounded-[2px] transition-all duration-300',
                 getBarColor(percentForBar)
               )}
               style={{ width: `${Math.min(100, Math.max(0, percentForBar))}%` }}
               data-testid="context-bar"
             />
           </div>
+          {percent !== null && (
+            <span className="text-[10px] tabular-nums text-muted-foreground">{percent}%</span>
+          )}
         </div>
       </TooltipTrigger>
       <TooltipContent side="top" sideOffset={8} className="max-w-[260px]">
@@ -84,20 +90,20 @@ export const ContextIndicator = memo(function ContextIndicator({
           ) : (
             <div>{formatNumber(used)} tokens (limit unavailable)</div>
           )}
-          <div className="border-t border-border pt-1.5 space-y-0.5 text-[10px] text-muted-foreground">
+          <div className="border-t border-background/20 pt-1.5 space-y-0.5 text-[10px] text-background/70">
             <div>Input: {formatNumber(tokens.input)}</div>
             <div>Cache read: {formatNumber(tokens.cacheRead)}</div>
             <div>Cache write: {formatNumber(tokens.cacheWrite)}</div>
           </div>
           {(tokens.output > 0 || tokens.reasoning > 0) && (
-            <div className="border-t border-border pt-1.5 space-y-0.5 text-[10px] text-muted-foreground">
+            <div className="border-t border-background/20 pt-1.5 space-y-0.5 text-[10px] text-background/70">
               <div className="text-[10px]">Generated (not in context)</div>
               {tokens.output > 0 && <div>Output: {formatNumber(tokens.output)}</div>}
               {tokens.reasoning > 0 && <div>Reasoning: {formatNumber(tokens.reasoning)}</div>}
             </div>
           )}
           {cost > 0 && (
-            <div className="border-t border-border pt-1.5">
+            <div className="border-t border-background/20 pt-1.5">
               <div>Session cost: ${cost.toFixed(4)}</div>
             </div>
           )}

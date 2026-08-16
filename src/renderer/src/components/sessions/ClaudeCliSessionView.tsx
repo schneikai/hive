@@ -199,7 +199,7 @@ function ClaudeCliPlanReadyCard({
         data-testid="claude-cli-plan-ready-card"
         className={cn(
           'pointer-events-auto absolute w-[min(520px,calc(100%-32px))]',
-          'rounded-lg border border-border bg-background/95 p-3 shadow-xl backdrop-blur',
+          'rounded-[11px] border border-black/14 dark:border-white/14 bg-[rgba(255,255,255,0.82)] dark:bg-[rgba(0,0,0,0.72)] p-3 backdrop-blur-2xl shadow-[0_16px_36px_rgba(0,0,0,0.24),inset_0_1px_0_rgba(255,255,255,0.04)]',
           position ? '' : 'bottom-4 right-4'
         )}
         style={position ? { left: position.left, top: position.top } : undefined}
@@ -272,8 +272,8 @@ function ClaudeCliPlanReadyCard({
             onClick={onSaveAsTicket}
             disabled={savedAsTicket}
             className={cn(
-              'h-8 rounded-full border border-border bg-muted/80 px-3 text-xs font-medium',
-              'text-foreground shadow-md transition-colors hover:bg-muted',
+              'h-8 rounded-md border border-border bg-secondary px-3 text-[11px] font-medium',
+              'text-foreground shadow-[0_1px_2px_rgba(0,0,0,0.18)] transition-colors hover:bg-accent',
               'disabled:pointer-events-none disabled:opacity-60'
             )}
             data-testid="claude-cli-plan-ready-save-ticket"
@@ -284,8 +284,8 @@ function ClaudeCliPlanReadyCard({
             type="button"
             onClick={onSaveAsFile}
             className={cn(
-              'h-8 rounded-full border border-border bg-muted/80 px-3 text-xs font-medium',
-              'text-foreground shadow-md transition-colors hover:bg-muted'
+              'h-8 rounded-md border border-border bg-secondary px-3 text-[11px] font-medium',
+              'text-foreground shadow-[0_1px_2px_rgba(0,0,0,0.18)] transition-colors hover:bg-accent'
             )}
             data-testid="claude-cli-plan-ready-save-file"
           >
@@ -408,8 +408,8 @@ export function ClaudeCliSessionView({
         }
 
         const setModePromise = sessionStore.setSessionMode(result.session.id, 'build', {
-        applyModeDefault: false
-      })
+          applyModeDefault: false
+        })
         registerHivePromptHandoff(sessionId, result.session.id)
         sessionStore.setPendingMessage(result.session.id, handoffPrompt)
         await useKanbanStore

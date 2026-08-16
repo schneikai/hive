@@ -245,13 +245,13 @@ export function ProjectList({
   if (projects.length === 0) {
     return (
       <div
-        className="flex flex-col items-center justify-center py-8 px-2 text-center cursor-pointer hover:bg-accent/30 rounded-lg transition-colors mx-2"
+        className="mx-1 mt-1 flex cursor-pointer flex-col items-center justify-center rounded-md border border-dashed border-worktree-sidebar-border px-2 py-8 text-center transition-colors hover:bg-worktree-sidebar-accent/40"
         onClick={onAddProject}
         data-testid="empty-projects-state"
       >
         <FolderPlus className="h-8 w-8 text-muted-foreground mb-2" />
-        <p className="text-sm text-muted-foreground">No projects added yet.</p>
-        <p className="text-xs text-muted-foreground mt-1">Click + to add a project.</p>
+        <p className="text-[13px] text-muted-foreground">No projects added yet.</p>
+        <p className="text-[11px] text-muted-foreground mt-1">Click + to add a project.</p>
       </div>
     )
   }
@@ -278,30 +278,33 @@ export function ProjectList({
 
   // Project list
   return (
-    <div data-testid="project-list">
-      <div className="space-y-0.5">
-        {filteredProjects.map((item) => (
-          <ProjectItem
-            key={item.project.id}
-            project={item.project}
-            nameMatchIndices={item.nameMatch?.matched ? item.nameMatch.indices : undefined}
-            pathMatchIndices={
-              item.pathMatch?.matched && !item.nameMatch?.matched
-                ? item.pathMatch.indices
-                : undefined
-            }
-            isDraggable={isDraggable}
-            isDragging={isDraggable && draggedProjectId === item.project.id}
-            isDragOver={isDraggable && dragOverProjectId === item.project.id}
-            onDragStart={handleDragStart}
-            onDragOver={handleDragOver}
-            onDrop={handleDrop}
-            onDragEnd={handleDragEnd}
-          />
-        ))}
-      </div>
+    // Orca virtual-row rhythm: ROW_GAP (6px) between group rows; the first
+    // header in the whole sidebar has no top spacer, so the list only adds the
+    // 4px header spacer when another section (Pinned/Recent/Connections)
+    // renders above it. Non-first groups add their own pt-1 (ProjectItem).
+    <div data-testid="project-list" className="flex flex-col gap-1.5 [&:not(:first-child)]:pt-1">
+      {filteredProjects.map((item, index) => (
+        <ProjectItem
+          key={item.project.id}
+          project={item.project}
+          isFirst={index === 0}
+          nameMatchIndices={item.nameMatch?.matched ? item.nameMatch.indices : undefined}
+          pathMatchIndices={
+            item.pathMatch?.matched && !item.nameMatch?.matched ? item.pathMatch.indices : undefined
+          }
+          isDraggable={isDraggable}
+          isDragging={isDraggable && draggedProjectId === item.project.id}
+          isDragOver={isDraggable && dragOverProjectId === item.project.id}
+          onDragStart={handleDragStart}
+          onDragOver={handleDragOver}
+          onDrop={handleDrop}
+          onDragEnd={handleDragEnd}
+        />
+      ))}
       {(filterQuery || activeLanguages.length > 0) && filteredProjects.length === 0 && (
-        <div className="text-xs text-muted-foreground text-center py-4">No matching projects</div>
+        <div className="text-[11px] text-muted-foreground text-center py-4">
+          No matching projects
+        </div>
       )}
     </div>
   )

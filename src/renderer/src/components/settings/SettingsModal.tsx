@@ -98,10 +98,10 @@ export function SettingsModal(): React.JSX.Element {
       >
         <div className="flex h-full min-h-0">
           {/* Left navigation */}
-          <nav className="w-48 border-r bg-muted/30 p-3 flex flex-col shrink-0 min-h-0">
+          <nav className="w-48 border-r border-border bg-sidebar p-3 flex flex-col shrink-0 min-h-0">
             <div className="flex items-center gap-2 px-2 py-1.5 mb-2 shrink-0">
               <Settings className="h-4 w-4 text-muted-foreground" />
-              <DialogTitle className="text-sm font-semibold">Settings</DialogTitle>
+              <DialogTitle className="text-[13px] font-semibold">Settings</DialogTitle>
             </div>
             <div className="flex flex-col gap-1 overflow-y-auto min-h-0">
               {SECTIONS.map((section) => {
@@ -111,7 +111,7 @@ export function SettingsModal(): React.JSX.Element {
                     key={section.id}
                     onClick={() => setActiveSection(section.id)}
                     className={cn(
-                      'flex items-center gap-2 px-2 py-1.5 rounded-md text-sm transition-colors text-left shrink-0',
+                      'flex items-center gap-2 px-2 py-1.5 rounded-md text-[13px] tracking-[0.01em] transition-colors text-left shrink-0',
                       activeSection === section.id
                         ? 'bg-accent text-accent-foreground'
                         : 'text-muted-foreground hover:bg-accent/50 hover:text-foreground'

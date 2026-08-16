@@ -207,9 +207,9 @@ export function AddRepositoryDialog({
             {clonePath && (
               <p className="font-mono text-xs text-muted-foreground break-all">{clonePath}</p>
             )}
-            <div className="h-2 w-full rounded-full bg-muted overflow-hidden">
+            <div className="h-2 w-full rounded-full bg-secondary overflow-hidden">
               <div
-                className="h-full bg-primary transition-all duration-300"
+                className="h-full bg-foreground transition-all duration-300"
                 style={{ width: `${progress.percent}%` }}
               />
             </div>

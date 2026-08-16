@@ -156,11 +156,11 @@ export function QuestionPrompt({ request, onReply, onReject }: QuestionPromptPro
 
   return (
     <div
-      className="rounded-md border border-border bg-zinc-900/50 overflow-hidden"
+      className="rounded-lg border border-border bg-card overflow-hidden"
       data-testid="question-prompt"
     >
       {/* Header */}
-      <div className="flex items-center gap-2 px-3 py-2 border-b border-border bg-muted/30">
+      <div className="flex items-center gap-2 px-3 py-2 border-b border-border bg-secondary">
         <MessageCircleQuestion className="h-4 w-4 text-blue-400 shrink-0" />
         {isMultiQuestion ? (
           <div className="flex gap-1 flex-1 min-w-0" data-testid="question-tabs">
@@ -179,7 +179,9 @@ export function QuestionPrompt({ request, onReply, onReject }: QuestionPromptPro
                 )}
               >
                 {q.header}
-                {answers[i]?.length > 0 && <Check className="h-3 w-3 ml-1 inline text-green-500" />}
+                {answers[i]?.length > 0 && (
+                  <Check className="h-3 w-3 ml-1 inline text-emerald-500" />
+                )}
               </button>
             ))}
           </div>

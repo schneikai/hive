@@ -1,12 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import {
-  CheckCircle2,
-  ChevronDown,
-  ChevronUp,
-  CirclePause,
-  Gauge,
-  Target
-} from 'lucide-react'
+import { CheckCircle2, ChevronDown, ChevronUp, CirclePause, Gauge, Target } from 'lucide-react'
 
 import { cn } from '@/lib/utils'
 import { useSettingsStore } from '@/stores/useSettingsStore'
@@ -103,10 +96,7 @@ function GoalStatusIcon({ status }: { status: CodexThreadGoal['status'] }): Reac
   return <Target className="h-4 w-4 shrink-0 text-blue-500" />
 }
 
-export function GoalStatusWidget({
-  goal,
-  topOffsetPx
-}: GoalStatusWidgetProps): React.JSX.Element {
+export function GoalStatusWidget({ goal, topOffsetPx }: GoalStatusWidgetProps): React.JSX.Element {
   const collapsed = useSettingsStore((s) => s.goalStatusCollapsed)
   const updateSetting = useSettingsStore((s) => s.updateSetting)
   const [nowMs, setNowMs] = useState(() => Date.now())
@@ -139,7 +129,7 @@ export function GoalStatusWidget({
     <div
       data-testid="goal-status-widget"
       style={{ top: `${topOffsetPx}px` }}
-      className="absolute right-4 z-20 w-80 rounded-lg border border-border bg-background/95 backdrop-blur shadow-md transition-all duration-150"
+      className="absolute right-4 z-20 w-80 rounded-[11px] border border-black/14 dark:border-white/14 bg-[rgba(255,255,255,0.82)] dark:bg-[rgba(0,0,0,0.72)] backdrop-blur-2xl shadow-[0_16px_36px_rgba(0,0,0,0.24),inset_0_1px_0_rgba(255,255,255,0.04)] transition-all duration-150"
     >
       {collapsed ? (
         <button
@@ -150,7 +140,12 @@ export function GoalStatusWidget({
           aria-label="Expand goal status"
         >
           <GoalStatusIcon status={goal.status} />
-          <span className={cn('min-w-0 flex-1 truncate text-sm font-medium', getGoalStatusClasses(goal.status))}>
+          <span
+            className={cn(
+              'min-w-0 flex-1 truncate text-sm font-medium',
+              getGoalStatusClasses(goal.status)
+            )}
+          >
             {statusLine}
           </span>
           <ChevronDown className="h-4 w-4 shrink-0" />

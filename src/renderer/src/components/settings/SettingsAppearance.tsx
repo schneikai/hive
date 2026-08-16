@@ -26,9 +26,9 @@ function ThemeCard({
       onMouseEnter={() => onMouseEnter(preset.id)}
       onMouseLeave={onMouseLeave}
       className={cn(
-        'group relative flex flex-col gap-2 rounded-lg border p-2 text-left transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+        'group relative flex flex-col gap-2 rounded-lg border p-2 text-left transition-all focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50',
         isActive
-          ? 'border-primary ring-2 ring-primary/30 bg-primary/5'
+          ? 'border-ring/60 ring-[3px] ring-ring/40 bg-accent'
           : 'border-border hover:border-muted-foreground/40'
       )}
       aria-label={`Select ${preset.name} theme`}
@@ -66,7 +66,7 @@ function ThemeCard({
 
         {/* Active check badge */}
         {isActive && (
-          <div className="absolute right-1.5 top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-sm">
+          <div className="absolute right-1.5 top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-foreground text-background">
             <Check className="h-3 w-3" />
           </div>
         )}
@@ -76,7 +76,7 @@ function ThemeCard({
       <span
         className={cn(
           'truncate text-center text-xs font-medium leading-none',
-          isActive ? 'text-primary' : 'text-muted-foreground group-hover:text-foreground'
+          isActive ? 'text-foreground' : 'text-muted-foreground group-hover:text-foreground'
         )}
       >
         {preset.name}
@@ -105,7 +105,7 @@ export function SettingsAppearance(): React.JSX.Element {
 
       {/* Dark themes */}
       <section className="space-y-2">
-        <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+        <h3 className="text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
           Dark Themes
         </h3>
         <div className="grid grid-cols-3 gap-3" data-testid="dark-themes-grid">
@@ -124,7 +124,7 @@ export function SettingsAppearance(): React.JSX.Element {
 
       {/* Light themes */}
       <section className="space-y-2">
-        <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+        <h3 className="text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
           Light Themes
         </h3>
         <div className="grid grid-cols-3 gap-3" data-testid="light-themes-grid">

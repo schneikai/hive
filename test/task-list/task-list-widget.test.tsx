@@ -104,8 +104,8 @@ describe('TaskListWidget', () => {
 
     const { container } = render(<TaskListWidget todos={todos} topOffsetPx={16} />)
 
-    // completed → CircleCheck with text-green-500
-    expect(container.querySelector('.text-green-500')).not.toBeNull()
+    // completed → CircleCheck with text-emerald-500 (orca: done = emerald)
+    expect(container.querySelector('.text-emerald-500')).not.toBeNull()
     // in_progress → CircleDot with text-blue-500 AND animate-pulse
     expect(container.querySelector('.animate-pulse')).not.toBeNull()
     // cancelled → CircleX with text-muted-foreground/50 (also shared with completed strikethrough span;

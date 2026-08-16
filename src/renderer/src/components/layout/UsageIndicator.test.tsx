@@ -447,7 +447,7 @@ describe('UsageAccountRow', () => {
     expect(screen.getByTestId('member-avatar')).toBeTruthy()
   })
 
-  it('draws a bold purple border on the active account when highlightActive is set', () => {
+  it('draws a neutral ring on the active account when highlightActive is set', () => {
     const { container } = render(
       <UsageAccountRow
         row={{
@@ -464,11 +464,11 @@ describe('UsageAccountRow', () => {
     )
 
     const rowEl = container.firstChild as HTMLElement
-    expect(rowEl.className).toContain('border-purple-500')
-    expect(rowEl.className).toContain('border-2')
+    expect(rowEl.className).toContain('ring-1')
+    expect(rowEl.className).toContain('ring-ring/50')
   })
 
-  it('does not draw the purple border on non-active accounts even when highlightActive is set', () => {
+  it('does not draw the active ring on non-active accounts even when highlightActive is set', () => {
     const { container } = render(
       <UsageAccountRow
         row={{
@@ -484,10 +484,10 @@ describe('UsageAccountRow', () => {
       />
     )
 
-    expect((container.firstChild as HTMLElement).className).not.toContain('border-purple-500')
+    expect((container.firstChild as HTMLElement).className).not.toContain('ring-ring/50')
   })
 
-  it('does not draw the purple border on the active account without highlightActive', () => {
+  it('does not draw the active ring on the active account without highlightActive', () => {
     const { container } = render(
       <UsageAccountRow
         row={{
@@ -502,7 +502,7 @@ describe('UsageAccountRow', () => {
       />
     )
 
-    expect((container.firstChild as HTMLElement).className).not.toContain('border-purple-500')
+    expect((container.firstChild as HTMLElement).className).not.toContain('ring-ring/50')
   })
 
   it('renders nothing from the avatar stack when members is undefined', () => {

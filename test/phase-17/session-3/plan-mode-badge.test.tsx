@@ -119,25 +119,26 @@ describe('Session 3: Plan Mode Badge', () => {
       expect(screen.getByText('How do we implement this?')).toBeInTheDocument()
     })
 
-    test('badge has correct purple styling classes', () => {
+    test('badge has correct violet styling classes', () => {
       render(<UserBubble content="Test" timestamp="2025-01-01T00:00:00.000Z" isPlanMode={true} />)
       const badge = screen.getByTestId('plan-mode-badge')
-      expect(badge.className).toContain('bg-purple-500/15')
-      expect(badge.className).toContain('text-purple-400')
+      expect(badge.className).toContain('bg-violet-500/15')
+      expect(badge.className).toContain('text-violet-400')
       expect(badge.className).toContain('text-[10px]')
       expect(badge.className).toContain('font-semibold')
     })
 
-    test('bubble has purple tint when isPlanMode is true', () => {
+    test('bubble has violet tint when isPlanMode is true', () => {
       render(<UserBubble content="Test" timestamp="2025-01-01T00:00:00.000Z" isPlanMode={true} />)
       const bubble = screen.getByTestId('message-user').firstElementChild!
-      expect(bubble.className).toContain('bg-purple-500/10')
+      expect(bubble.className).toContain('bg-violet-500/10')
     })
 
     test('bubble has default tint when isPlanMode is false', () => {
       render(<UserBubble content="Test" timestamp="2025-01-01T00:00:00.000Z" isPlanMode={false} />)
       const bubble = screen.getByTestId('message-user').firstElementChild!
-      expect(bubble.className).toContain('bg-primary/10')
+      expect(bubble.className).toContain('bg-secondary')
+      expect(bubble.className).not.toContain('bg-violet-500/10')
     })
   })
 

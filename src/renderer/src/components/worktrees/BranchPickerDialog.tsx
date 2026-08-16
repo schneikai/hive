@@ -152,7 +152,7 @@ export function BranchPickerDialog({
               'px-3 py-1.5 text-sm font-medium transition-colors',
               'border-b-2 -mb-px',
               activeTab === 'branches'
-                ? 'border-primary text-foreground'
+                ? 'border-foreground text-foreground'
                 : 'border-transparent text-muted-foreground hover:text-foreground'
             )}
             onClick={() => setActiveTab('branches')}
@@ -165,7 +165,7 @@ export function BranchPickerDialog({
               'px-3 py-1.5 text-sm font-medium transition-colors',
               'border-b-2 -mb-px',
               activeTab === 'prs'
-                ? 'border-primary text-foreground'
+                ? 'border-foreground text-foreground'
                 : 'border-transparent text-muted-foreground hover:text-foreground'
             )}
             onClick={() => setActiveTab('prs')}
@@ -224,7 +224,7 @@ export function BranchPickerDialog({
                       </span>
                     )}
                     {branch.isCheckedOut && (
-                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-medium rounded bg-primary/10 text-primary shrink-0">
+                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-medium rounded-[4px] border border-foreground/20 bg-foreground/6 text-foreground/70 shrink-0">
                         <CheckCircle2 className="h-2.5 w-2.5" />
                         active
                       </span>

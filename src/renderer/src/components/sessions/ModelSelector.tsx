@@ -63,25 +63,26 @@ type SdkFilterOption = {
 const ULTRACODE_TOOLTIP = 'xhigh effort + dynamic-workflow orchestration'
 
 /** ultracode and codex's `ultra` effort share the violet accent so both read as
- * special top-tier modes rather than just another effort level. */
+ * both read as special top-tier modes rather than just another effort level. */
 const isAccentVariant = isUltraVariant
 
-/** Styling for a variant chip. Accent variants (ultracode, ultra) get a
- * distinct look so they read as the special modes they are. */
+/** Styling for a variant chip. Accent variants (ultracode, ultra) read as
+ * special via weight/uppercase rather than hue. */
 function variantChipClass(isActive: boolean, isAccent: boolean): string {
   if (isAccent) {
+    // ultracode / ultra keep their violet identity
     return cn(
-      'text-[10px] px-1.5 py-0.5 rounded font-medium',
+      'text-[10px] px-1.5 py-0.5 rounded border border-transparent font-semibold uppercase',
       isActive
         ? 'bg-violet-600 text-white'
         : 'bg-violet-500/15 text-violet-600 dark:text-violet-300 hover:bg-violet-500/25'
     )
   }
   return cn(
-    'text-[10px] px-1.5 py-0.5 rounded',
+    'text-[10px] px-1.5 py-0.5 rounded border',
     isActive
-      ? 'bg-primary text-primary-foreground'
-      : 'bg-muted text-muted-foreground hover:bg-accent'
+      ? 'bg-foreground/12 text-foreground border-border'
+      : 'bg-secondary text-muted-foreground border-transparent hover:bg-accent'
   )
 }
 
@@ -476,8 +477,7 @@ export const ModelSelector = memo(function ModelSelector({
   }, [agentSdkFilter, sdkFilterOptions])
 
   const selectedProviderFilterLabel =
-    sdkFilterOptions.find((option) => option.agentSdk === agentSdkFilter)?.label ??
-    'All providers'
+    sdkFilterOptions.find((option) => option.agentSdk === agentSdkFilter)?.label ?? 'All providers'
   const showProviderFilter = sdkFilterOptions.length > 1
 
   const providerScopedProviders = useMemo(() => {
@@ -526,9 +526,9 @@ export const ModelSelector = memo(function ModelSelector({
           <DropdownMenuTrigger asChild>
             <button
               className={cn(
-                'flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium transition-colors',
-                'border select-none',
-                'bg-background border-border text-muted-foreground hover:bg-muted hover:text-foreground'
+                'inline-flex items-center gap-1.5 px-1.5 py-[3px] rounded-md text-[11px] font-medium transition-colors',
+                'border-0 bg-transparent select-none text-muted-foreground hover:bg-secondary hover:text-foreground',
+                'outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50'
               )}
               title="Filter providers"
               aria-label={`Provider filter: ${selectedProviderFilterLabel}`}
@@ -545,7 +545,7 @@ export const ModelSelector = memo(function ModelSelector({
               data-testid="model-provider-filter-option-all"
             >
               <span className="truncate text-sm">All providers</span>
-              {!agentSdkFilter && <Check className="h-4 w-4 shrink-0 text-primary" />}
+              {!agentSdkFilter && <Check className="h-4 w-4 shrink-0 text-foreground" />}
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             {sdkFilterOptions.map((option) => (
@@ -557,7 +557,7 @@ export const ModelSelector = memo(function ModelSelector({
               >
                 <span className="truncate text-sm">{option.label}</span>
                 {agentSdkFilter === option.agentSdk && (
-                  <Check className="h-4 w-4 shrink-0 text-primary" />
+                  <Check className="h-4 w-4 shrink-0 text-foreground" />
                 )}
               </DropdownMenuItem>
             ))}
@@ -575,9 +575,9 @@ export const ModelSelector = memo(function ModelSelector({
         <DropdownMenuTrigger asChild>
           <button
             className={cn(
-              'flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium transition-colors',
-              'border select-none',
-              'bg-muted/50 border-border text-muted-foreground hover:bg-muted hover:text-foreground'
+              'inline-flex items-center gap-1.5 px-1.5 py-[3px] rounded-md text-[11px] font-medium transition-colors',
+              'border-0 bg-transparent select-none text-muted-foreground hover:bg-secondary hover:text-foreground',
+              'outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50'
             )}
             title={disableTitleTooltip ? undefined : 'Select model'}
             aria-label={`Current model: ${displayName}. Click to change model`}
@@ -590,7 +590,7 @@ export const ModelSelector = memo(function ModelSelector({
                   'text-[10px] font-semibold uppercase',
                   isAccentVariant(selectedModel.variant)
                     ? 'text-violet-600 dark:text-violet-300'
-                    : 'text-primary'
+                    : 'text-muted-foreground'
                 )}
                 data-testid="variant-indicator"
               >
@@ -635,7 +635,7 @@ export const ModelSelector = memo(function ModelSelector({
                         <Star className="h-3 w-3 text-yellow-500 fill-yellow-500 shrink-0" />
                         <span className="truncate text-sm">{getModelDisplayName(model)}</span>
                       </span>
-                      {favActive && <Check className="h-4 w-4 shrink-0 text-primary" />}
+                      {favActive && <Check className="h-4 w-4 shrink-0 text-foreground" />}
                     </DropdownMenuItem>
                     {favVariantKeys.length > 0 && (
                       <div className="flex flex-wrap gap-1 pl-6 pb-1">
@@ -645,7 +645,10 @@ export const ModelSelector = memo(function ModelSelector({
                           return (
                             <button
                               key={variant}
-                              className={variantChipClass(isActiveVariant, isAccentVariant(variant))}
+                              className={variantChipClass(
+                                isActiveVariant,
+                                isAccentVariant(variant)
+                              )}
                               title={isUltracode ? ULTRACODE_TOOLTIP : undefined}
                               onClick={(e) => {
                                 e.stopPropagation()
@@ -692,7 +695,7 @@ export const ModelSelector = memo(function ModelSelector({
                         )}
                         <span className="truncate text-sm">{getModelDisplayName(model)}</span>
                       </span>
-                      {active && <Check className="h-4 w-4 shrink-0 text-primary" />}
+                      {active && <Check className="h-4 w-4 shrink-0 text-foreground" />}
                     </DropdownMenuItem>
                     {variantKeys.length > 0 && (
                       <div
@@ -705,7 +708,10 @@ export const ModelSelector = memo(function ModelSelector({
                           return (
                             <button
                               key={variant}
-                              className={variantChipClass(isActiveVariant, isAccentVariant(variant))}
+                              className={variantChipClass(
+                                isActiveVariant,
+                                isAccentVariant(variant)
+                              )}
                               title={isUltracode ? ULTRACODE_TOOLTIP : undefined}
                               onClick={(e) => {
                                 e.stopPropagation()

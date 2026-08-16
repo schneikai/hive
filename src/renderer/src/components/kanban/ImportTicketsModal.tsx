@@ -259,7 +259,7 @@ export function ImportTicketsModal({
               <select
                 value={selectedProjectId}
                 onChange={(e) => setSelectedProjectId(e.target.value)}
-                className="w-full mt-1 rounded-md border border-border/60 bg-background px-3 py-2 text-sm"
+                className="w-full mt-1 h-8 rounded-md border border-input bg-background px-2.5 text-[12px] outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
               >
                 {connectionProjects.map((p) => (
                   <option key={p.id} value={p.id}>
@@ -355,10 +355,10 @@ export function ImportTicketsModal({
                               #{issue.externalId}
                             </span>
                             <span
-                              className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${
+                              className={`text-[10px] px-[7px] py-0.5 rounded-full font-medium border ${
                                 issue.state === 'open'
-                                  ? 'bg-green-500/10 text-green-500'
-                                  : 'bg-purple-500/10 text-purple-500'
+                                  ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-500'
+                                  : 'border-border bg-transparent text-muted-foreground'
                               }`}
                             >
                               {issue.state}

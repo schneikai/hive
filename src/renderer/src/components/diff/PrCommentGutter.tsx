@@ -190,7 +190,7 @@ function CommentZoneContent({
       className={cn(
         'mx-1 my-0.5 rounded-md border text-xs',
         isHighlighted
-          ? 'border-violet-500/50 bg-violet-950/40'
+          ? 'border-ring/60 bg-accent'
           : 'border-blue-500/30 bg-blue-950/30'
       )}
       onMouseDown={(e) => {

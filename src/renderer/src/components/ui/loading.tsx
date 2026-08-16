@@ -27,7 +27,7 @@ export function LoadingOverlay({ message, className }: LoadingOverlayProps): JSX
   return (
     <div
       className={cn(
-        'absolute inset-0 flex flex-col items-center justify-center bg-background/80 backdrop-blur-sm z-50',
+        'absolute inset-0 flex flex-col items-center justify-center bg-background/85 backdrop-blur-md z-50',
         className
       )}
     >

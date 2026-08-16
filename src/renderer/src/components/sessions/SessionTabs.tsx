@@ -95,6 +95,26 @@ import { systemApi } from '@/api/system-api'
 
 const TRANSCRIPT_CACHE_KEY_PREFIX = 'hive:session-transcript:'
 
+/** Shared orca tab recipe — single source for every tab variant on the 32px strip */
+function tabClass(isActive: boolean, ...extra: Array<string | false | null | undefined>): string {
+  return cn(
+    'group relative flex items-center gap-1.5 h-full px-2.5 text-[12px] tracking-[0.01em] cursor-pointer select-none whitespace-nowrap',
+    'min-w-[88px] w-[180px] max-w-[200px] border-r border-border transition-colors',
+    isActive
+      ? 'bg-[color-mix(in_srgb,var(--foreground)_6%,var(--card))] text-foreground'
+      : 'bg-card text-muted-foreground hover:text-foreground',
+    ...extra
+  )
+}
+
+/** Orca active-tab 2px bottom bar */
+const TAB_UNDERLINE_CLASS =
+  'absolute bottom-0 left-0 right-0 h-0.5 bg-[color-mix(in_srgb,var(--foreground)_60%,var(--card))]'
+
+/** Orca `.tab-plus` strip affordance (create / scroll buttons on the tab bar) */
+const TAB_STRIP_BUTTON_CLASS =
+  'flex items-center justify-center h-full shrink-0 text-muted-foreground hover:text-foreground hover:bg-[color-mix(in_srgb,var(--foreground)_4%,var(--card))] transition-colors'
+
 function clearTranscriptCache(sessionId: string): void {
   try {
     window.sessionStorage.removeItem(`${TRANSCRIPT_CACHE_KEY_PREFIX}${sessionId}`)
@@ -216,15 +236,7 @@ const SessionTab = memo(function SessionTab({
               onMiddleClick(e)
             }
           }}
-          className={cn(
-            'group relative flex items-center gap-1 px-3 py-1.5 text-sm cursor-pointer select-none',
-            'border-r border-border transition-colors min-w-[100px] max-w-[200px]',
-            isActive
-              ? 'bg-background text-foreground'
-              : 'bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground',
-            isDragging && 'opacity-50',
-            isDragOver && 'bg-accent/50'
-          )}
+          className={tabClass(isActive, isDragging && 'opacity-50', isDragOver && 'bg-accent')}
         >
           {agentSdk === 'terminal' ? (
             <TerminalSquare
@@ -237,7 +249,7 @@ const SessionTab = memo(function SessionTab({
                 <Loader2
                   className={cn(
                     'h-3 w-3 animate-spin flex-shrink-0',
-                    sessionStatus === 'planning' ? 'text-blue-400' : 'text-blue-500'
+                    sessionStatus === 'planning' ? 'text-blue-400' : 'text-yellow-500'
                   )}
                   data-testid={`tab-spinner-${sessionId}`}
                 />
@@ -250,13 +262,13 @@ const SessionTab = memo(function SessionTab({
               )}
               {sessionStatus === 'completed' && (
                 <Check
-                  className="h-3 w-3 text-green-500 flex-shrink-0"
+                  className="h-3 w-3 text-emerald-500 flex-shrink-0"
                   data-testid={`tab-completed-${sessionId}`}
                 />
               )}
               {sessionStatus === 'unread' && !isActive && (
                 <span
-                  className="w-2 h-2 rounded-full bg-blue-500 flex-shrink-0"
+                  className="w-[7px] h-[7px] rounded-full bg-blue-400 flex-shrink-0"
                   data-testid={`tab-unread-${sessionId}`}
                 />
               )}
@@ -270,7 +282,7 @@ const SessionTab = memo(function SessionTab({
               onChange={(e) => setEditName(e.target.value)}
               onBlur={handleSave}
               onKeyDown={handleKeyDown}
-              className="flex-1 min-w-0 bg-transparent border border-primary/50 rounded px-1 py-0 text-sm outline-none"
+              className="flex-1 min-w-0 bg-transparent border border-input rounded-md px-1 py-0 text-[12px] outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:border-ring"
               data-testid={`rename-input-${sessionId}`}
             />
           ) : (
@@ -294,7 +306,7 @@ const SessionTab = memo(function SessionTab({
           >
             <X className="h-3 w-3" />
           </button>
-          {isActive && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary" />}
+          {isActive && <div className={TAB_UNDERLINE_CLASS} />}
         </div>
       </ContextMenuTrigger>
       <ContextMenuContent>
@@ -364,13 +376,7 @@ function FileTab({
               onClose(e)
             }
           }}
-          className={cn(
-            'group relative flex items-center gap-1.5 px-3 py-1.5 text-sm cursor-pointer select-none',
-            'border-r border-border transition-colors min-w-[100px] max-w-[200px]',
-            isActive
-              ? 'bg-background text-foreground'
-              : 'bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground'
-          )}
+          className={tabClass(isActive)}
           title={filePath}
         >
           <FileCode className="h-3.5 w-3.5 flex-shrink-0 text-blue-400" />
@@ -401,7 +407,7 @@ function FileTab({
               <X className="h-3 w-3" />
             </button>
           )}
-          {isActive && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary" />}
+          {isActive && <div className={TAB_UNDERLINE_CLASS} />}
         </div>
       </ContextMenuTrigger>
       <ContextMenuContent>
@@ -463,18 +469,14 @@ function DiffTabItem({
               onClose(e)
             }
           }}
-          className={cn(
-            'group relative flex items-center gap-1.5 px-3 py-1.5 text-sm cursor-pointer select-none',
-            'border-r border-border transition-colors min-w-[100px] max-w-[200px]',
-            isActive
-              ? 'bg-background text-foreground'
-              : 'bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground'
-          )}
+          className={tabClass(isActive)}
           title={`${tab.filePath} (${tab.staged ? 'staged' : 'unstaged'})`}
         >
           <GitCompareArrows className="h-3.5 w-3.5 flex-shrink-0 text-orange-400" />
           <span className="truncate flex-1">{tab.fileName}</span>
-          {tab.staged && <span className="text-[10px] text-green-500 font-medium shrink-0">S</span>}
+          {tab.staged && (
+            <span className="text-[10px] text-emerald-500 font-medium shrink-0">S</span>
+          )}
           <button
             onClick={onClose}
             className={cn(
@@ -485,7 +487,7 @@ function DiffTabItem({
           >
             <X className="h-3 w-3" />
           </button>
-          {isActive && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary" />}
+          {isActive && <div className={TAB_UNDERLINE_CLASS} />}
         </div>
       </ContextMenuTrigger>
       <ContextMenuContent>
@@ -529,7 +531,8 @@ const ConnectionSessionTab = memo(function ConnectionSessionTab({
     (state) => state.sessionStatuses[sessionId]?.status ?? null
   )
 
-  const [inactiveBg, activeBg, inactiveText, activeText] = parseColorQuad(connectionColor)
+  // Connection identity is a small color dot; the tab itself stays neutral chrome
+  const [, connectionDotColor] = parseColorQuad(connectionColor)
 
   return (
     <div
@@ -541,39 +544,35 @@ const ConnectionSessionTab = memo(function ConnectionSessionTab({
         if (e.key === 'Enter' || e.key === ' ') onClick()
       }}
       title={`${connectionName} — ${name || 'Untitled'}`}
-      className={cn(
-        'group relative flex items-center gap-1.5 px-3 py-1.5 text-sm cursor-pointer select-none',
-        'border-r border-border/50 transition-colors min-w-[100px] max-w-[200px]'
-      )}
-      style={{
-        backgroundColor: isActive ? activeBg : inactiveBg,
-        color: isActive ? activeText : inactiveText
-      }}
+      className={tabClass(isActive)}
     >
+      {/* Connection identity dot */}
+      <span
+        className="w-1.5 h-1.5 rounded-full flex-shrink-0"
+        style={{ backgroundColor: connectionDotColor }}
+        aria-hidden="true"
+      />
       {/* Status indicators */}
       {(sessionStatus === 'working' || sessionStatus === 'planning') && (
         <Loader2
-          className="h-3 w-3 animate-spin flex-shrink-0"
-          style={{ color: isActive ? activeText : undefined }}
+          className={cn(
+            'h-3 w-3 animate-spin flex-shrink-0',
+            sessionStatus === 'planning' ? 'text-blue-400' : 'text-yellow-500'
+          )}
         />
       )}
       {(sessionStatus === 'answering' || sessionStatus === 'permission') && (
-        <AlertCircle
-          className="h-3 w-3 flex-shrink-0"
-          style={{ color: isActive ? activeText : undefined }}
-        />
+        <AlertCircle className="h-3 w-3 text-amber-500 flex-shrink-0" />
       )}
       {sessionStatus === 'completed' && (
-        <Check
-          className="h-3 w-3 flex-shrink-0"
-          style={{ color: isActive ? activeText : undefined }}
-        />
+        <Check className="h-3 w-3 text-emerald-500 flex-shrink-0" />
       )}
       {sessionStatus === 'unread' && !isActive && (
-        <span className="w-2 h-2 rounded-full bg-blue-500 flex-shrink-0" />
+        <span className="w-[7px] h-[7px] rounded-full bg-blue-400 flex-shrink-0" />
       )}
 
       <span className="truncate flex-1">{name || 'Untitled'}</span>
+      {isActive && <div className={TAB_UNDERLINE_CLASS} />}
     </div>
   )
 })
@@ -1279,7 +1278,7 @@ export function SessionTabs(): React.JSX.Element | null {
           return (
             <Fragment key={connection.id}>
               {/* Thin visual separator before each connection group */}
-              <div className="w-px bg-border/60 self-stretch my-1" aria-hidden="true" />
+              <div className="w-px bg-border self-stretch" aria-hidden="true" />
               {orderedConnectionSessions.map((session) => (
                 <ConnectionSessionTab
                   key={session.id}
@@ -1347,12 +1346,7 @@ export function SessionTabs(): React.JSX.Element | null {
       {/* Board assistant tab */}
       {project && boardAssistantByProject.has(project.id) && (
         <button
-          className={cn(
-            'group relative flex items-center gap-1.5 px-3 py-1.5 text-sm cursor-pointer select-none whitespace-nowrap border-r border-border min-w-[100px] max-w-[200px] transition-colors',
-            activeBoardAssistantProjectId === project.id && !isFileTabActive
-              ? 'bg-background text-foreground'
-              : 'bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground'
-          )}
+          className={tabClass(activeBoardAssistantProjectId === project.id && !isFileTabActive)}
           onClick={() => {
             setActiveFile(null)
             clearInlineConnectionSession()
@@ -1365,7 +1359,7 @@ export function SessionTabs(): React.JSX.Element | null {
           <span className="truncate flex-1">Board Assistant</span>
           {/* Active bottom accent */}
           {activeBoardAssistantProjectId === project.id && !isFileTabActive && (
-            <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary" />
+            <div className={TAB_UNDERLINE_CLASS} />
           )}
           {/* Close button */}
           <span
@@ -1383,23 +1377,23 @@ export function SessionTabs(): React.JSX.Element | null {
 
   return (
     <div
-      className="flex items-center border-b border-border bg-muted/30"
+      className="flex items-center h-8 shrink-0 bg-card border-b border-border"
       data-testid="session-tabs"
     >
       {/* New session / new ticket button - on the left */}
       {boardMode === 'sticky-tab' || !isBoardViewActive ? (
         /* Session create button with right-click provider menu */
         <Tip tipId="provider-right-click" enabled={multipleProvidersAvailable}>
-          <div className="shrink-0">
+          <div className="shrink-0 h-full">
             <ContextMenu>
               <ContextMenuTrigger asChild>
                 <button
                   onClick={handleCreateSession}
-                  className="p-1.5 hover:bg-accent transition-colors border-r border-border"
+                  className={cn(TAB_STRIP_BUTTON_CLASS, 'w-8')}
                   data-testid="create-session"
                   title="Create new session (right-click for options)"
                 >
-                  <Plus className="h-4 w-4" />
+                  <Plus className="h-3.5 w-3.5" />
                 </button>
               </ContextMenuTrigger>
               <ContextMenuContent>
@@ -1452,11 +1446,11 @@ export function SessionTabs(): React.JSX.Element | null {
         /* Toggle mode kanban: plus button opens the ticket creation modal (hidden in connection board — board has its own) */
         <button
           onClick={() => setIsTicketCreateOpen(true)}
-          className="p-1.5 hover:bg-accent transition-colors shrink-0 border-r border-border"
+          className={cn(TAB_STRIP_BUTTON_CLASS, 'w-8')}
           data-testid="kanban-add-ticket-btn"
           title="Create new ticket"
         >
-          <Plus className="h-4 w-4" />
+          <Plus className="h-3.5 w-3.5" />
         </button>
       ) : null}
 
@@ -1464,17 +1458,17 @@ export function SessionTabs(): React.JSX.Element | null {
       {showLeftArrow && (
         <button
           onClick={scrollLeft}
-          className="p-1 hover:bg-accent transition-colors shrink-0"
+          className={cn(TAB_STRIP_BUTTON_CLASS, 'w-6')}
           data-testid="scroll-left"
         >
-          <ChevronLeft className="h-4 w-4" />
+          <ChevronLeft className="h-3.5 w-3.5" />
         </button>
       )}
 
       {/* Tabs container */}
       <div
         ref={tabsContainerRef}
-        className="flex-1 flex overflow-x-auto scrollbar-hide"
+        className="flex-1 h-full flex overflow-x-auto scrollbar-hide"
         style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
         data-testid="session-tabs-scroll-container"
       >
@@ -1498,21 +1492,15 @@ export function SessionTabs(): React.JSX.Element | null {
                   useSessionStore.getState().setActiveSession(BOARD_TAB_ID)
                 }
               }}
-              className={cn(
-                'group relative flex items-center gap-1.5 px-3 py-1.5 text-sm cursor-pointer select-none',
-                'border-r border-border transition-colors min-w-[100px] max-w-[200px]',
+              className={tabClass(
                 activeSessionId === BOARD_TAB_ID && !isFileTabActive && !inlineConnectionSessionId
-                  ? 'bg-background text-foreground'
-                  : 'bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground'
               )}
             >
               <KanbanIcon className="h-3.5 w-3.5 flex-shrink-0 text-blue-400" />
               <span className="truncate flex-1">Board</span>
               {activeSessionId === BOARD_TAB_ID &&
                 !isFileTabActive &&
-                !inlineConnectionSessionId && (
-                  <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary" />
-                )}
+                !inlineConnectionSessionId && <div className={TAB_UNDERLINE_CLASS} />}
             </div>
             {/* Normal session tabs alongside the sticky board tab */}
             {renderSessionTabs()}
@@ -1526,18 +1514,12 @@ export function SessionTabs(): React.JSX.Element | null {
                 useFileViewerStore.getState().clearActiveViews()
                 useSessionStore.getState().setActivePinnedSession(null)
               }}
-              className={cn(
-                'group relative flex items-center gap-1.5 px-3 py-1.5 text-sm cursor-pointer select-none',
-                'border-r border-border transition-colors min-w-[100px] max-w-[200px]',
-                !isFileTabActive && !activePinnedSessionId
-                  ? 'bg-background text-foreground'
-                  : 'bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground'
-              )}
+              className={tabClass(!isFileTabActive && !activePinnedSessionId)}
             >
               <KanbanIcon className="h-3.5 w-3.5 flex-shrink-0 text-blue-400" />
               <span className="truncate flex-1">Board</span>
               {!isFileTabActive && !activePinnedSessionId && (
-                <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary" />
+                <div className={TAB_UNDERLINE_CLASS} />
               )}
             </div>
             {/* Pinned session tabs */}
@@ -1564,13 +1546,7 @@ export function SessionTabs(): React.JSX.Element | null {
                     useFileViewerStore.getState().clearActiveViews()
                     useSessionStore.getState().setActivePinnedSession(sessionId)
                   }}
-                  className={cn(
-                    'group relative flex items-center gap-1.5 px-3 py-1.5 text-sm cursor-pointer select-none',
-                    'border-r border-border transition-colors min-w-[100px] max-w-[200px]',
-                    isActive
-                      ? 'bg-background text-foreground'
-                      : 'bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground'
-                  )}
+                  className={tabClass(isActive)}
                 >
                   <Icon className="h-3.5 w-3.5 flex-shrink-0 text-blue-400" />
                   <span className="truncate flex-1">{session.name || 'Session'}</span>
@@ -1583,9 +1559,7 @@ export function SessionTabs(): React.JSX.Element | null {
                   >
                     <X className="h-3 w-3" />
                   </button>
-                  {isActive && (
-                    <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary" />
-                  )}
+                  {isActive && <div className={TAB_UNDERLINE_CLASS} />}
                 </div>
               )
             })}
@@ -1597,7 +1571,7 @@ export function SessionTabs(): React.JSX.Element | null {
             connectionsForWorktree.some((c) => (sessionsByConnection.get(c.id) || []).length > 0)
           ) ? (
           <div
-            className="flex items-center px-3 py-1.5 text-sm text-muted-foreground"
+            className="flex items-center h-full px-3 text-[12px] text-muted-foreground"
             data-testid="no-sessions"
           >
             No sessions yet. Click + to create one.
@@ -1654,13 +1628,7 @@ export function SessionTabs(): React.JSX.Element | null {
                 useFileViewerStore.getState().closeContextEditor()
               }
             }}
-            className={cn(
-              'group relative flex items-center gap-1.5 px-3 py-1.5 text-sm cursor-pointer select-none',
-              'border-r border-border transition-colors min-w-[100px] max-w-[200px]',
-              isFileTabActive && activeFilePath === key
-                ? 'bg-background text-foreground'
-                : 'bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground'
-            )}
+            className={tabClass(isFileTabActive && activeFilePath === key)}
             title="Worktree Context"
           >
             <FileText className="h-3.5 w-3.5 flex-shrink-0 text-emerald-400" />
@@ -1679,9 +1647,7 @@ export function SessionTabs(): React.JSX.Element | null {
             >
               <X className="h-3 w-3" />
             </button>
-            {isFileTabActive && activeFilePath === key && (
-              <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary" />
-            )}
+            {isFileTabActive && activeFilePath === key && <div className={TAB_UNDERLINE_CLASS} />}
           </div>
         ))}
       </div>
@@ -1690,10 +1656,10 @@ export function SessionTabs(): React.JSX.Element | null {
       {showRightArrow && (
         <button
           onClick={scrollRight}
-          className="p-1 hover:bg-accent transition-colors shrink-0"
+          className={cn(TAB_STRIP_BUTTON_CLASS, 'w-6')}
           data-testid="scroll-right"
         >
-          <ChevronRight className="h-4 w-4" />
+          <ChevronRight className="h-3.5 w-3.5" />
         </button>
       )}
 
@@ -1703,8 +1669,8 @@ export function SessionTabs(): React.JSX.Element | null {
       {(isBoardViewActive || isStickyBoardActive) && (
         <button
           className={cn(
-            'flex items-center gap-1.5 px-3 py-1.5 text-xs text-muted-foreground hover:bg-muted hover:text-foreground transition-colors shrink-0 border-l border-border cursor-pointer select-none',
-            isFavoritesPaneOpen && 'bg-accent text-accent-foreground'
+            'relative flex items-center gap-1.5 h-full px-2.5 text-[11px] tracking-[0.01em] text-muted-foreground hover:text-foreground hover:bg-[color-mix(in_srgb,var(--foreground)_4%,var(--card))] transition-colors shrink-0 cursor-pointer select-none',
+            isFavoritesPaneOpen && 'text-foreground'
           )}
           data-testid="kanban-favorites-btn"
           title={isFavoritesPaneOpen ? 'Hide favorite tickets' : 'Show favorite tickets'}
@@ -1712,6 +1678,7 @@ export function SessionTabs(): React.JSX.Element | null {
         >
           <Star className="h-3.5 w-3.5" />
           Favorites
+          {isFavoritesPaneOpen && <div className={TAB_UNDERLINE_CLASS} />}
         </button>
       )}
 
@@ -1720,7 +1687,7 @@ export function SessionTabs(): React.JSX.Element | null {
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-muted-foreground hover:bg-muted hover:text-foreground transition-colors shrink-0 border-l border-border cursor-pointer select-none"
+              className="flex items-center gap-1.5 h-full px-2.5 text-[11px] tracking-[0.01em] text-muted-foreground hover:text-foreground hover:bg-[color-mix(in_srgb,var(--foreground)_4%,var(--card))] transition-colors shrink-0 cursor-pointer select-none"
               data-testid="kanban-import-btn"
               title="Import tickets"
             >

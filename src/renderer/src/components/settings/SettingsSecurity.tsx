@@ -202,7 +202,7 @@ export function SettingsSecurity(): React.JSX.Element {
             onClick={() => handleSetDefaultBehavior('ask')}
             disabled={!isEnabled}
             className={cn(
-              'px-3 py-1.5 rounded-md text-sm border transition-colors',
+              'px-3 py-1.5 rounded-md text-[13px] border transition-colors',
               commandFilter.defaultBehavior === 'ask'
                 ? 'bg-primary text-primary-foreground border-primary'
                 : 'bg-muted/50 text-muted-foreground border-border hover:bg-accent/50'
@@ -215,7 +215,7 @@ export function SettingsSecurity(): React.JSX.Element {
             onClick={() => handleSetDefaultBehavior('allow')}
             disabled={!isEnabled}
             className={cn(
-              'px-3 py-1.5 rounded-md text-sm border transition-colors',
+              'px-3 py-1.5 rounded-md text-[13px] border transition-colors',
               commandFilter.defaultBehavior === 'allow'
                 ? 'bg-primary text-primary-foreground border-primary'
                 : 'bg-muted/50 text-muted-foreground border-border hover:bg-accent/50'
@@ -228,7 +228,7 @@ export function SettingsSecurity(): React.JSX.Element {
             onClick={() => handleSetDefaultBehavior('block')}
             disabled={!isEnabled}
             className={cn(
-              'px-3 py-1.5 rounded-md text-sm border transition-colors',
+              'px-3 py-1.5 rounded-md text-[13px] border transition-colors',
               commandFilter.defaultBehavior === 'block'
                 ? 'bg-primary text-primary-foreground border-primary'
                 : 'bg-muted/50 text-muted-foreground border-border hover:bg-accent/50'
@@ -293,9 +293,9 @@ export function SettingsSecurity(): React.JSX.Element {
             onClick={() => setActiveTab('allowlist')}
             disabled={!isEnabled}
             className={cn(
-              'px-3 py-1.5 text-sm font-medium transition-colors border-b-2',
+              'px-3 py-1.5 text-[13px] font-medium transition-colors border-b-2',
               activeTab === 'allowlist'
-                ? 'border-primary text-foreground'
+                ? 'border-foreground text-foreground'
                 : 'border-transparent text-muted-foreground hover:text-foreground'
             )}
           >
@@ -305,9 +305,9 @@ export function SettingsSecurity(): React.JSX.Element {
             onClick={() => setActiveTab('blocklist')}
             disabled={!isEnabled}
             className={cn(
-              'px-3 py-1.5 text-sm font-medium transition-colors border-b-2',
+              'px-3 py-1.5 text-[13px] font-medium transition-colors border-b-2',
               activeTab === 'blocklist'
-                ? 'border-primary text-foreground'
+                ? 'border-foreground text-foreground'
                 : 'border-transparent text-muted-foreground hover:text-foreground'
             )}
           >

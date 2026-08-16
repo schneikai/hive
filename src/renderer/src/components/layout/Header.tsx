@@ -65,8 +65,12 @@ import { usePinAndActivateSession } from '@/hooks/usePinAndActivateSession'
 import { useConflictFixFlow } from '@/hooks/useConflictFixFlow'
 import hiveLogo from '@/assets/icon.png'
 
+// Orca titlebar icon button — 24px in the 36px bar
+const tbIconBtn = 'size-6 rounded-md text-muted-foreground hover:bg-accent hover:text-foreground'
+
 export function Header(): React.JSX.Element {
-  const { rightSidebarCollapsed, toggleRightSidebar } = useLayoutStore()
+  const { rightSidebarCollapsed, toggleRightSidebar, leftSidebarWidth, leftSidebarCollapsed } =
+    useLayoutStore()
   const { openPanel: openSessionHistory } = useSessionHistoryStore()
   const openSettings = useSettingsStore((s) => s.openSettings)
   const selectedProjectId = useProjectStore((s) => s.selectedProjectId)
@@ -221,31 +225,61 @@ export function Header(): React.JSX.Element {
 
   return (
     <header
-      className="h-12 border-b bg-background flex items-center justify-between px-4 flex-shrink-0 select-none"
+      className="h-9 min-h-9 flex items-stretch flex-shrink-0 select-none"
       style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}
       data-testid="header"
     >
-      {/* Spacer for macOS traffic lights */}
-      {isMac() && <div className="w-16 flex-shrink-0" />}
+      {/* Left segment — continues the lifted worktree-sidebar surface */}
+      {!leftSidebarCollapsed && (
+        <div
+          className={cn(
+            'flex-shrink-0 flex items-center bg-worktree-sidebar shadow-[inset_0_-1px_0_var(--border)]',
+            isMac() ? 'pl-[78px]' : 'pl-3'
+          )}
+          style={{ width: leftSidebarWidth }}
+        >
+          <img
+            src={hiveLogo}
+            alt="Hive"
+            className="h-4 w-4 shrink-0 rounded opacity-75"
+            draggable={false}
+          />
+          <span className="ml-1.5 text-[12px] font-semibold text-muted-foreground truncate">
+            Hive
+          </span>
+        </div>
+      )}
+      {/* Main segment */}
+      <div className="flex-1 min-w-0 flex items-center bg-card border-b border-border px-2.5">
+      {/* Spacer for macOS traffic lights when the left segment is hidden */}
+      {isMac() && leftSidebarCollapsed && <div className="w-[70px] flex-shrink-0" />}
       <div className="flex items-center gap-2 flex-1 min-w-0">
-        <img src={hiveLogo} alt="Hive" className="h-5 w-5 shrink-0 rounded" draggable={false} />
         {isConnectionMode && selectedConnection ? (
-          <span className="text-sm font-medium truncate" data-testid="header-connection-info">
+          <span
+            className="text-[12px] font-medium text-foreground truncate"
+            data-testid="header-connection-info"
+          >
             {selectedConnection.name}
-            <span className="text-primary font-normal">
+            <span className="text-muted-foreground font-normal">
               {' '}
               ({selectedConnection.members.map((m) => m.project_name).join(' + ')})
             </span>
           </span>
         ) : selectedProject ? (
-          <span className="text-sm font-medium truncate" data-testid="header-project-info">
+          <span
+            className="text-[12px] font-medium text-foreground truncate"
+            data-testid="header-project-info"
+          >
             {selectedProject.name}
             {selectedWorktree?.branch_name && selectedWorktree.name !== '(no-worktree)' && (
-              <span className="text-primary font-normal"> ({selectedWorktree.branch_name})</span>
+              <span className="text-muted-foreground font-normal">
+                {' '}
+                ({selectedWorktree.branch_name})
+              </span>
             )}
           </span>
         ) : (
-          <span className="text-sm font-medium">Hive</span>
+          <span className="text-[12px] font-medium">Hive</span>
         )}
         {keepAwakeEnabled && (
           <ContextMenu>
@@ -260,7 +294,7 @@ export function Header(): React.JSX.Element {
                       className={cn(
                         'shrink-0',
                         streamingCount > 0 ? 'text-amber-500' : 'text-muted-foreground',
-                        sleepWhenIdleArmed && 'text-indigo-400'
+                        sleepWhenIdleArmed && 'text-blue-400'
                       )}
                       data-testid="keep-awake-indicator"
                     >
@@ -291,10 +325,10 @@ export function Header(): React.JSX.Element {
         {vimModeEnabled && (
           <span
             className={cn(
-              'text-[10px] font-mono px-1.5 py-0.5 rounded border select-none',
+              'text-[10px] font-mono px-1.5 py-0.5 rounded-md border select-none',
               vimMode === 'normal'
-                ? 'text-muted-foreground bg-muted/50 border-border/50'
-                : 'text-primary bg-primary/10 border-primary/30'
+                ? 'text-muted-foreground bg-secondary/60 border-border'
+                : 'text-foreground bg-secondary border-border'
             )}
             data-testid="vim-mode-pill"
           >
@@ -314,7 +348,7 @@ export function Header(): React.JSX.Element {
                 <Button
                   size="sm"
                   variant="destructive"
-                  className="h-7 text-xs font-semibold"
+                  className="h-6 px-2 text-[12px] font-semibold rounded-md"
                   disabled={isFixConflictsLoading}
                   data-testid="fix-conflicts-button"
                 >
@@ -342,7 +376,7 @@ export function Header(): React.JSX.Element {
             <Button
               size="sm"
               variant="destructive"
-              className="h-7 text-xs font-semibold"
+              className="h-6 px-2 text-[12px] font-semibold rounded-md"
               onClick={() => startFixFlow()}
               disabled={isFixConflictsLoading}
               data-testid="fix-conflicts-button"
@@ -359,7 +393,7 @@ export function Header(): React.JSX.Element {
       )}
       <div className="flex-1" />
       <div
-        className="flex items-center gap-2"
+        className="flex items-center gap-1"
         style={
           {
             WebkitAppRegion: 'no-drag',
@@ -372,7 +406,7 @@ export function Header(): React.JSX.Element {
           <Button
             size="sm"
             variant="outline"
-            className="h-7 text-xs"
+            className="h-6 px-2 text-[12px] font-medium rounded-md"
             onClick={() => {
               if (selectedConnectionId) {
                 useGitStore.getState().setConnectionPRModalOpen(true, selectedConnectionId)
@@ -393,7 +427,7 @@ export function Header(): React.JSX.Element {
             <Button
               size="sm"
               variant="destructive"
-              className="h-7 text-xs"
+              className="h-6 px-2 text-[12px] font-medium rounded-md"
               onClick={() => lifecycle.archiveWorktree()}
               disabled={isArchivingWorktree}
               title="Archive worktree"
@@ -408,7 +442,7 @@ export function Header(): React.JSX.Element {
                 'Archiving...'
               ) : showVimHints ? (
                 <span>
-                  <span className="text-primary font-bold">A</span>rchive
+                  <span className="text-foreground font-bold underline underline-offset-2 decoration-ring">A</span>rchive
                 </span>
               ) : (
                 'Archive'
@@ -424,7 +458,7 @@ export function Header(): React.JSX.Element {
             <Button
               size="sm"
               variant="outline"
-              className="h-7 text-xs bg-emerald-600/10 border-emerald-600/30 text-emerald-500 hover:bg-emerald-600/20"
+              className="h-6 px-2 text-[12px] font-medium rounded-md bg-emerald-600/10 border-emerald-600/30 text-emerald-500 hover:bg-emerald-600/20"
               onClick={() => lifecycle.mergePR()}
               disabled={isMergingPR}
               title="Merge Pull Request"
@@ -439,7 +473,7 @@ export function Header(): React.JSX.Element {
                 'Merging...'
               ) : showVimHints ? (
                 <span>
-                  <span className="text-primary font-bold">M</span>erge PR
+                  <span className="text-foreground font-bold underline underline-offset-2 decoration-ring">M</span>erge PR
                 </span>
               ) : (
                 'Merge PR'
@@ -452,7 +486,7 @@ export function Header(): React.JSX.Element {
               <Button
                 size="sm"
                 variant="outline"
-                className="h-7 text-xs rounded-r-none border-r-0"
+                className="h-6 px-2 text-[12px] font-medium rounded-md rounded-r-none border-r-0"
                 onClick={() => pinAndActivate(() => lifecycle.createCodeReview())}
                 disabled={isOperating || lifecycleLoading}
                 title="Review branch changes with AI"
@@ -465,7 +499,7 @@ export function Header(): React.JSX.Element {
                 )}
                 {showVimHints ? (
                   <span>
-                    <span className="text-primary font-bold">R</span>eview
+                    <span className="text-foreground font-bold underline underline-offset-2 decoration-ring">R</span>eview
                   </span>
                 ) : (
                   'Review'
@@ -476,7 +510,7 @@ export function Header(): React.JSX.Element {
                   <Button
                     size="sm"
                     variant="outline"
-                    className="h-7 px-1 rounded-l-none"
+                    className="h-6 px-1 rounded-md rounded-l-none"
                     disabled={isOperating || lifecycleLoading}
                     data-testid="review-prompt-type-trigger"
                   >
@@ -510,7 +544,7 @@ export function Header(): React.JSX.Element {
                 <Button
                   size="sm"
                   variant="ghost"
-                  className="text-xs text-muted-foreground px-2 h-7"
+                  className="h-6 px-2 text-[12px] text-muted-foreground rounded-md"
                   data-testid="review-target-branch-trigger"
                 >
                   vs {reviewTargetBranch || branchInfo?.tracking || 'origin/main'}
@@ -544,7 +578,7 @@ export function Header(): React.JSX.Element {
                   <Button
                     size="sm"
                     variant="outline"
-                    className="h-7 text-xs"
+                    className="h-6 px-2 text-[12px] font-medium rounded-md"
                     title={`PR #${attachedPR!.number} (right-click for options)`}
                     data-testid="pr-badge"
                   >
@@ -559,32 +593,33 @@ export function Header(): React.JSX.Element {
                   </Button>
                 </PopoverTrigger>
               </ContextMenuTrigger>
-              <PopoverContent align="end" className="w-80 p-0">
+              <PopoverContent align="end" className="w-80 p-1">
                 {/* Attached PR header */}
-                <div className="px-3 py-2 border-b">
-                  <div className="text-xs font-medium text-muted-foreground">
+                <div className="px-2 py-1.5">
+                  <div className="text-[11px] font-medium text-muted-foreground">
                     Attached: #{attachedPR!.number}
                   </div>
                   {prLiveState?.title && (
-                    <div className="text-sm truncate">
+                    <div className="text-[13px] truncate">
                       {prLiveState.title}
                       {prLiveState.state && (
-                        <span className="text-muted-foreground ml-1 text-xs">
+                        <span className="text-muted-foreground ml-1 text-[11px]">
                           ({prLiveState.state.toLowerCase()})
                         </span>
                       )}
                     </div>
                   )}
                 </div>
+                <div className="h-px bg-border my-1" />
                 {/* PR list */}
                 <div className="max-h-48 overflow-y-auto">
                   {prListLoading ? (
-                    <div className="px-3 py-4 text-center text-xs text-muted-foreground">
+                    <div className="px-2 py-4 text-center text-[11px] text-muted-foreground">
                       <Loader2 className="h-3.5 w-3.5 animate-spin inline mr-1" />
                       Loading PRs...
                     </div>
                   ) : prList.length === 0 ? (
-                    <div className="px-3 py-4 text-center text-xs text-muted-foreground">
+                    <div className="px-2 py-4 text-center text-[11px] text-muted-foreground">
                       No open PRs found
                     </div>
                   ) : (
@@ -592,7 +627,7 @@ export function Header(): React.JSX.Element {
                       <button
                         key={pr.number}
                         className={cn(
-                          'w-full text-left px-3 py-2 text-sm hover:bg-accent cursor-pointer',
+                          'w-full text-left rounded-md px-2 py-1.5 text-[13px] hover:bg-black/6 dark:hover:bg-white/8 cursor-pointer',
                           'flex items-center gap-2',
                           pr.number === attachedPR!.number && 'bg-accent/50'
                         )}
@@ -600,8 +635,8 @@ export function Header(): React.JSX.Element {
                         data-testid={`pr-picker-item-${pr.number}`}
                       >
                         <span className={cn(
-                          'text-xs font-mono shrink-0',
-                          pr.number === attachedPR!.number && 'text-primary font-bold'
+                          'text-[11px] font-mono shrink-0',
+                          pr.number === attachedPR!.number && 'text-foreground font-semibold'
                         )}>
                           {pr.number === attachedPR!.number ? '●' : ' '} #{pr.number}
                         </span>
@@ -611,16 +646,15 @@ export function Header(): React.JSX.Element {
                   )}
                 </div>
                 {/* Detach action */}
-                <div className="border-t">
-                  <button
-                    className="w-full text-left px-3 py-2 text-sm text-destructive hover:bg-destructive/10 cursor-pointer flex items-center gap-1"
-                    onClick={handleDetachPR}
-                    data-testid="pr-detach-button"
-                  >
-                    <X className="h-3.5 w-3.5" />
-                    Detach PR
-                  </button>
-                </div>
+                <div className="h-px bg-border my-1" />
+                <button
+                  className="w-full text-left rounded-md px-2 py-1.5 text-[13px] text-destructive hover:bg-destructive/10 cursor-pointer flex items-center gap-1"
+                  onClick={handleDetachPR}
+                  data-testid="pr-detach-button"
+                >
+                  <X className="h-3.5 w-3.5" />
+                  Detach PR
+                </button>
               </PopoverContent>
             </Popover>
             <ContextMenuContent>
@@ -650,7 +684,7 @@ export function Header(): React.JSX.Element {
               <Button
                 size="sm"
                 variant="outline"
-                className="h-7 text-xs"
+                className="h-6 px-2 text-[12px] font-medium rounded-md"
                 onClick={() => {
                   if (selectedWorktreeId && selectedWorktreePath) {
                     useGitStore.getState().setCreatePRModalOpen(true, {
@@ -674,27 +708,28 @@ export function Header(): React.JSX.Element {
                 )}
                 {showVimHints ? (
                   <span>
-                    <span className="text-primary font-bold">P</span>R
+                    <span className="text-foreground font-bold underline underline-offset-2 decoration-ring">P</span>R
                   </span>
                 ) : (
                   'PR'
                 )}
               </Button>
             </PopoverAnchor>
-            <PopoverContent align="end" className="w-80 p-0">
-              <div className="px-3 py-2 border-b">
-                <div className="text-xs font-medium text-muted-foreground">
+            <PopoverContent align="end" className="w-80 p-1">
+              <div className="px-2 py-1.5">
+                <div className="text-[11px] font-medium text-muted-foreground">
                   Attach existing PR
                 </div>
               </div>
+              <div className="h-px bg-border my-1" />
               <div className="max-h-48 overflow-y-auto">
                 {prListLoading ? (
-                  <div className="px-3 py-4 text-center text-xs text-muted-foreground">
+                  <div className="px-2 py-4 text-center text-[11px] text-muted-foreground">
                     <Loader2 className="h-3.5 w-3.5 animate-spin inline mr-1" />
                     Loading PRs...
                   </div>
                 ) : prList.length === 0 ? (
-                  <div className="px-3 py-4 text-center text-xs text-muted-foreground">
+                  <div className="px-2 py-4 text-center text-[11px] text-muted-foreground">
                     No open PRs found
                   </div>
                 ) : (
@@ -702,13 +737,13 @@ export function Header(): React.JSX.Element {
                     <button
                       key={pr.number}
                       className={cn(
-                        'w-full text-left px-3 py-2 text-sm hover:bg-accent cursor-pointer',
+                        'w-full text-left rounded-md px-2 py-1.5 text-[13px] hover:bg-black/6 dark:hover:bg-white/8 cursor-pointer',
                         'flex items-center gap-2'
                       )}
                       onClick={() => handleSelectPR(pr)}
                       data-testid={`pr-picker-item-${pr.number}`}
                     >
-                      <span className="text-xs font-mono shrink-0">
+                      <span className="text-[11px] font-mono shrink-0">
                         #{pr.number}
                       </span>
                       <span className="truncate">{pr.title}</span>
@@ -722,7 +757,7 @@ export function Header(): React.JSX.Element {
                 <Button
                   size="sm"
                   variant="ghost"
-                  className="text-xs text-muted-foreground px-2 h-7"
+                  className="h-6 px-2 text-[12px] text-muted-foreground rounded-md"
                   data-testid="pr-target-branch-trigger"
                 >
                   → {prTargetBranch || branchInfo?.tracking || 'origin/main'}
@@ -769,6 +804,7 @@ export function Header(): React.JSX.Element {
               title={isBoardViewActive ? 'Close Board' : 'Open Board'}
               data-testid="kanban-board-toggle"
               className={cn(
+                tbIconBtn,
                 isBoardViewActive && 'bg-accent text-accent-foreground'
               )}
             >
@@ -779,6 +815,7 @@ export function Header(): React.JSX.Element {
         <Button
           variant="ghost"
           size="icon"
+          className={tbIconBtn}
           onClick={openSessionHistory}
           title="Session History (⌘K)"
           data-testid="session-history-toggle"
@@ -791,6 +828,7 @@ export function Header(): React.JSX.Element {
           <Button
             variant="ghost"
             size="icon"
+            className={tbIconBtn}
             onClick={() => openSettings()}
             title="Settings (⌘,)"
             data-testid="settings-toggle"
@@ -802,6 +840,7 @@ export function Header(): React.JSX.Element {
           onClick={toggleRightSidebar}
           variant="ghost"
           size="icon"
+          className={tbIconBtn}
           title={rightSidebarCollapsed ? 'Show sidebar' : 'Hide sidebar'}
           data-testid="right-sidebar-toggle"
         >
@@ -812,6 +851,7 @@ export function Header(): React.JSX.Element {
           )}
         </Button>
         <WindowChromeControls />
+      </div>
       </div>
     </header>
   )

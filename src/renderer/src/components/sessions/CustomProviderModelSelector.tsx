@@ -57,9 +57,9 @@ export function CustomProviderModelSelector({
       <DropdownMenuTrigger asChild>
         <button
           className={cn(
-            'flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium transition-colors',
-            'border select-none',
-            'bg-muted/50 border-border text-muted-foreground hover:bg-muted hover:text-foreground'
+            'inline-flex items-center gap-1.5 px-1.5 py-[3px] rounded-md text-[11px] font-medium transition-colors',
+            'border-0 bg-transparent select-none text-muted-foreground hover:bg-secondary hover:text-foreground',
+            'outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50'
           )}
           title="Select model"
           aria-label={`Current model: ${getCustomProviderModelDisplayName(currentModel)}. Click to change model`}
@@ -69,7 +69,7 @@ export function CustomProviderModelSelector({
             {getCustomProviderModelDisplayName(currentModel)}
           </span>
           {currentEffort && (
-            <span className="text-[10px] font-semibold uppercase text-primary">
+            <span className="text-[10px] font-semibold uppercase text-muted-foreground">
               {currentEffort}
             </span>
           )}
@@ -90,7 +90,7 @@ export function CustomProviderModelSelector({
                 data-testid={`${testIdPrefix}-model-${model.slug.trim()}`}
               >
                 <span className="truncate text-sm">{getCustomProviderModelDisplayName(model)}</span>
-                {active && <Check className="h-4 w-4 shrink-0 text-primary" />}
+                {active && <Check className="h-4 w-4 shrink-0 text-foreground" />}
               </DropdownMenuItem>
               {model.efforts.length > 0 && (
                 <div className="flex flex-wrap gap-1 pl-6 pb-1">
@@ -100,10 +100,10 @@ export function CustomProviderModelSelector({
                       <button
                         key={effort}
                         className={cn(
-                          'text-[10px] px-1.5 py-0.5 rounded',
+                          'text-[10px] px-1.5 py-0.5 rounded border',
                           activeEffort
-                            ? 'bg-primary text-primary-foreground'
-                            : 'bg-muted text-muted-foreground hover:bg-accent'
+                            ? 'bg-foreground/12 text-foreground border-border'
+                            : 'bg-secondary text-muted-foreground border-transparent hover:bg-accent'
                         )}
                         onClick={(e) => {
                           e.stopPropagation()

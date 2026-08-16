@@ -121,7 +121,7 @@ export function SetupTab({ worktreeId }: SetupTabProps): React.JSX.Element {
         <div className="flex items-center gap-1.5">
           {setupRunning && (
             <>
-              <Loader2 className="h-3 w-3 animate-spin text-primary" />
+              <Loader2 className="h-3 w-3 animate-spin text-yellow-500" />
               <span className="text-muted-foreground">Running...</span>
             </>
           )}

@@ -454,7 +454,7 @@ export function ProjectSettingsDialog({
                 </div>
               </div>
 
-              <div className="space-y-3 rounded-md border border-border/60 p-3">
+              <div className="space-y-3 rounded-md border border-border p-3">
                 <div className="flex items-center gap-2">
                   <FolderKanban className="h-4 w-4 text-muted-foreground" />
                   <label className="text-sm font-medium">Kanban Storage</label>
@@ -643,7 +643,7 @@ export function ProjectSettingsDialog({
               <div className="rounded-md border border-border bg-muted/20">
                 <button
                   type="button"
-                  className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/24"
+                  className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
                   onClick={() => setWorktreeCreateScriptExpanded((expanded) => !expanded)}
                   aria-expanded={worktreeCreateScriptExpanded}
                   aria-controls={worktreeCreateScriptContentId}

@@ -144,7 +144,7 @@ export function RunOutputSearch({
         onChange={(e) => setQuery(e.target.value)}
         onKeyDown={handleKeyDown}
         placeholder="Find in output..."
-        className="flex-1 bg-input border border-border rounded px-2 py-1 text-sm outline-none focus:ring-1 focus:ring-ring min-w-0"
+        className="flex-1 bg-input border border-border rounded-md px-2 py-1 text-sm outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:border-ring min-w-0"
         data-testid="run-search-input"
       />
       <span

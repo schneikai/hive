@@ -108,9 +108,9 @@ export function TerminalTabsHorizontal({
             <button
               onClick={() => handleTabClick(tab.id)}
               className={cn(
-                'group text-xs px-3 py-1.5 transition-colors relative flex items-center gap-1.5',
+                'group h-full text-[11px] px-3 rounded-none transition-colors relative flex items-center gap-1.5',
                 isTerminalActive && tab.id === activeTabId
-                  ? 'text-foreground'
+                  ? 'text-foreground bg-[color-mix(in_srgb,var(--foreground)_6%,var(--card))]'
                   : 'text-muted-foreground hover:text-foreground'
               )}
             >
@@ -134,7 +134,7 @@ export function TerminalTabsHorizontal({
                   onKeyDown={(e) => handleKeyDown(e, tab.id, tab.name)}
                   onBlur={() => commitRename(tab.id, tab.name)}
                   onClick={(e) => e.stopPropagation()}
-                  className="min-w-0 w-16 h-4 px-0.5 text-xs bg-background border border-border rounded focus:outline-none focus:ring-1 focus:ring-ring"
+                  className="min-w-0 w-16 h-4 px-0.5 text-xs bg-background border border-border rounded-md outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:border-ring"
                 />
               ) : (
                 <span
@@ -166,7 +166,7 @@ export function TerminalTabsHorizontal({
 
               {/* Active underline */}
               {isTerminalActive && tab.id === activeTabId && (
-                <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary" />
+                <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-[color-mix(in_srgb,var(--foreground)_60%,var(--card))]" />
               )}
             </button>
           </ContextMenuTrigger>
@@ -186,7 +186,7 @@ export function TerminalTabsHorizontal({
       {/* Add tab button */}
       <button
         onClick={handlePlusClick}
-        className="text-xs px-2 py-1.5 text-muted-foreground hover:text-foreground transition-colors"
+        className="h-full px-2 text-[11px] text-muted-foreground hover:text-foreground transition-colors"
         title="New Terminal"
       >
         <Plus className="h-3.5 w-3.5" />

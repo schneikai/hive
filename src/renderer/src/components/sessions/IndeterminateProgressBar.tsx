@@ -64,39 +64,26 @@ export function IndeterminateProgressBar({
     return undefined
   }, [])
 
-  const bgTrack = isFixingConflicts
-    ? 'bg-fuchsia-500/15'
-    : isCompacting
-    ? 'bg-red-500/15'
-    : isAsking
-      ? 'bg-amber-500/15'
-      : isReviewing
-        ? 'bg-green-500/15'
-        : mode === 'build'
-          ? 'bg-blue-500/15'
-          : mode === 'super-plan'
-            ? 'bg-orange-500/15'
-            : 'bg-violet-500/15'
+  // Status hues: conflicts = error red, compacting = amber (red stays unambiguous),
+  // reviewing = done emerald, then build blue / super-plan orange / plan violet.
   const bgBar = isFixingConflicts
-    ? 'bg-fuchsia-500'
-    : isCompacting
     ? 'bg-red-500'
-    : isAsking
+    : isCompacting
       ? 'bg-amber-500'
-      : isReviewing
-        ? 'bg-green-500'
-        : mode === 'build'
-          ? 'bg-blue-500'
-          : mode === 'super-plan'
-            ? 'bg-orange-500'
-            : 'bg-violet-500'
+      : isAsking
+        ? 'bg-amber-500'
+        : isReviewing
+          ? 'bg-emerald-500'
+          : mode === 'build'
+            ? 'bg-blue-500'
+            : mode === 'super-plan'
+              ? 'bg-orange-500'
+              : 'bg-violet-500'
 
   return (
-    <div className={cn('flex flex-col items-center w-36', className)}>
+    <div className={cn('flex flex-col items-center w-14', className)}>
       {isCompacting && (
-        <span className="text-[10px] font-semibold text-red-500 leading-none mb-0.5">
-          Compacting
-        </span>
+        <span className="text-[10px] font-medium text-amber-500 leading-none mb-1">Compacting</span>
       )}
       <div
         role="progressbar"
@@ -109,11 +96,11 @@ export function IndeterminateProgressBar({
                 ? 'Waiting for answer'
                 : 'Agent is working'
         }
-        className={cn('relative w-full h-4 rounded-full overflow-hidden', bgTrack)}
+        className="relative w-full h-[3px] rounded-[2px] overflow-hidden bg-[color-mix(in_srgb,var(--foreground)_8%,transparent)]"
       >
         <div
           ref={barRef}
-          className={cn('progress-bounce-bar absolute top-0 bottom-0 rounded-full', bgBar)}
+          className={cn('progress-bounce-bar absolute top-0 bottom-0 rounded-[2px]', bgBar)}
         />
       </div>
     </div>

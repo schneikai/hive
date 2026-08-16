@@ -87,7 +87,7 @@ export function SettingsGeneral(): React.JSX.Element {
         >
           <span
             className={cn(
-              'pointer-events-none block h-4 w-4 rounded-full bg-background shadow-lg ring-0 transition-transform',
+              'pointer-events-none block h-4 w-4 rounded-full bg-background ring-0 transition-transform',
               warnBeforeQuitting ? 'translate-x-4' : 'translate-x-0'
             )}
           />
@@ -114,7 +114,7 @@ export function SettingsGeneral(): React.JSX.Element {
         >
           <span
             className={cn(
-              'pointer-events-none block h-4 w-4 rounded-full bg-background shadow-lg ring-0 transition-transform',
+              'pointer-events-none block h-4 w-4 rounded-full bg-background ring-0 transition-transform',
               autoStartSession ? 'translate-x-4' : 'translate-x-0'
             )}
           />
@@ -141,7 +141,7 @@ export function SettingsGeneral(): React.JSX.Element {
         >
           <span
             className={cn(
-              'pointer-events-none block h-4 w-4 rounded-full bg-background shadow-lg ring-0 transition-transform',
+              'pointer-events-none block h-4 w-4 rounded-full bg-background ring-0 transition-transform',
               autoPullBeforeWorktree ? 'translate-x-4' : 'translate-x-0'
             )}
           />
@@ -156,7 +156,7 @@ export function SettingsGeneral(): React.JSX.Element {
           <button
             onClick={() => updateSetting('boardMode', 'toggle')}
             className={cn(
-              'px-3 py-1.5 rounded-md text-sm border transition-colors',
+              'px-3 py-1.5 rounded-md text-[13px] border transition-colors',
               boardMode === 'toggle'
                 ? 'bg-primary text-primary-foreground border-primary'
                 : 'bg-muted/50 text-muted-foreground border-border hover:bg-accent/50'
@@ -168,7 +168,7 @@ export function SettingsGeneral(): React.JSX.Element {
           <button
             onClick={() => updateSetting('boardMode', 'sticky-tab')}
             className={cn(
-              'px-3 py-1.5 rounded-md text-sm border transition-colors',
+              'px-3 py-1.5 rounded-md text-[13px] border transition-colors',
               boardMode === 'sticky-tab'
                 ? 'bg-primary text-primary-foreground border-primary'
                 : 'bg-muted/50 text-muted-foreground border-border hover:bg-accent/50'
@@ -190,7 +190,7 @@ export function SettingsGeneral(): React.JSX.Element {
           <button
             onClick={() => updateSetting('followUpTriggerColumn', 'review')}
             className={cn(
-              'px-3 py-1.5 rounded-md text-sm border transition-colors',
+              'px-3 py-1.5 rounded-md text-[13px] border transition-colors',
               followUpTriggerColumn === 'review'
                 ? 'bg-primary text-primary-foreground border-primary'
                 : 'bg-muted/50 text-muted-foreground border-border hover:bg-accent/50'
@@ -202,7 +202,7 @@ export function SettingsGeneral(): React.JSX.Element {
           <button
             onClick={() => updateSetting('followUpTriggerColumn', 'done')}
             className={cn(
-              'px-3 py-1.5 rounded-md text-sm border transition-colors',
+              'px-3 py-1.5 rounded-md text-[13px] border transition-colors',
               followUpTriggerColumn === 'done'
                 ? 'bg-primary text-primary-foreground border-primary'
                 : 'bg-muted/50 text-muted-foreground border-border hover:bg-accent/50'
@@ -237,7 +237,7 @@ export function SettingsGeneral(): React.JSX.Element {
         >
           <span
             className={cn(
-              'pointer-events-none block h-4 w-4 rounded-full bg-background shadow-lg ring-0 transition-transform',
+              'pointer-events-none block h-4 w-4 rounded-full bg-background ring-0 transition-transform',
               autoPinBaseWorktreeOnBoardPrompt ? 'translate-x-4' : 'translate-x-0'
             )}
           />
@@ -266,7 +266,7 @@ export function SettingsGeneral(): React.JSX.Element {
         >
           <span
             className={cn(
-              'pointer-events-none block h-4 w-4 rounded-full bg-background shadow-lg ring-0 transition-transform',
+              'pointer-events-none block h-4 w-4 rounded-full bg-background ring-0 transition-transform',
               automaticallyCreateTicket ? 'translate-x-4' : 'translate-x-0'
             )}
           />
@@ -295,7 +295,7 @@ export function SettingsGeneral(): React.JSX.Element {
         >
           <span
             className={cn(
-              'pointer-events-none block h-4 w-4 rounded-full bg-background shadow-lg ring-0 transition-transform',
+              'pointer-events-none block h-4 w-4 rounded-full bg-background ring-0 transition-transform',
               showMergedColumn ? 'translate-x-4' : 'translate-x-0'
             )}
           />
@@ -322,7 +322,7 @@ export function SettingsGeneral(): React.JSX.Element {
         >
           <span
             className={cn(
-              'pointer-events-none block h-4 w-4 rounded-full bg-background shadow-lg ring-0 transition-transform',
+              'pointer-events-none block h-4 w-4 rounded-full bg-background ring-0 transition-transform',
               vimModeEnabled ? 'translate-x-4' : 'translate-x-0'
             )}
           />
@@ -350,7 +350,7 @@ export function SettingsGeneral(): React.JSX.Element {
         >
           <span
             className={cn(
-              'pointer-events-none block h-4 w-4 rounded-full bg-background shadow-lg ring-0 transition-transform',
+              'pointer-events-none block h-4 w-4 rounded-full bg-background ring-0 transition-transform',
               keepAwakeEnabled ? 'translate-x-4' : 'translate-x-0'
             )}
           />
@@ -367,7 +367,7 @@ export function SettingsGeneral(): React.JSX.Element {
           <button
             onClick={() => updateSetting('mergeConflictMode', 'build')}
             className={cn(
-              'px-3 py-1.5 rounded-md text-sm border transition-colors',
+              'px-3 py-1.5 rounded-md text-[13px] border transition-colors',
               mergeConflictMode === 'build'
                 ? 'bg-primary text-primary-foreground border-primary'
                 : 'bg-muted/50 text-muted-foreground border-border hover:bg-accent/50'
@@ -379,7 +379,7 @@ export function SettingsGeneral(): React.JSX.Element {
           <button
             onClick={() => updateSetting('mergeConflictMode', 'plan')}
             className={cn(
-              'px-3 py-1.5 rounded-md text-sm border transition-colors',
+              'px-3 py-1.5 rounded-md text-[13px] border transition-colors',
               mergeConflictMode === 'plan'
                 ? 'bg-primary text-primary-foreground border-primary'
                 : 'bg-muted/50 text-muted-foreground border-border hover:bg-accent/50'
@@ -391,7 +391,7 @@ export function SettingsGeneral(): React.JSX.Element {
           <button
             onClick={() => updateSetting('mergeConflictMode', 'always-ask')}
             className={cn(
-              'px-3 py-1.5 rounded-md text-sm border transition-colors',
+              'px-3 py-1.5 rounded-md text-[13px] border transition-colors',
               mergeConflictMode === 'always-ask'
                 ? 'bg-primary text-primary-foreground border-primary'
                 : 'bg-muted/50 text-muted-foreground border-border hover:bg-accent/50'
@@ -423,7 +423,7 @@ export function SettingsGeneral(): React.JSX.Element {
         >
           <span
             className={cn(
-              'pointer-events-none block h-4 w-4 rounded-full bg-background shadow-lg ring-0 transition-transform',
+              'pointer-events-none block h-4 w-4 rounded-full bg-background ring-0 transition-transform',
               tipsEnabled ? 'translate-x-4' : 'translate-x-0'
             )}
           />
@@ -450,7 +450,7 @@ export function SettingsGeneral(): React.JSX.Element {
         >
           <span
             className={cn(
-              'pointer-events-none block h-4 w-4 rounded-full bg-background shadow-lg ring-0 transition-transform',
+              'pointer-events-none block h-4 w-4 rounded-full bg-background ring-0 transition-transform',
               showModelIcons ? 'translate-x-4' : 'translate-x-0'
             )}
           />
@@ -477,7 +477,7 @@ export function SettingsGeneral(): React.JSX.Element {
         >
           <span
             className={cn(
-              'pointer-events-none block h-4 w-4 rounded-full bg-background shadow-lg ring-0 transition-transform',
+              'pointer-events-none block h-4 w-4 rounded-full bg-background ring-0 transition-transform',
               showModelProvider ? 'translate-x-4' : 'translate-x-0'
             )}
           />
@@ -495,7 +495,7 @@ export function SettingsGeneral(): React.JSX.Element {
           <button
             onClick={() => updateSetting('usageIndicatorMode', 'current-agent')}
             className={cn(
-              'px-3 py-1.5 rounded-md text-sm border transition-colors',
+              'px-3 py-1.5 rounded-md text-[13px] border transition-colors',
               usageIndicatorMode === 'current-agent'
                 ? 'bg-primary text-primary-foreground border-primary'
                 : 'bg-muted/50 text-muted-foreground border-border hover:bg-accent/50'
@@ -507,7 +507,7 @@ export function SettingsGeneral(): React.JSX.Element {
           <button
             onClick={() => updateSetting('usageIndicatorMode', 'specific-providers')}
             className={cn(
-              'px-3 py-1.5 rounded-md text-sm border transition-colors',
+              'px-3 py-1.5 rounded-md text-[13px] border transition-colors',
               usageIndicatorMode === 'specific-providers'
                 ? 'bg-primary text-primary-foreground border-primary'
                 : 'bg-muted/50 text-muted-foreground border-border hover:bg-accent/50'
@@ -524,7 +524,7 @@ export function SettingsGeneral(): React.JSX.Element {
               aria-checked={usageIndicatorProviders.includes('anthropic')}
               onClick={() => toggleProvider('anthropic')}
               className={cn(
-                'flex items-center gap-2 px-3 py-1.5 rounded-md text-sm border transition-colors w-full',
+                'flex items-center gap-2 px-3 py-1.5 rounded-md text-[13px] border transition-colors w-full',
                 usageIndicatorProviders.includes('anthropic')
                   ? 'bg-primary text-primary-foreground border-primary'
                   : 'bg-muted/50 text-muted-foreground border-border hover:bg-accent/50'
@@ -539,7 +539,7 @@ export function SettingsGeneral(): React.JSX.Element {
               aria-checked={usageIndicatorProviders.includes('openai')}
               onClick={() => toggleProvider('openai')}
               className={cn(
-                'flex items-center gap-2 px-3 py-1.5 rounded-md text-sm border transition-colors w-full',
+                'flex items-center gap-2 px-3 py-1.5 rounded-md text-[13px] border transition-colors w-full',
                 usageIndicatorProviders.includes('openai')
                   ? 'bg-primary text-primary-foreground border-primary'
                   : 'bg-muted/50 text-muted-foreground border-border hover:bg-accent/50'
@@ -561,7 +561,7 @@ export function SettingsGeneral(): React.JSX.Element {
           <button
             type="button"
             onClick={() => setActiveSection('accounts')}
-            className="text-primary underline underline-offset-2 hover:text-primary/80"
+            className="text-foreground underline underline-offset-2 hover:text-foreground/80"
             data-testid="accounts-moved-link"
           >
             Settings → Accounts
@@ -581,7 +581,7 @@ export function SettingsGeneral(): React.JSX.Element {
             onClick={() => updateSetting('defaultAgentSdk', 'opencode')}
             disabled={!opencodeAvailable}
             className={cn(
-              'px-3 py-1.5 rounded-md text-sm border transition-colors disabled:opacity-50 disabled:cursor-not-allowed',
+              'px-3 py-1.5 rounded-md text-[13px] border transition-colors disabled:opacity-50 disabled:cursor-not-allowed',
               defaultAgentSdk === 'opencode'
                 ? 'bg-primary text-primary-foreground border-primary'
                 : 'bg-muted/50 text-muted-foreground border-border hover:bg-accent/50'
@@ -595,7 +595,7 @@ export function SettingsGeneral(): React.JSX.Element {
             onClick={() => updateSetting('defaultAgentSdk', 'claude-code')}
             disabled={!claudeAvailable}
             className={cn(
-              'px-3 py-1.5 rounded-md text-sm border transition-colors disabled:opacity-50 disabled:cursor-not-allowed',
+              'px-3 py-1.5 rounded-md text-[13px] border transition-colors disabled:opacity-50 disabled:cursor-not-allowed',
               defaultAgentSdk === 'claude-code'
                 ? 'bg-primary text-primary-foreground border-primary'
                 : 'bg-muted/50 text-muted-foreground border-border hover:bg-accent/50'
@@ -609,7 +609,7 @@ export function SettingsGeneral(): React.JSX.Element {
             onClick={() => updateSetting('defaultAgentSdk', 'codex')}
             disabled={!codexAvailable}
             className={cn(
-              'px-3 py-1.5 rounded-md text-sm border transition-colors disabled:opacity-50 disabled:cursor-not-allowed',
+              'px-3 py-1.5 rounded-md text-[13px] border transition-colors disabled:opacity-50 disabled:cursor-not-allowed',
               defaultAgentSdk === 'codex'
                 ? 'bg-primary text-primary-foreground border-primary'
                 : 'bg-muted/50 text-muted-foreground border-border hover:bg-accent/50'
@@ -622,7 +622,7 @@ export function SettingsGeneral(): React.JSX.Element {
           <button
             onClick={() => updateSetting('defaultAgentSdk', 'terminal')}
             className={cn(
-              'px-3 py-1.5 rounded-md text-sm border transition-colors',
+              'px-3 py-1.5 rounded-md text-[13px] border transition-colors',
               defaultAgentSdk === 'terminal'
                 ? 'bg-primary text-primary-foreground border-primary'
                 : 'bg-muted/50 text-muted-foreground border-border hover:bg-accent/50'
@@ -635,7 +635,7 @@ export function SettingsGeneral(): React.JSX.Element {
             onClick={() => updateSetting('defaultAgentSdk', 'claude-code-cli')}
             disabled={!claudeCliAvailable}
             className={cn(
-              'px-3 py-1.5 rounded-md text-sm border transition-colors disabled:opacity-50 disabled:cursor-not-allowed',
+              'px-3 py-1.5 rounded-md text-[13px] border transition-colors disabled:opacity-50 disabled:cursor-not-allowed',
               defaultAgentSdk === 'claude-code-cli'
                 ? 'bg-primary text-primary-foreground border-primary'
                 : 'bg-muted/50 text-muted-foreground border-border hover:bg-accent/50'
@@ -680,7 +680,7 @@ export function SettingsGeneral(): React.JSX.Element {
         >
           <span
             className={cn(
-              'pointer-events-none block h-4 w-4 rounded-full bg-background shadow-lg ring-0 transition-transform',
+              'pointer-events-none block h-4 w-4 rounded-full bg-background ring-0 transition-transform',
               stripAtMentions ? 'translate-x-4' : 'translate-x-0'
             )}
           />
@@ -697,7 +697,7 @@ export function SettingsGeneral(): React.JSX.Element {
           <button
             onClick={() => updateSetting('breedType', 'dogs')}
             className={cn(
-              'px-3 py-1.5 rounded-md text-sm border transition-colors',
+              'px-3 py-1.5 rounded-md text-[13px] border transition-colors',
               breedType === 'dogs'
                 ? 'bg-primary text-primary-foreground border-primary'
                 : 'bg-muted/50 text-muted-foreground border-border hover:bg-accent/50'
@@ -709,7 +709,7 @@ export function SettingsGeneral(): React.JSX.Element {
           <button
             onClick={() => updateSetting('breedType', 'cats')}
             className={cn(
-              'px-3 py-1.5 rounded-md text-sm border transition-colors',
+              'px-3 py-1.5 rounded-md text-[13px] border transition-colors',
               breedType === 'cats'
                 ? 'bg-primary text-primary-foreground border-primary'
                 : 'bg-muted/50 text-muted-foreground border-border hover:bg-accent/50'

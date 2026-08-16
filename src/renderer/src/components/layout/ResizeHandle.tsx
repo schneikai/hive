@@ -53,9 +53,9 @@ export function ResizeHandle({
     <div
       className={cn(
         isVertical
-          ? 'h-[3px] cursor-row-resize border-t border-border hover:bg-primary/20 active:bg-primary/30 transition-colors flex-shrink-0'
-          : 'w-1 cursor-col-resize hover:bg-primary/20 active:bg-primary/30 transition-colors flex-shrink-0',
-        isDragging && 'bg-primary/30',
+          ? 'h-[3px] cursor-row-resize border-t border-border hover:bg-ring/40 active:bg-ring/60 transition-colors flex-shrink-0'
+          : 'w-1 cursor-col-resize hover:bg-ring/40 active:bg-ring/60 transition-colors flex-shrink-0',
+        isDragging && 'bg-ring/60',
         className
       )}
       onMouseDown={handleMouseDown}

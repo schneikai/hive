@@ -73,7 +73,7 @@ export const AttachmentPreview = memo(function AttachmentPreview(
           <Button
             variant="ghost"
             size="sm"
-            className="absolute -top-1.5 -right-1.5 h-5 w-5 p-0 rounded-full bg-background border border-border shadow-sm opacity-0 group-hover:opacity-100 transition-opacity"
+            className="absolute -top-1.5 -right-1.5 h-5 w-5 p-0 rounded-full bg-background border border-border opacity-0 group-hover:opacity-100 transition-opacity"
             onClick={() => onRemove(attachment.id)}
             aria-label={`Remove ${attachment.name}`}
             data-testid="attachment-remove"

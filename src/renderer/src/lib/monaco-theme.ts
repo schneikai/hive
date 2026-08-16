@@ -4,11 +4,11 @@ import { resolveCssColor } from '@/lib/css-color'
 export const HIVE_THEME_NAME = 'hive-dark'
 
 export function createHiveThemeData(): editor.IStandaloneThemeData {
-  const bg = resolveCssColor('--background', '#09090b')
+  const bg = resolveCssColor('--background', '#0a0a0a')
   const fg = resolveCssColor('--foreground', '#fafafa')
-  const mutedFg = resolveCssColor('--muted-foreground', '#71717a')
-  const border = resolveCssColor('--border', '#27272a')
-  const cardBg = resolveCssColor('--card', '#0a0a0c')
+  const mutedFg = resolveCssColor('--muted-foreground', '#a1a1a1')
+  const border = resolveCssColor('--border', '#ffffff12')
+  const cardBg = resolveCssColor('--card', '#171717')
 
   return {
     base: 'vs-dark',
@@ -33,9 +33,9 @@ export function createHiveThemeData(): editor.IStandaloneThemeData {
       'editorGutter.background': bg,
       'editorOverviewRuler.border': border,
 
-      // Selection & highlight
-      'editor.selectionBackground': '#264f78',
-      'editor.inactiveSelectionBackground': '#264f7840',
+      // Selection & highlight — neutral washes per the orca system
+      'editor.selectionBackground': '#ffffff1f',
+      'editor.inactiveSelectionBackground': '#ffffff12',
       'editor.lineHighlightBackground': '#ffffff08',
       'editor.lineHighlightBorder': '#00000000',
 

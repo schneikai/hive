@@ -6377,8 +6377,8 @@ function LegacySessionView({ sessionId }: SessionViewProps): React.JSX.Element {
 
       {/* Permission prompt from AI */}
       {activePermission && (
-        <div className="px-4 pb-2">
-          <div className="max-w-4xl mx-auto">
+        <div className="px-6 pb-2">
+          <div className="max-w-[808px] mx-auto w-full">
             <PermissionPrompt
               key={activePermission.id}
               request={activePermission}
@@ -6390,8 +6390,8 @@ function LegacySessionView({ sessionId }: SessionViewProps): React.JSX.Element {
 
       {/* Command approval prompt from AI (command filter system) */}
       {activeCommandApproval && (
-        <div className="px-4 pb-2">
-          <div className="max-w-4xl mx-auto">
+        <div className="px-6 pb-2">
+          <div className="max-w-[808px] mx-auto w-full">
             <CommandApprovalPrompt
               key={activeCommandApproval.id}
               request={activeCommandApproval}
@@ -6404,8 +6404,8 @@ function LegacySessionView({ sessionId }: SessionViewProps): React.JSX.Element {
 
       {/* Question prompt from AI */}
       {activeQuestion && (
-        <div className="px-4 pb-2">
-          <div className="max-w-4xl mx-auto">
+        <div className="px-6 pb-2">
+          <div className="max-w-[808px] mx-auto w-full">
             <QuestionPrompt
               key={activeQuestion.id}
               request={activeQuestion}
@@ -6418,12 +6418,12 @@ function LegacySessionView({ sessionId }: SessionViewProps): React.JSX.Element {
 
       {/* Input area */}
       <div
-        className="p-4 bg-background"
+        className="px-6 pt-2 pb-3.5 bg-background"
         data-testid="input-area"
         role="form"
         aria-label="Message input"
       >
-        <div className="max-w-4xl mx-auto relative">
+        <div className="max-w-[808px] mx-auto w-full relative">
           {/* Slash command popover — outside overflow-hidden so it can render above */}
           <SlashCommandPopover
             commands={allSlashCommands}
@@ -6452,14 +6452,15 @@ function LegacySessionView({ sessionId }: SessionViewProps): React.JSX.Element {
           />
           <div
             className={cn(
-              'rounded-xl border-2 transition-colors duration-200 overflow-hidden',
+              'rounded-[var(--radius)] border bg-card transition-colors duration-200 overflow-hidden',
+              'focus-within:shadow-[0_0_0_3px_color-mix(in_srgb,var(--ring)_18%,transparent)]',
               isBashMode
-                ? 'border-zinc-400/50 bg-zinc-500/5'
+                ? 'border-border focus-within:border-[color-mix(in_srgb,var(--ring)_60%,transparent)]'
                 : mode === 'build'
-                  ? 'border-blue-500/50 bg-blue-500/5'
+                  ? 'border-blue-500/25'
                   : mode === 'super-plan'
-                    ? 'border-orange-500/50 bg-orange-500/5'
-                    : 'border-violet-500/50 bg-violet-500/5'
+                    ? 'border-orange-500/25'
+                    : 'border-violet-500/25'
             )}
           >
             {/* Top row: mode toggle */}
@@ -6516,8 +6517,8 @@ function LegacySessionView({ sessionId }: SessionViewProps): React.JSX.Element {
               aria-haspopup="listbox"
               aria-expanded={fileMentions.isOpen && !showSlashCommands}
               className={cn(
-                'w-full resize-none bg-transparent px-3 py-2',
-                'text-sm placeholder:text-muted-foreground',
+                'w-full resize-none bg-transparent px-2.5 pt-0.5 pb-2',
+                'text-[13px] tracking-[0.01em] placeholder:text-muted-foreground',
                 'focus:outline-none border-none',
                 'disabled:cursor-not-allowed disabled:opacity-50',
                 'min-h-[40px] max-h-[200px]'
@@ -6551,18 +6552,10 @@ function LegacySessionView({ sessionId }: SessionViewProps): React.JSX.Element {
                 />
                 <span
                   className={cn(
-                    'text-xs tabular-nums whitespace-nowrap',
-                    isBashMode
-                      ? 'text-zinc-400 font-semibold'
-                      : elapsedTimerText && isActive
-                        ? activeQuestion
-                          ? 'text-amber-500 font-semibold'
-                          : mode === 'build'
-                            ? 'text-blue-500 font-semibold'
-                            : mode === 'super-plan'
-                              ? 'text-orange-500 font-semibold'
-                              : 'text-violet-500 font-semibold'
-                        : 'text-muted-foreground'
+                    'text-[10px] tabular-nums whitespace-nowrap',
+                    !isBashMode && elapsedTimerText && isActive && activeQuestion
+                      ? 'text-amber-500 font-medium'
+                      : 'text-muted-foreground/70'
                   )}
                 >
                   {elapsedTimerText ??

@@ -467,10 +467,11 @@ export function ConnectionPRModal({ connectionId }: ConnectionPRModalProps): Rea
             placeholder="Commit summary (applied to every project)"
             className={cn(
               'pr-12',
-              commitSummary.length > 72 && 'border-red-500 focus-visible:ring-red-500',
+              commitSummary.length > 72 &&
+                'border-red-500 focus-visible:ring-[3px] focus-visible:ring-red-500/50',
               commitSummary.length > 50 &&
                 commitSummary.length <= 72 &&
-                'border-yellow-500 focus-visible:ring-yellow-500'
+                'border-yellow-500 focus-visible:ring-[3px] focus-visible:ring-yellow-500/50'
             )}
             disabled={isCommitting}
           />
@@ -561,7 +562,7 @@ export function ConnectionPRModal({ connectionId }: ConnectionPRModalProps): Rea
                   type="button"
                   className={cn(
                     'flex items-center justify-between flex-1 min-w-0 px-2 py-1 text-xs border rounded-md',
-                    'bg-background hover:bg-accent/50 transition-colors text-left'
+                    'bg-background hover:bg-accent transition-colors text-left'
                   )}
                   disabled={!included}
                 >
@@ -598,7 +599,7 @@ export function ConnectionPRModal({ connectionId }: ConnectionPRModalProps): Rea
                       <GitBranch className="h-3 w-3 text-muted-foreground shrink-0" />
                       <span className="truncate">{name}</span>
                       {name === baseBranch && (
-                        <Check className="h-3 w-3 ml-auto text-primary shrink-0" />
+                        <Check className="h-3 w-3 ml-auto text-foreground shrink-0" />
                       )}
                     </button>
                   ))}

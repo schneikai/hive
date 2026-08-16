@@ -89,13 +89,15 @@ describe('Session 2: Project Filter', () => {
       )
 
       const spans = container.querySelectorAll('span > span')
-      // Index 1 ('e') and index 3 ('l') should have text-primary class
-      expect(spans[1].className).toContain('text-primary')
-      expect(spans[3].className).toContain('text-primary')
+      // Index 1 ('e') and index 3 ('l') should be emphasized (orca: neutral foreground + semibold)
+      expect(spans[1].className).toContain('font-semibold')
+      expect(spans[1].className).toContain('text-foreground')
+      expect(spans[3].className).toContain('font-semibold')
+      expect(spans[3].className).toContain('text-foreground')
       // Others should not
-      expect(spans[0].className).not.toContain('text-primary')
-      expect(spans[2].className).not.toContain('text-primary')
-      expect(spans[4].className).not.toContain('text-primary')
+      expect(spans[0].className).not.toContain('font-semibold')
+      expect(spans[2].className).not.toContain('font-semibold')
+      expect(spans[4].className).not.toContain('font-semibold')
     })
 
     test('renders all chars normal when indices empty', async () => {

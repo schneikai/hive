@@ -18,7 +18,7 @@ export interface TodoItem {
 export function StatusIcon({ status }: { status: TodoItem['status'] }) {
   switch (status) {
     case 'completed':
-      return <CircleCheck className="h-3.5 w-3.5 text-green-500 shrink-0" />
+      return <CircleCheck className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
     case 'in_progress':
       return <CircleDot className="h-3.5 w-3.5 text-blue-500 shrink-0 animate-pulse" />
     case 'cancelled':

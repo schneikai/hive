@@ -133,7 +133,7 @@ export function FileSearchDialog() {
     <>
       {/* Overlay */}
       <div
-        className="fixed inset-0 bg-black/50 z-50"
+        className="fixed inset-0 bg-black/40 backdrop-blur-[2px] z-50"
         onClick={handleOverlayClick}
         data-testid="file-search-overlay"
       />
@@ -147,7 +147,7 @@ export function FileSearchDialog() {
         aria-modal="true"
       >
         <Command
-          className="rounded-lg border border-border bg-popover shadow-xl overflow-hidden"
+          className="rounded-[11px] border border-black/14 dark:border-white/14 bg-[rgba(255,255,255,0.82)] dark:bg-[rgba(0,0,0,0.72)] backdrop-blur-2xl shadow-[0_16px_36px_rgba(0,0,0,0.24),inset_0_1px_0_rgba(255,255,255,0.04)] overflow-hidden"
           shouldFilter={false}
           label="File search"
         >
@@ -159,7 +159,7 @@ export function FileSearchDialog() {
               value={searchQuery}
               onValueChange={setSearchQuery}
               placeholder="Search files by name or path..."
-              className="flex-1 h-12 bg-transparent border-0 outline-none text-sm placeholder:text-muted-foreground"
+              className="flex-1 h-10 bg-transparent border-0 outline-none text-[13px] placeholder:text-muted-foreground"
               autoFocus
               data-testid="file-search-input"
             />
@@ -168,7 +168,7 @@ export function FileSearchDialog() {
           {/* Results list */}
           <Command.List ref={listRef} className="max-h-[300px] overflow-y-auto p-2">
             {filteredFiles.length === 0 && (
-              <Command.Empty className="py-6 text-center text-sm text-muted-foreground">
+              <Command.Empty className="py-6 text-center text-[13px] text-muted-foreground">
                 No files found.
               </Command.Empty>
             )}
@@ -181,7 +181,7 @@ export function FileSearchDialog() {
                   value={file.path}
                   onSelect={() => handleFileSelect(file.path, file.name)}
                   onMouseEnter={() => setSelectedIndex(index)}
-                  className={`flex items-center gap-3 px-3 py-2 rounded-md cursor-pointer text-sm transition-colors duration-100 ${
+                  className={`flex items-center gap-3 px-3 py-2 rounded-md cursor-pointer text-[13px] tracking-[0.01em] transition-colors duration-100 ${
                     isSelected ? 'bg-accent' : ''
                   }`}
                   data-selected={isSelected}
@@ -195,7 +195,7 @@ export function FileSearchDialog() {
                   />
                   <div className="flex flex-col min-w-0">
                     <span className="truncate font-medium">{file.name}</span>
-                    <span className="truncate text-xs text-muted-foreground">
+                    <span className="truncate text-[11px] text-muted-foreground">
                       {file.relativePath}
                     </span>
                   </div>
@@ -205,17 +205,24 @@ export function FileSearchDialog() {
           </Command.List>
 
           {/* Footer with keyboard hints */}
-          <div className="flex items-center justify-between border-t border-border px-3 py-2 text-xs text-muted-foreground">
+          <div className="flex items-center justify-between border-t border-border px-3 py-2 text-[11px] text-muted-foreground">
             <div className="flex items-center gap-4">
               <span>
-                <kbd className="px-1.5 py-0.5 rounded bg-muted text-[10px] font-mono">↑↓</kbd>{' '}
+                <kbd className="px-1.5 py-0.5 rounded-md border border-border bg-muted/40 text-[10px] font-mono">
+                  ↑↓
+                </kbd>{' '}
                 navigate
               </span>
               <span>
-                <kbd className="px-1.5 py-0.5 rounded bg-muted text-[10px] font-mono">↵</kbd> open
+                <kbd className="px-1.5 py-0.5 rounded-md border border-border bg-muted/40 text-[10px] font-mono">
+                  ↵
+                </kbd>{' '}
+                open
               </span>
               <span>
-                <kbd className="px-1.5 py-0.5 rounded bg-muted text-[10px] font-mono">esc</kbd>{' '}
+                <kbd className="px-1.5 py-0.5 rounded-md border border-border bg-muted/40 text-[10px] font-mono">
+                  esc
+                </kbd>{' '}
                 close
               </span>
             </div>

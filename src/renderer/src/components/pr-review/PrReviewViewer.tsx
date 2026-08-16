@@ -205,7 +205,7 @@ export function PrReviewViewer({ worktreeId }: PrReviewViewerProps): React.JSX.E
             <span className="text-muted-foreground/40">·</span>
             <button
               onClick={() => selectAll(worktreeId)}
-              className="text-xs text-violet-400 hover:text-violet-300 transition-colors"
+              className="text-xs text-foreground underline underline-offset-2 hover:text-foreground/80 transition-colors"
             >
               Select all
             </button>
@@ -218,7 +218,7 @@ export function PrReviewViewer({ worktreeId }: PrReviewViewerProps): React.JSX.E
           </div>
           <Button
             size="sm"
-            className="w-full h-7 text-xs bg-violet-600 hover:bg-violet-700 text-white"
+            className="w-full h-7 text-xs"
             onClick={() => {
               attachSelectedToChat(worktreeId)
               // Refocus the session view so the user sees the attached comments

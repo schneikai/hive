@@ -54,7 +54,7 @@ function getToolDisplay(toolName: string): {
       return { icon: Search, label: 'Search Files', color: 'text-blue-400' }
     case 'webfetch':
     case 'websearch':
-      return { icon: Globe, label: 'Web Access', color: 'text-purple-400' }
+      return { icon: Globe, label: 'Web Access', color: 'text-sky-400' }
     case 'task':
       return { icon: Zap, label: 'Run Sub-task', color: 'text-cyan-400' }
     case 'skill':
@@ -107,7 +107,7 @@ function SubCommandPatternPicker({
                   className={cn(
                     'w-full flex items-center gap-2 px-2 py-1 rounded text-left text-xs font-mono transition-colors',
                     selectedPatterns[idx] === pattern
-                      ? 'bg-primary/20 border border-primary/40 text-foreground'
+                      ? 'bg-accent border border-border text-foreground'
                       : 'bg-muted/30 border border-transparent text-muted-foreground hover:bg-muted/50 hover:text-foreground'
                   )}
                 >
@@ -156,7 +156,7 @@ function FlatPatternPicker({
           className={cn(
             'w-full flex items-center gap-2 px-2 py-1.5 rounded text-left text-xs font-mono transition-colors',
             selectedPattern === pattern
-              ? 'bg-primary/20 border border-primary/40 text-foreground'
+              ? 'bg-accent border border-border text-foreground'
               : 'bg-muted/30 border border-transparent text-muted-foreground hover:bg-muted/50 hover:text-foreground'
           )}
         >
@@ -372,11 +372,11 @@ export function CommandApprovalPrompt({ request, sessionId, onReply }: CommandAp
     <div
       ref={containerRef}
       tabIndex={-1}
-      className="rounded-md border border-border bg-zinc-900/50 overflow-hidden outline-none"
+      className="rounded-lg border border-border bg-card overflow-hidden outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:border-ring"
       data-testid="command-approval-prompt"
     >
       {/* Header */}
-      <div className="flex items-center gap-2 px-3 py-2 border-b border-border bg-muted/30">
+      <div className="flex items-center gap-2 px-3 py-2 border-b border-border bg-secondary">
         <Shield className={cn('h-4 w-4 shrink-0', color)} />
         <span className="text-xs font-medium text-foreground">Command Approval Required</span>
         <span className="text-xs text-muted-foreground">—</span>

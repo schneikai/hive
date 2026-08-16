@@ -196,9 +196,10 @@ function PRNotificationCard({
       className={cn(
         // Layout
         'relative flex items-start gap-3 px-4 py-3 min-w-[300px] max-w-[380px]',
-        // Glass morphism
-        'rounded-xl border border-white/[0.08] shadow-xl shadow-black/20',
-        'bg-background/70 backdrop-blur-xl backdrop-saturate-150',
+        // Glass morphism (orca recipe)
+        'rounded-[11px] border border-black/14 dark:border-white/14',
+        'bg-[rgba(255,255,255,0.82)] dark:bg-[rgba(0,0,0,0.72)] backdrop-blur-2xl',
+        'shadow-[0_16px_36px_rgba(0,0,0,0.24),inset_0_1px_0_rgba(255,255,255,0.04)]',
         // Entry animation
         'animate-in slide-in-from-right-5 fade-in-0 duration-300',
         // Accent strip
