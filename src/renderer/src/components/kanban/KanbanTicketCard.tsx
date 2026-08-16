@@ -100,6 +100,7 @@ import { useSettingsStore } from '@/stores/useSettingsStore'
 import { isBlockerSatisfied } from '@/lib/blocker-utils'
 import { useConnectionStore } from '@/stores/useConnectionStore'
 import { useProjectStore } from '@/stores/useProjectStore'
+import { useProjectIconUrl } from '@/components/projects/LanguageIcon'
 import { useScriptStore } from '@/stores/useScriptStore'
 import { useWorktreeStatusStore } from '@/stores/useWorktreeStatusStore'
 import { useQuestionStore } from '@/stores/useQuestionStore'
@@ -363,24 +364,39 @@ export const KanbanTicketCard = memo(function KanbanTicketCard({
     )
   )
 
+  // Pinned board only (not connection boards): when the project's icon was
+  // customized, the tag shows that icon instead of the generated color dot.
+  const projectCustomIcon = useProjectStore(
+    useCallback(
+      (state) => {
+        if (!isPinnedMode || connectionId) return null
+        return state.projects.find((p) => p.id === ticket.project_id)?.custom_icon ?? null
+      },
+      [isPinnedMode, connectionId, ticket.project_id]
+    )
+  )
+  const projectCustomIconUrl = useProjectIconUrl(projectCustomIcon)
+
   const projectTag = useMemo(() => {
     if (!projectName) return null
     if (connectionId) {
       const connectionProjectIds = useKanbanStore.getState().getConnectionProjectIds(connectionId)
       return {
         name: projectName,
-        color: getProjectColor(ticket.project_id, connectionProjectIds)
+        color: getProjectColor(ticket.project_id, connectionProjectIds),
+        iconUrl: null as string | null
       }
     }
     if (isPinnedMode) {
       const pinnedProjectIds = useKanbanStore.getState().getPinnedProjectIdsArray()
       return {
         name: projectName,
-        color: getProjectColor(ticket.project_id, pinnedProjectIds)
+        color: getProjectColor(ticket.project_id, pinnedProjectIds),
+        iconUrl: projectCustomIconUrl
       }
     }
     return null
-  }, [connectionId, isPinnedMode, projectName, ticket.project_id])
+  }, [connectionId, isPinnedMode, projectName, projectCustomIconUrl, ticket.project_id])
 
   // ── Detect connection session on project board ──────────────────
   // Selector returns a primitive (string | null) to avoid Zustand infinite
@@ -1304,7 +1320,20 @@ export const KanbanTicketCard = memo(function KanbanTicketCard({
                 {/* Project tag (connection mode) or worktree name badge */}
                 {projectTag ? (
                   <span className={ticketPillClass}>
-                    <span className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: projectTag.color }} />
+                    {projectTag.iconUrl ? (
+                      <img
+                        src={projectTag.iconUrl}
+                        alt=""
+                        aria-hidden="true"
+                        data-testid="kanban-ticket-project-icon"
+                        className="h-3 w-3 shrink-0 object-contain rounded-sm"
+                      />
+                    ) : (
+                      <span
+                        className="h-2 w-2 rounded-full shrink-0"
+                        style={{ backgroundColor: projectTag.color }}
+                      />
+                    )}
                     {projectTag.name}
                   </span>
                 ) : worktreeName ? (

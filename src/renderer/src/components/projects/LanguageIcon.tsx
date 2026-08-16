@@ -104,7 +104,11 @@ function useCustomIcons(): Record<string, string> {
 // Module-level cache for resolved project icon paths (filename -> data URL)
 const projectIconCache = new Map<string, string>()
 
-function useProjectIconUrl(customIcon: string | null | undefined): string | null {
+/**
+ * Resolve a project's custom icon filename (projects.custom_icon) to a data URL.
+ * Returns null while loading or when the project has no custom icon.
+ */
+export function useProjectIconUrl(customIcon: string | null | undefined): string | null {
   const [url, setUrl] = useState<string | null>(
     customIcon ? (projectIconCache.get(customIcon) ?? null) : null
   )
