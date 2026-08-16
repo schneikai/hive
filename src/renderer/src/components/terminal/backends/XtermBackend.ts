@@ -116,6 +116,7 @@ function isAppShortcut(e: KeyboardEvent): boolean {
   if (e.metaKey && e.key === 'h' && !e.shiftKey) return true
   if (e.metaKey && e.key === 'm') return true
   if (e.metaKey && e.key === 'n') return true
+  if (e.metaKey && e.key === 'o') return true
   if (e.metaKey && e.key === 'p') return true
   if (e.metaKey && e.shiftKey && e.key === 'P') return true
   if (e.metaKey && (e.key === '[' || e.key === ']')) return true

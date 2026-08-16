@@ -296,7 +296,7 @@ export function buildMenu(mainWindow: BrowserWindow, isDev: boolean): Menu {
       submenu: [
         {
           label: 'Command Palette',
-          accelerator: 'CmdOrCtrl+P',
+          accelerator: 'CmdOrCtrl+O',
           click: () => send('menu:command-palette')
         },
         {
@@ -310,6 +310,11 @@ export function buildMenu(mainWindow: BrowserWindow, isDev: boolean): Menu {
           click: () => send('menu:session-history')
         },
         { type: 'separator' },
+        {
+          label: 'Toggle Pinned Board',
+          accelerator: 'CmdOrCtrl+P',
+          click: () => send('menu:toggle-pinned-board')
+        },
         {
           label: 'Toggle Left Sidebar',
           accelerator: 'CmdOrCtrl+B',

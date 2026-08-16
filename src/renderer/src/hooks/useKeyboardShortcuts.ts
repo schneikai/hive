@@ -138,6 +138,22 @@ function createNewSession(): void {
 }
 
 /**
+ * Toggles the pinned board, mirroring the sidebar "Pinned Board" nav row:
+ * clear file/diff overlays before showing the board so it becomes visible.
+ * Shared between the keyboard shortcut and the View menu item.
+ */
+function togglePinnedBoard(): void {
+  const kanban = useKanbanStore.getState()
+  if (!kanban.isPinnedBoardActive) {
+    const fileStore = useFileViewerStore.getState()
+    fileStore.setActiveFile(null)
+    fileStore.clearActiveDiff()
+    fileStore.closeContextEditor()
+  }
+  kanban.togglePinnedBoard()
+}
+
+/**
  * Cycles to the next/previous session tab in the current worktree or connection.
  * Wraps around at the ends. Shared between session:next and session:previous shortcuts.
  */
@@ -757,6 +773,12 @@ function getShortcutHandlers(
       }
     },
     {
+      id: 'nav:toggle-pinned-board',
+      binding: getEffectiveBinding('nav:toggle-pinned-board'),
+      allowInInput: true,
+      handler: togglePinnedBoard
+    },
+    {
       id: 'nav:session-history',
       binding: getEffectiveBinding('nav:session-history'),
       allowInInput: false,
@@ -1154,6 +1176,10 @@ function useMenuActionListeners(): void {
 
     on('menu:command-palette', () => {
       useCommandPaletteStore.getState().toggle()
+    })
+
+    on('menu:toggle-pinned-board', () => {
+      togglePinnedBoard()
     })
 
     on('menu:session-history', () => {
