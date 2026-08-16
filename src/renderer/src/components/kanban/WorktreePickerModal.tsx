@@ -65,6 +65,7 @@ import {
 import { FALLBACK_MODELS } from '@shared/model-resolution'
 import { runMultiModelLaunch, type MultiModelLaunchPlan } from '@/lib/multi-model-launch'
 import {
+  launchTicketWithModel,
   resolveBadgeModel,
   resolveCustomProviderBadge,
   type LaunchModelConfig
@@ -301,6 +302,59 @@ function resolveRowDefaultModel(sdk: PickerAgentSdk, mode: PickerMode): Selected
   if (modeModel && modeModel.agentSdk === sdk) return modeModel
   const resolved = resolveModelForSdk(sdk) ?? FALLBACK_MODELS[sdk]
   return { providerID: resolved.providerID, modelID: resolved.modelID, variant: resolved.variant }
+}
+
+/**
+ * Start a ticket exactly as the picker would with nothing changed: build mode,
+ * a fresh worktree off the remembered/default branch, the prefilled ticket
+ * prompt, and the default SDK + model. Used by right-button drags into In
+ * Progress, which skip the modal entirely.
+ */
+export async function quickLaunchTicket(ticket: KanbanTicket): Promise<boolean> {
+  const projectId = ticket.project_id
+  const settings = useSettingsStore.getState()
+  const rawSdk = settings.defaultAgentSdk ?? 'opencode'
+  const sdk: PickerAgentSdk = rawSdk === 'terminal' ? 'opencode' : rawSdk
+  const model = resolveRowDefaultModel(sdk, 'build')
+
+  const worktrees = useWorktreeStore.getState().worktreesByProject.get(projectId) ?? []
+  const defaultBranch = worktrees.find((w) => w.is_default)?.branch_name ?? 'main'
+  const sourceBranch = _lastSourceBranchByProject[projectId] ?? defaultBranch
+  _lastSourceBranchByProject[projectId] = sourceBranch
+
+  const store = useKanbanStore.getState()
+  const sortOrder = store.computeSortOrder(store.getTicketsByColumn(projectId, 'in_progress'), 0)
+
+  const result = await launchTicketWithModel({
+    ticketId: ticket.id,
+    projectId,
+    ticketTitle: ticket.title,
+    worktree: { type: 'new', sourceBranch },
+    prompt: buildPrompt('build', ticket),
+    mode: 'build',
+    modelConfig: { sdk, model, codexFastMode: settings.codexFastMode, customProviderId: null },
+    goalMode: false,
+    goalSuccessCriteria: null,
+    ticketUpdateExtras: {
+      column: 'in_progress',
+      sort_order: sortOrder,
+      plan_ready: false,
+      pending_launch_config: null
+    }
+  })
+
+  if (!result.success) {
+    toast.error(result.error || 'Failed to start session')
+    return false
+  }
+
+  void autoPinBaseWorktree(projectId)
+  if (useSettingsStore.getState().boardMode === 'sticky-tab') {
+    const { BOARD_TAB_ID } = await import('@/stores/useSessionStore')
+    useSessionStore.getState().setActiveSession(BOARD_TAB_ID)
+  }
+  toast.success('Session started')
+  return true
 }
 
 // ── SDK toggle button group (shared by row 1 and each extra row) ────

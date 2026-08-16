@@ -845,11 +845,14 @@ export function KanbanColumn({
   return (
     <div
       data-testid={`kanban-column-${column}`}
+      data-kanban-column={column}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
       className={cn(
         'flex w-[268px] min-w-[268px] flex-col min-h-0 rounded-lg border transition-colors duration-200',
+        isInProgressColumn &&
+          'data-[right-drag-over]:border-dashed data-[right-drag-over]:border-ring data-[right-drag-over]:bg-foreground/[0.02]',
         isDragOver
           ? 'border-dashed border-ring bg-foreground/[0.02]'
           : isDragging
