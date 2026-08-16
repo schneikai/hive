@@ -4,12 +4,14 @@ import { useRightButtonDrag } from './useRightButtonDrag'
 
 function Card({
   onDrop,
-  enabled = true
+  enabled = true,
+  decorateGhost
 }: {
   onDrop: (c: string | null) => void
   enabled?: boolean
+  decorateGhost?: (ghost: HTMLElement) => void
 }) {
-  const drag = useRightButtonDrag({ enabled, onDrop })
+  const drag = useRightButtonDrag({ enabled, onDrop, decorateGhost })
   return (
     <div>
       <div
@@ -65,6 +67,29 @@ describe('useRightButtonDrag', () => {
 
     expect(onDrop).toHaveBeenCalledTimes(1)
     expect(onDrop).toHaveBeenCalledWith('__menu__')
+  })
+
+  it('lets the caller decorate the ghost once it becomes a drag', () => {
+    const decorateGhost = vi.fn((ghost: HTMLElement) => {
+      const chip = document.createElement('div')
+      chip.setAttribute('data-testid', 'chip')
+      ghost.appendChild(chip)
+    })
+    const { getByTestId } = render(<Card onDrop={vi.fn()} decorateGhost={decorateGhost} />)
+    const card = getByTestId('card')
+
+    fireEvent.mouseDown(card, { button: 2, clientX: 10, clientY: 10 })
+    expect(decorateGhost).not.toHaveBeenCalled() // press alone is not a drag
+    fireEvent.mouseMove(window, { clientX: 80, clientY: 60 })
+    expect(decorateGhost).toHaveBeenCalledTimes(1)
+    const chip = document.querySelector('[data-testid="chip"]')
+    expect(chip).not.toBeNull()
+    expect(chip!.parentElement).toBe(decorateGhost.mock.calls[0][0])
+    expect(document.body.contains(chip)).toBe(true) // ghost (and chip) mounted while dragging
+    fireEvent.mouseMove(window, { clientX: 90, clientY: 70 })
+    expect(decorateGhost).toHaveBeenCalledTimes(1) // not re-decorated per move
+    fireEvent.mouseUp(window, { button: 2, clientX: 90, clientY: 70 })
+    expect(document.querySelector('[data-testid="chip"]')).toBeNull() // ghost removed on release
   })
 
   it('leaves left-button presses alone', () => {

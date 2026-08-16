@@ -10,6 +10,12 @@ interface RightButtonDragOptions {
   enabled: boolean
   /** Called with the `data-kanban-column` under the pointer on release (null = none). */
   onDrop: (column: string | null) => void
+  /**
+   * Called once when the drag ghost is created, right after it's cloned from
+   * the pressed element and before it's attached — append any overlay (e.g. a
+   * "launches with" chip) to it here.
+   */
+  decorateGhost?: (ghost: HTMLElement) => void
 }
 
 interface RightButtonDragHandlers {
@@ -26,10 +32,13 @@ interface RightButtonDragHandlers {
  */
 export function useRightButtonDrag({
   enabled,
-  onDrop
+  onDrop,
+  decorateGhost
 }: RightButtonDragOptions): RightButtonDragHandlers {
   const onDropRef = useRef(onDrop)
   onDropRef.current = onDrop
+  const decorateGhostRef = useRef(decorateGhost)
+  decorateGhostRef.current = decorateGhost
 
   const pressRef = useRef<{ x: number; y: number; el: HTMLElement } | null>(null)
   const draggingRef = useRef(false)
@@ -87,6 +96,8 @@ export function useRightButtonDrag({
           ghost.style.zIndex = '9999'
           ghost.style.opacity = '0.85'
           ghost.style.margin = '0'
+          ghost.style.overflow = 'visible'
+          decorateGhostRef.current?.(ghost)
           document.body.appendChild(ghost)
           ghostRef.current = ghost
           document.body.style.cursor = 'grabbing'

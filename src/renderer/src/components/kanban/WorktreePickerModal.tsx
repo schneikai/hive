@@ -305,6 +305,18 @@ function resolveRowDefaultModel(sdk: PickerAgentSdk, mode: PickerMode): Selected
 }
 
 /**
+ * The SDK + model a right-button quick launch will run with: the app default
+ * SDK (terminal degrades to opencode) and that SDK's build-mode default model.
+ * Shared by `quickLaunchTicket` and the drag ghost's "launches with" chip so
+ * what the overlay shows is exactly what gets launched.
+ */
+export function resolveQuickLaunchModel(): { sdk: PickerAgentSdk; model: SelectedModel } {
+  const rawSdk = useSettingsStore.getState().defaultAgentSdk ?? 'opencode'
+  const sdk: PickerAgentSdk = rawSdk === 'terminal' ? 'opencode' : rawSdk
+  return { sdk, model: resolveRowDefaultModel(sdk, 'build') }
+}
+
+/**
  * Start a ticket exactly as the picker would with nothing changed: build mode,
  * a fresh worktree off the remembered/default branch, the prefilled ticket
  * prompt, and the default SDK + model. Used by right-button drags into In
@@ -313,9 +325,7 @@ function resolveRowDefaultModel(sdk: PickerAgentSdk, mode: PickerMode): Selected
 export async function quickLaunchTicket(ticket: KanbanTicket): Promise<boolean> {
   const projectId = ticket.project_id
   const settings = useSettingsStore.getState()
-  const rawSdk = settings.defaultAgentSdk ?? 'opencode'
-  const sdk: PickerAgentSdk = rawSdk === 'terminal' ? 'opencode' : rawSdk
-  const model = resolveRowDefaultModel(sdk, 'build')
+  const { sdk, model } = resolveQuickLaunchModel()
 
   const worktrees = useWorktreeStore.getState().worktreesByProject.get(projectId) ?? []
   const defaultBranch = worktrees.find((w) => w.is_default)?.branch_name ?? 'main'
