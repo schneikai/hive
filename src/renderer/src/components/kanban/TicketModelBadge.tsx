@@ -21,7 +21,7 @@ import type { KanbanTicket } from '../../../../main/db/types'
  * then to the raw modelId. Fallback models are intentionally absent from the
  * picker catalog, so their name never resolves via findModelInfo.
  */
-function resolveModelDisplayName(providerId: string | null, modelId: string): string {
+export function resolveModelDisplayName(providerId: string | null, modelId: string): string {
   if (providerId) {
     for (const sdk of getAvailableHandoffAgentSdks()) {
       const catalog = getCachedModelCatalog(sdk)

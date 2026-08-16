@@ -88,6 +88,7 @@ import {
 } from '@/components/ui/alert-dialog'
 import { WorktreePickerModal, quickLaunchTicket } from '@/components/kanban/WorktreePickerModal'
 import { useRightButtonDrag } from '@/components/kanban/useRightButtonDrag'
+import { buildQuickLaunchGhostChip } from '@/components/kanban/quickLaunchGhostChip'
 import { Popover, PopoverAnchor } from '@/components/ui/popover'
 import { AttachPRPopover } from '@/components/kanban/AttachPRPopover'
 import { useGitStore } from '@/stores/useGitStore'
@@ -155,6 +156,10 @@ interface KanbanTicketCardProps {
   isPinnedMode?: boolean
   /** Renderer-only identity for duplicate markdown card occurrences. */
   cardIdentityKey?: TicketKey
+}
+
+function decorateRightDragGhost(ghost: HTMLElement): void {
+  ghost.appendChild(buildQuickLaunchGhostChip())
 }
 
 export const KanbanTicketCard = memo(function KanbanTicketCard({
@@ -796,7 +801,10 @@ export const KanbanTicketCard = memo(function KanbanTicketCard({
   const { onMouseDown: rightDragMouseDown, onContextMenuCapture: rightDragContextMenuCapture } =
     useRightButtonDrag({
       enabled: !isArchived && !blockingDiagnostic && !connectionId,
-      onDrop: handleRightDrop
+      onDrop: handleRightDrop,
+      // Show the default model + effort the drop will launch with, riding
+      // along under the ghost so it's clear before release
+      decorateGhost: decorateRightDragGhost
     })
 
   // ── Middle-click — select attached worktree (same as sidebar) ─
