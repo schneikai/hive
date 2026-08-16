@@ -1,7 +1,8 @@
 # Orca Design-System Migration — Progress
 
 Goal: migrate the entire Hive renderer to the orca design system (the faithful
-direction from `design/redesign/01-orca.html` + deep dives 06–09), verified end
+"Orca" direction from the original HTML mockups — since removed at the user's
+request; the working notes live in `design/redesign/inventory/`), verified end
 to end.
 
 Target system (canonical values):
@@ -104,7 +105,7 @@ kept per conventions, optional mockup niceties deferred).
       ModelSelector ultra de-violeted, IndeterminateProgressBar fuchsia→
       semantic, ToolCard/tool views neutralized, SessionHistory/
       ClaudeCliSessionView glass
-- [x] **Kanban** (21 files): 06-board.html card/column recipes, merged purple→
+- [x] **Kanban** (21 files): orca board card/column recipes, merged purple→
       emerald, epic mark recolored, drop-zone ring neutrals, shared `pill.ts`,
       TicketModelBadge (+test)
 - [x] **Settings** (17 files): toggles/segmented controls neutralized (DOM

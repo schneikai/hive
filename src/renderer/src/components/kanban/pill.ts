@@ -1,5 +1,5 @@
 /**
- * Orca board pill recipes (mockup 06-board.html `.t-pill`).
+ * Orca board pill recipes (from the orca design-system port).
  *
  * Base: bordered, transparent, 10px chip. Tinted status pills reuse the base
  * geometry and swap in their semantic border/bg/text colors.
