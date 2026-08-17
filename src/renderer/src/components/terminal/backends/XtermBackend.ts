@@ -148,6 +148,7 @@ export class XtermBackend implements TerminalBackend {
   private lastSyncedRows = 0
   private rendererKind: 'webgl' | 'dom' = 'dom'
   private terminalId: string = ''
+  private lastReportedStatus: 'creating' | 'running' | 'exited' | null = null
   private shiftEnterAsNewline = false
   private ghosttyConfig: GhosttyTerminalConfig = {}
 
@@ -293,6 +294,11 @@ export class XtermBackend implements TerminalBackend {
     this.terminal = terminal
     this.fitAddon = fitAddon
 
+    const reportStatus = (status: 'creating' | 'running' | 'exited', code?: number): void => {
+      this.lastReportedStatus = status
+      callbacks.onStatusChange(status, code)
+    }
+
     // Wire user input -> PTY
     this.inputDisposable = terminal.onData((data) => {
       terminalApi.write(this.terminalId, data)
@@ -300,23 +306,35 @@ export class XtermBackend implements TerminalBackend {
 
     // Wire PTY output -> terminal display
     this.removeDataListener = terminalApi.onData(this.terminalId, (data) => {
+      // Output only ever comes from a live PTY (the bridge drops its buffers
+      // on exit, so nothing is delivered after `terminal:exit`). The PTY can
+      // be respawned outside this backend's createTerminal path — followup
+      // prompts and pending-message delivery funnel through
+      // createClaudeCliTerminal in the main process — which reuses this
+      // terminalId without any status callback. Data arriving after we
+      // reported 'exited' therefore means a new live process: clear the
+      // exited state (ended overlay, tab pill) or the UI stays greyed out
+      // over a running session.
+      if (this.lastReportedStatus === 'exited') {
+        reportStatus('running')
+      }
       terminal.write(data)
     })
 
     // Wire PTY exit -> status change
     this.removeExitListener = terminalApi.onExit(this.terminalId, (code) => {
       terminal.write(`\r\n\x1b[90m[Process exited with code ${code}]\x1b[0m\r\n`)
-      callbacks.onStatusChange('exited', code)
+      reportStatus('exited', code)
     })
 
     // Create the PTY
-    callbacks.onStatusChange('creating')
+    reportStatus('creating')
     const createTerminal = opts.createTerminal ?? terminalApi.create
     createTerminal(this.terminalId, opts.cwd, opts.shell)
       .then(unwrapEnvelope)
       .then((result) => {
         if (result.success) {
-          callbacks.onStatusChange('running')
+          reportStatus('running')
 
           // Immediately sync PTY size with xterm.js's actual dimensions.
           // The PTY is created with default 80×24, but xterm.js was already fit
@@ -338,7 +356,7 @@ export class XtermBackend implements TerminalBackend {
           })
         } else {
           terminal.write(`\x1b[31mFailed to create terminal: ${result.error}\x1b[0m\r\n`)
-          callbacks.onStatusChange('exited')
+          reportStatus('exited')
         }
       })
 
