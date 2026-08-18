@@ -18,6 +18,7 @@ import { MemberAvatarStack, type AccountMemberInfo } from './MemberAvatarStack'
 import { cn } from '@/lib/utils'
 import { Loader2, RefreshCw, Shuffle, Timer } from 'lucide-react'
 import { useAccountScheduleStore } from '@/stores/useAccountScheduleStore'
+import { autoSwitchIneligibilityReason } from '@/lib/auto-switch-score'
 import {
   AutoSwitchControls,
   ScheduleSwitchForm,
@@ -271,6 +272,11 @@ export interface UsageAccountRowProps {
   onSignInAgain?: () => void
   members?: AccountMemberInfo[]
   membersLoading?: boolean
+  /**
+   * When auto-switch is armed and this account can't be its target, the
+   * reason — renders a translucent layer over the row (controls stay usable).
+   */
+  autoSwitchIneligibleReason?: string | null
 }
 
 export function UsageAccountRow({
@@ -283,7 +289,8 @@ export function UsageAccountRow({
   onRefresh,
   onSignInAgain,
   members,
-  membersLoading = false
+  membersLoading = false,
+  autoSwitchIneligibleReason = null
 }: UsageAccountRowProps): React.JSX.Element {
   const fiveHour = usageWindowDisplay(row.usage?.five_hour, 'five_hour')
   const sevenDay = usageWindowDisplay(row.usage?.seven_day, 'seven_day')
@@ -301,7 +308,21 @@ export function UsageAccountRow({
         'relative rounded-md border border-border bg-background/40 px-2 py-1.5',
         highlightActive && row.isActive && 'ring-1 ring-ring/50'
       )}
+      data-auto-switch-ineligible={autoSwitchIneligibleReason ? 'true' : undefined}
     >
+      {autoSwitchIneligibleReason && (
+        <div
+          className="pointer-events-none absolute inset-0 z-10 flex items-start justify-end rounded-md bg-background/60 p-1"
+          data-testid="auto-switch-ineligible-overlay"
+          title={autoSwitchIneligibleReason}
+          aria-label={autoSwitchIneligibleReason}
+        >
+          <span className="inline-flex items-center gap-1 rounded-full bg-muted px-1.5 py-px text-[9px] font-medium text-muted-foreground shadow-sm">
+            <Shuffle className="h-2.5 w-2.5" />
+            Not a switch target
+          </span>
+        </div>
+      )}
       <div className="flex items-center justify-between gap-2">
         <div
           className={cn(
@@ -587,7 +608,10 @@ function ProviderUsagePopoverBody({ provider }: { provider: UsageProvider }): Re
   )
   const startLogin = useLoginStore((s) => s.startLogin)
   const isLoginActive = useLoginStore((s) => s.activeLogin !== null)
-  const autoSwitchArmed = useAccountScheduleStore((s) => s.autoSwitch[provider] !== undefined)
+  const autoSwitchThreshold = useAccountScheduleStore(
+    (s) => s.autoSwitch[provider]?.thresholdPercent
+  )
+  const autoSwitchArmed = autoSwitchThreshold !== undefined
   const telemetryEnabled = useSettingsStore((s) => isHiveTelemetryEnabled(s))
   const {
     membersByAccount,
@@ -632,6 +656,7 @@ function ProviderUsagePopoverBody({ provider }: { provider: UsageProvider }): Re
   // ring) so it's visible at the popover's natural top scroll position.
   const orderedRows = [...accountRows].sort((a, b) => Number(b.isActive) - Number(a.isActive))
   const highlightActive = accountRows.length > 1
+  const nowMs = Date.now()
 
   const membersFor = (rowEmail: string | null): AccountMemberInfo[] | undefined => {
     if (!telemetryEnabled) return undefined
@@ -677,6 +702,11 @@ function ProviderUsagePopoverBody({ provider }: { provider: UsageProvider }): Re
             onSignInAgain={() => startLogin(provider, row.email ?? undefined)}
             members={membersFor(row.email)}
             membersLoading={membersLoading}
+            autoSwitchIneligibleReason={autoSwitchIneligibilityReason(
+              row,
+              autoSwitchThreshold,
+              nowMs
+            )}
           />
         ))
       ) : (
