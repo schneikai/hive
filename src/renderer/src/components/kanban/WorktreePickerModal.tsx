@@ -373,6 +373,155 @@ export async function quickLaunchTicket(ticket: KanbanTicket): Promise<boolean> 
   return true
 }
 
+/**
+ * Connection-board twin of `quickLaunchTicket`: start the ticket on the
+ * connection exactly as the picker's connection path would with nothing
+ * changed — build mode, the prefilled ticket prompt, the default SDK + model,
+ * a fresh connection session (worktree_id stays null). Used by right-button
+ * drags into In Progress on connection boards, which skip the modal entirely.
+ */
+export async function quickLaunchTicketOnConnection(
+  ticket: KanbanTicket,
+  connectionId: string
+): Promise<boolean> {
+  const mode: PickerMode = 'build'
+  const settings = useSettingsStore.getState()
+  const { sdk: agentSdk, model } = resolveQuickLaunchModel()
+  const codexFastMode = settings.codexFastMode
+  const promptText = buildPrompt(mode, ticket)
+
+  try {
+    const connection = useConnectionStore
+      .getState()
+      .connections.find((c) => c.id === connectionId)
+    const connectionPath = connection?.path
+
+    const cliPendingPrompt =
+      agentSdk === 'claude-code-cli'
+        ? composePromptForSdk(mode, agentSdk, promptText, false, '', { claudeCli: true })
+        : null
+    const sessionResult = await useSessionStore
+      .getState()
+      .createConnectionSession(connectionId, agentSdk, mode, {
+        modelOverride: { ...model, agentSdk },
+        ...(cliPendingPrompt ? { pendingMessage: cliPendingPrompt } : {})
+      })
+    if (!sessionResult.success || !sessionResult.session) {
+      toast.error(sessionResult.error || 'Failed to create session')
+      return false
+    }
+
+    const sessionId = sessionResult.session.id
+    const sessionAgentSdk = sessionResult.session.agent_sdk
+
+    messageSendTimes.set(sessionId, Date.now())
+    userExplicitSendTimes.set(sessionId, Date.now())
+    snapshotTokenBaseline(sessionId)
+    lastSendMode.set(sessionId, completionSendMode(mode))
+    useWorktreeStatusStore.getState().setSessionStatus(sessionId, 'working')
+
+    await useSessionStore.getState().setSessionModel(sessionId, model)
+
+    const kanban = useKanbanStore.getState()
+    const sortOrder = kanban.computeSortOrder(
+      kanban.getTicketsByColumnForConnection(connectionId, 'in_progress'),
+      0
+    )
+    const badgeModel = resolveBadgeModel(
+      { sdk: agentSdk, model, codexFastMode },
+      sessionResult.session
+    )
+    await kanban.updateTicket(ticket.id, ticket.project_id, {
+      current_session_id: sessionId,
+      worktree_id: null,
+      mode,
+      column: 'in_progress',
+      sort_order: sortOrder,
+      plan_ready: false,
+      goal_mode: false,
+      goal_success_criteria: null,
+      model_provider_id: badgeModel.providerID,
+      model_id: badgeModel.modelID,
+      model_variant: badgeModel.variant,
+      variant_group_id: null,
+      pending_launch_config: null
+    })
+
+    const ticketTitle = ticket.title.trim()
+    if (connection && !connection.custom_name && ticketTitle) {
+      void useConnectionStore.getState().renameConnection(connectionId, ticketTitle)
+    }
+
+    void autoPinBaseWorktree(ticket.project_id)
+
+    const usageProvider = resolveDefaultUsageProvider(agentSdk)
+    if (usageProvider) {
+      useUsageStore.getState().fetchUsageForProvider(usageProvider)
+    }
+
+    if (useSettingsStore.getState().boardMode === 'sticky-tab') {
+      const { BOARD_TAB_ID } = await import('@/stores/useSessionStore')
+      useSessionStore.getState().setActiveSession(BOARD_TAB_ID)
+    }
+    toast.success('Session started')
+
+    if (sessionAgentSdk === 'claude-code-cli') {
+      const outboundPrompt =
+        cliPendingPrompt ??
+        composePromptForSdk(mode, sessionAgentSdk, promptText, false, '', { claudeCli: true })
+      bumpWorktreeLastMessage({ connectionId })
+      const result = unwrapEnvelope(
+        await terminalApi.createClaudeCli(sessionId, { pendingPrompt: outboundPrompt })
+      )
+      if (result.success && outboundPrompt) {
+        useSessionStore.getState().dequeuePendingMessage(sessionId)
+      }
+      return true
+    }
+
+    if (!connectionPath) return true
+
+    const connectResult = unwrapEnvelope(await opencodeApi.connect(connectionPath, sessionId))
+    if (!connectResult.success || !connectResult.sessionId) {
+      toast.error(connectResult.error || 'Failed to start session')
+      return false
+    }
+    useSessionStore.getState().setOpenCodeSessionId(sessionId, connectResult.sessionId)
+    await dbApi.session.update<Session>(sessionId, {
+      opencode_session_id: connectResult.sessionId
+    })
+
+    const outboundPrompt = composePromptForSdk(mode, sessionAgentSdk, promptText, false, '', {
+      claudeCli: false
+    })
+    if (!outboundPrompt) return true
+    const promptOptions = sessionAgentSdk === 'codex' ? { codexFastMode } : undefined
+    bumpWorktreeLastMessage({ connectionId })
+    startHivePromptTelemetry({
+      sessionId,
+      prompt: outboundPrompt,
+      worktreeId: null,
+      modelId: model.modelID,
+      providerId: model.providerID,
+      modelVariant: model.variant,
+      mode
+    })
+    unwrapEnvelope(
+      await opencodeApi.prompt(
+        connectionPath,
+        connectResult.sessionId,
+        [{ type: 'text', text: outboundPrompt }],
+        toRequestModel(model),
+        promptOptions
+      )
+    )
+    return true
+  } catch (error) {
+    toast.error(error instanceof Error ? error.message : 'Failed to start session')
+    return false
+  }
+}
+
 // ── SDK toggle button group (shared by row 1 and each extra row) ────
 interface SdkToggleGroupProps {
   value: PickerAgentSdk
