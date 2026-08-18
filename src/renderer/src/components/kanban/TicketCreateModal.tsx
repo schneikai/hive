@@ -83,7 +83,21 @@ export function TicketCreateModal({
 
   const isMultiProjectMode = isConnectionMode || !!isPinnedMode
   const availableProjects = isConnectionMode ? connectionProjects : pinnedProjects
-  const initialSelectedProjectId = availableProjects[0]?.id ?? ''
+  // Pinned board: default to the project used for the last created ticket (if still pinned)
+  const pinnedBoardLastCreateProjectId = useKanbanStore((s) => s.pinnedBoardLastCreateProjectId)
+  const setPinnedBoardLastCreateProjectId = useKanbanStore(
+    (s) => s.setPinnedBoardLastCreateProjectId
+  )
+  const initialSelectedProjectId = useMemo(() => {
+    if (
+      isPinnedMode &&
+      pinnedBoardLastCreateProjectId &&
+      availableProjects.some((p) => p.id === pinnedBoardLastCreateProjectId)
+    ) {
+      return pinnedBoardLastCreateProjectId
+    }
+    return availableProjects[0]?.id ?? ''
+  }, [isPinnedMode, pinnedBoardLastCreateProjectId, availableProjects])
   const isDirty =
     title.trim().length > 0 ||
     description.trim().length > 0 ||
@@ -135,11 +149,19 @@ export function TicketCreateModal({
       setShowPreview(false)
       setAttachments([])
       setIsCreating(false)
-      setSelectedProjectId(availableProjects[0]?.id ?? '')
+      setSelectedProjectId(initialSelectedProjectId)
       // Auto-focus the title input after dialog animation
       setTimeout(() => titleInputRef.current?.focus(), 50)
     }
-  }, [open, availableProjects])
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only reset on open; initialSelectedProjectId is read at open time
+  }, [open])
+
+  // Keep the selection valid if the project list populates/changes while open
+  useEffect(() => {
+    if (!open || !isMultiProjectMode) return
+    if (selectedProjectId && availableProjects.some((p) => p.id === selectedProjectId)) return
+    setSelectedProjectId(initialSelectedProjectId)
+  }, [open, isMultiProjectMode, selectedProjectId, availableProjects, initialSelectedProjectId])
 
   // ── Image paste/drop ───────────────────────────────────────────────
   const { isDragOver, handlePaste, handleDragOver, handleDragEnter, handleDragLeave, handleDrop } =
@@ -166,6 +188,7 @@ export function TicketCreateModal({
         column: 'todo'
       })
       createdSuccessfully.current = true
+      if (isPinnedMode) setPinnedBoardLastCreateProjectId(targetProjectId)
       setShowDiscardConfirm(false)
       toast.success('Ticket created')
       onOpenChange(false)
@@ -183,6 +206,8 @@ export function TicketCreateModal({
     projectId,
     selectedProjectId,
     isMultiProjectMode,
+    isPinnedMode,
+    setPinnedBoardLastCreateProjectId,
     onOpenChange
   ])
 
