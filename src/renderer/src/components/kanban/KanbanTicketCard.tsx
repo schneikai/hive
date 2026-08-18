@@ -86,7 +86,11 @@ import {
   AlertDialogAction,
   AlertDialogCancel
 } from '@/components/ui/alert-dialog'
-import { WorktreePickerModal, quickLaunchTicket } from '@/components/kanban/WorktreePickerModal'
+import {
+  WorktreePickerModal,
+  quickLaunchTicket,
+  quickLaunchTicketOnConnection
+} from '@/components/kanban/WorktreePickerModal'
 import { useRightButtonDrag } from '@/components/kanban/useRightButtonDrag'
 import { buildQuickLaunchGhostChip } from '@/components/kanban/quickLaunchGhostChip'
 import { Popover, PopoverAnchor } from '@/components/ui/popover'
@@ -795,13 +799,16 @@ export const KanbanTicketCard = memo(function KanbanTicketCard({
         toast.warning('Ticket is blocked — resolve its dependencies first')
         return
       }
-      void quickLaunchTicket(ticket)
+      // Connection boards have no worktree to create — start a connection
+      // session instead (same defaults, mirrors the picker's connection path)
+      if (connectionId) void quickLaunchTicketOnConnection(ticket, connectionId)
+      else void quickLaunchTicket(ticket)
     },
-    [ticket, isBlocked]
+    [ticket, isBlocked, connectionId]
   )
   const { onMouseDown: rightDragMouseDown, onContextMenuCapture: rightDragContextMenuCapture } =
     useRightButtonDrag({
-      enabled: !isArchived && !blockingDiagnostic && !connectionId,
+      enabled: !isArchived && !blockingDiagnostic,
       onDrop: handleRightDrop,
       // Show the default model + effort the drop will launch with, riding
       // along under the ghost so it's clear before release
