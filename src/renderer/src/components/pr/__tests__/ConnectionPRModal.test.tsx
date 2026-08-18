@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 
 import { resetRendererRpcClientForTests, setRendererRpcClient } from '../../../api/rpc-client'
 import { usePRNotificationStore } from '@/stores/usePRNotificationStore'
@@ -161,6 +161,40 @@ describe('ConnectionPRModal', () => {
     })
     expect(screen.queryByTestId('connection-pr-row-wt-b')).not.toBeInTheDocument()
     expect(screen.getByText(/2 commits ahead/)).toBeInTheDocument()
+  })
+
+  it('submits the form phase with Cmd+Enter', async () => {
+    mockResponses({ commitCount: { '/repo/a': 2 } })
+
+    render(<ConnectionPRModal connectionId="conn-1" />)
+
+    await waitFor(() => {
+      expect(screen.getByTestId('connection-pr-create-button')).toBeInTheDocument()
+    })
+
+    fireEvent.keyDown(screen.getByTestId('connection-pr-modal'), { key: 'Enter', metaKey: true })
+
+    await waitFor(() => {
+      expect(useGitStore.getState().connectionPRModalOpen).toBe(false)
+    })
+    expect(useGitStore.getState().prTargetBranch.get('wt-a')).toBe('origin/main')
+  })
+
+  it('ignores Cmd+Enter in the form phase when nothing is included', async () => {
+    mockResponses({ commitCount: { '/repo/a': 2 } })
+
+    render(<ConnectionPRModal connectionId="conn-1" />)
+
+    await waitFor(() => {
+      expect(screen.getByTestId('connection-pr-create-button')).toBeInTheDocument()
+    })
+    // Uncheck the only eligible member
+    fireEvent.click(screen.getByRole('checkbox'))
+    expect(screen.getByTestId('connection-pr-create-button')).toBeDisabled()
+
+    fireEvent.keyDown(screen.getByTestId('connection-pr-modal'), { key: 'Enter', metaKey: true })
+
+    expect(useGitStore.getState().connectionPRModalOpen).toBe(true)
   })
 
   it('closes with archive prompts when every member is clean', async () => {
