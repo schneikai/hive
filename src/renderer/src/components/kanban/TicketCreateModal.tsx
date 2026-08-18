@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react'
-import { Eye, EyeOff } from 'lucide-react'
+import { Eye, EyeOff, Send } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import {
@@ -21,8 +21,12 @@ import { cn } from '@/lib/utils'
 import { TicketAttachmentEditor, MAX_ATTACHMENTS } from './TicketAttachmentEditor'
 import { TicketDiscardChangesDialog } from './TicketDiscardChangesDialog'
 import type { TicketAttachment } from './TicketAttachmentEditor'
+import type { KanbanTicket } from '../../../../main/db/types'
 import { useImagePaste } from '@/hooks/useImagePaste'
 import { attachmentApi } from '@/api/attachment-api'
+import { ShortcutHint } from '@/components/ui/shortcut-hint'
+import { submitShortcutLabel } from '@/lib/shortcut-labels'
+import { quickLaunchTicket, quickLaunchTicketOnConnection } from './WorktreePickerModal'
 
 interface TicketCreateModalProps {
   open: boolean
@@ -44,7 +48,11 @@ export function TicketCreateModal({
   const [description, setDescription] = useState('')
   const [showPreview, setShowPreview] = useState(false)
   const [attachments, setAttachments] = useState<TicketAttachment[]>([])
-  const [isCreating, setIsCreating] = useState(false)
+  // Which submit is in flight — 'send' also launches the ticket right after
+  // creating it (right-button drag defaults: new worktree, build mode,
+  // default SDK/model — or a connection session on connection boards).
+  const [creatingAction, setCreatingAction] = useState<'create' | 'send' | null>(null)
+  const isCreating = creatingAction !== null
   const [selectedProjectId, setSelectedProjectId] = useState('')
   const [showDiscardConfirm, setShowDiscardConfirm] = useState(false)
 
@@ -148,7 +156,7 @@ export function TicketCreateModal({
       setDescription('')
       setShowPreview(false)
       setAttachments([])
-      setIsCreating(false)
+      setCreatingAction(null)
       setSelectedProjectId(initialSelectedProjectId)
       // Auto-focus the title input after dialog animation
       setTimeout(() => titleInputRef.current?.focus(), 50)
@@ -172,44 +180,61 @@ export function TicketCreateModal({
     })
 
   // ── Submission ─────────────────────────────────────────────────────
-  const handleCreate = useCallback(async () => {
-    if (!title.trim() || isCreating) return
+  const submit = useCallback(
+    async (action: 'create' | 'send') => {
+      if (!title.trim() || isCreating) return
 
-    const targetProjectId = isMultiProjectMode ? selectedProjectId : projectId
-    if (!targetProjectId) return
+      const targetProjectId = isMultiProjectMode ? selectedProjectId : projectId
+      if (!targetProjectId) return
 
-    setIsCreating(true)
-    try {
-      await createTicket(targetProjectId, {
-        project_id: targetProjectId,
-        title: title.trim(),
-        description: description.trim() || null,
-        attachments: attachments.map((a) => ({ type: a.type, url: a.url, label: a.label })),
-        column: 'todo'
-      })
-      createdSuccessfully.current = true
-      if (isPinnedMode) setPinnedBoardLastCreateProjectId(targetProjectId)
-      setShowDiscardConfirm(false)
-      toast.success('Ticket created')
-      onOpenChange(false)
-    } catch {
-      toast.error('Failed to create ticket')
-    } finally {
-      setIsCreating(false)
-    }
-  }, [
-    title,
-    description,
-    attachments,
-    isCreating,
-    createTicket,
-    projectId,
-    selectedProjectId,
-    isMultiProjectMode,
-    isPinnedMode,
-    setPinnedBoardLastCreateProjectId,
-    onOpenChange
-  ])
+      setCreatingAction(action)
+      let created: KanbanTicket
+      try {
+        created = await createTicket(targetProjectId, {
+          project_id: targetProjectId,
+          title: title.trim(),
+          description: description.trim() || null,
+          attachments: attachments.map((a) => ({ type: a.type, url: a.url, label: a.label })),
+          column: 'todo'
+        })
+        createdSuccessfully.current = true
+        if (isPinnedMode) setPinnedBoardLastCreateProjectId(targetProjectId)
+        setShowDiscardConfirm(false)
+        toast.success('Ticket created')
+        onOpenChange(false)
+      } catch {
+        toast.error('Failed to create ticket')
+        return
+      } finally {
+        setCreatingAction(null)
+      }
+
+      // Create & Send: launch exactly like a right-button drag into In
+      // Progress. Runs after the modal closes; the launch reports its own
+      // success/failure toasts.
+      if (action === 'send') {
+        if (connectionId) void quickLaunchTicketOnConnection(created, connectionId)
+        else void quickLaunchTicket(created)
+      }
+    },
+    [
+      title,
+      description,
+      attachments,
+      isCreating,
+      createTicket,
+      projectId,
+      selectedProjectId,
+      isMultiProjectMode,
+      isPinnedMode,
+      setPinnedBoardLastCreateProjectId,
+      onOpenChange,
+      connectionId
+    ]
+  )
+
+  const handleCreate = useCallback(() => submit('create'), [submit])
+  const handleCreateAndSend = useCallback(() => submit('send'), [submit])
 
   const closeImmediately = useCallback(() => {
     setShowDiscardConfirm(false)
@@ -241,11 +266,15 @@ export function TicketCreateModal({
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
-      if (e.key === 'Enter' && e.metaKey && title.trim()) {
-        handleCreate()
+      if (e.key === 'Enter' && (e.metaKey || e.ctrlKey) && title.trim()) {
+        e.preventDefault()
+        // Cmd/Ctrl+Shift+Enter creates and sends with the default launch
+        // arguments; Cmd/Ctrl+Enter just creates.
+        if (e.shiftKey) handleCreateAndSend()
+        else handleCreate()
       }
     },
-    [handleCreate, title]
+    [handleCreate, handleCreateAndSend, title]
   )
 
   const isTitleEmpty = !title.trim()
@@ -374,11 +403,24 @@ export function TicketCreateModal({
           </Button>
           <Button
             type="button"
+            variant="secondary"
+            data-testid="ticket-create-send-btn"
+            title="Create the ticket and start it now with the default launch settings"
+            disabled={isTitleEmpty || isCreating}
+            onClick={handleCreateAndSend}
+          >
+            <Send className="h-3.5 w-3.5" />
+            {creatingAction === 'send' ? 'Sending...' : 'Create & Send'}
+            <ShortcutHint label={submitShortcutLabel({ shift: true })} />
+          </Button>
+          <Button
+            type="button"
             data-testid="ticket-create-btn"
             disabled={isTitleEmpty || isCreating}
             onClick={handleCreate}
           >
-            {isCreating ? 'Creating...' : 'Create'}
+            {creatingAction === 'create' ? 'Creating...' : 'Create'}
+            <ShortcutHint label={submitShortcutLabel()} />
           </Button>
         </DialogFooter>
       </DialogContent>

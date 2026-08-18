@@ -112,6 +112,9 @@ import { useTicketRemoteLaunch } from '@/hooks/useTicketRemoteLaunch'
 import { buildHandoffPrompt, type HandoffSelectionOverride } from '@/lib/handoffSelection'
 import { canonicalizeTicketTitle, extractPlanTitle } from '@shared/types/branch-utils'
 import type { RemoteLaunchClientInfo } from '@shared/types/remote-launch'
+import { ShortcutHint } from '@/components/ui/shortcut-hint'
+import { submitShortcutLabel } from '@/lib/shortcut-labels'
+import { quickLaunchTicket, quickLaunchTicketOnConnection } from './WorktreePickerModal'
 import type { KanbanTicket, KanbanTicketUpdate, Session, Worktree } from '../../../../main/db/types'
 import { unwrapEnvelope } from '@/lib/ipc-envelope'
 import { autoPinBaseWorktree } from '@/lib/auto-pin'
@@ -1582,32 +1585,82 @@ function EditModeContent({
       onAttach: (attachment) => setAttachments((prev) => [...prev, attachment])
     })
 
-  const handleSave = useCallback(async () => {
-    if (!title.trim() || isSaving) return
-    setIsSaving(true)
-    try {
-      await updateTicket(ticket.id, ticket.project_id, {
+  // ── Save & Send ───────────────────────────────────────────────────
+  // Only To Do tickets can be sent straight to In Progress from here; the
+  // launch mirrors a right-button drag (new worktree / connection session,
+  // build mode, default SDK + model). Blocked tickets can't be sent.
+  const isBlockedForSend = useKanbanStore(
+    useCallback(
+      (state) => {
+        if (state.simpleModeByProject[ticket.project_id]) return false
+        const blockers = state.dependencyMap.get(ticketKey(ticket.project_id, ticket.id))
+        if (!blockers?.size) return false
+        for (const blockerKey of blockers) {
+          const ref = parseTicketKey(blockerKey)
+          const blocker = state.tickets.get(ref.projectId)?.find((t) => t.id === ref.ticketId)
+          if (blocker && !isBlockerSatisfied(blocker.column, blocker.mode, followUpTriggerColumn))
+            return true
+        }
+        return false
+      },
+      [ticket.project_id, ticket.id, followUpTriggerColumn]
+    )
+  )
+  // Connection board currently showing (pinned board / project boards launch
+  // a worktree instead) — same routing KanbanTicketCard uses for right-drags.
+  const boardConnectionId = useConnectionStore((s) => s.selectedConnectionId)
+  const isPinnedBoardActive = useKanbanStore((s) => s.isPinnedBoardActive)
+  const sendConnectionId = !isPinnedBoardActive && boardConnectionId ? boardConnectionId : null
+  const canSend = ticket.column === 'todo' && !remoteLaunchInfo
+  const [pendingAction, setPendingAction] = useState<'save' | 'send' | null>(null)
+
+  const submit = useCallback(
+    async (action: 'save' | 'send') => {
+      if (!title.trim() || isSaving) return
+      if (action === 'send' && isBlockedForSend) {
+        toast.warning('Ticket is blocked — resolve its dependencies first')
+        return
+      }
+      setIsSaving(true)
+      setPendingAction(action)
+      const data: KanbanTicketUpdate = {
         title: title.trim(),
         description: description.trim() || null,
         attachments: attachments.map((a) => ({ type: a.type, url: a.url, label: a.label }))
-      })
-      toast.success('Ticket updated')
-      onClose()
-    } catch {
-      toast.error('Failed to update ticket')
-    } finally {
-      setIsSaving(false)
-    }
-  }, [
-    title,
-    description,
-    attachments,
-    isSaving,
-    updateTicket,
-    ticket.id,
-    ticket.project_id,
-    onClose
-  ])
+      }
+      try {
+        await updateTicket(ticket.id, ticket.project_id, data)
+        toast.success('Ticket updated')
+        onClose()
+      } catch {
+        toast.error('Failed to update ticket')
+        return
+      } finally {
+        setIsSaving(false)
+        setPendingAction(null)
+      }
+      if (action === 'send') {
+        // Launch with the just-saved content so the prompt never lags the edit
+        const launchTicket: KanbanTicket = { ...ticket, ...data }
+        if (sendConnectionId) void quickLaunchTicketOnConnection(launchTicket, sendConnectionId)
+        else void quickLaunchTicket(launchTicket)
+      }
+    },
+    [
+      title,
+      description,
+      attachments,
+      isSaving,
+      isBlockedForSend,
+      sendConnectionId,
+      updateTicket,
+      ticket,
+      onClose
+    ]
+  )
+
+  const handleSave = useCallback(() => submit('save'), [submit])
+  const handleSaveAndSend = useCallback(() => submit('send'), [submit])
 
   const handleDelete = useCallback(async () => {
     try {
@@ -1628,10 +1681,13 @@ function EditModeContent({
     (e: React.KeyboardEvent) => {
       if (e.key === 'Enter' && (e.metaKey || e.ctrlKey) && title.trim()) {
         e.preventDefault()
-        handleSave()
+        // Cmd/Ctrl+Shift+Enter saves and sends with the default launch
+        // arguments (To Do tickets only); Cmd/Ctrl+Enter just saves.
+        if (e.shiftKey && canSend) handleSaveAndSend()
+        else handleSave()
       }
     },
-    [handleSave, title]
+    [handleSave, handleSaveAndSend, canSend, title]
   )
 
   return (
@@ -1971,13 +2027,28 @@ function EditModeContent({
           >
             Cancel
           </Button>
+          {canSend && (
+            <Button
+              type="button"
+              variant="secondary"
+              data-testid="ticket-edit-save-send-btn"
+              title="Save the ticket and start it now with the default launch settings"
+              disabled={!title.trim() || isSaving}
+              onClick={handleSaveAndSend}
+            >
+              <Send className="h-3.5 w-3.5" />
+              {pendingAction === 'send' ? 'Sending...' : 'Save & Send'}
+              <ShortcutHint label={submitShortcutLabel({ shift: true })} />
+            </Button>
+          )}
           <Button
             type="button"
             data-testid="ticket-edit-save-btn"
             disabled={!title.trim() || isSaving}
             onClick={handleSave}
           >
-            {isSaving ? 'Saving...' : 'Save'}
+            {pendingAction === 'save' ? 'Saving...' : 'Save'}
+            <ShortcutHint label={submitShortcutLabel()} />
           </Button>
         </div>
       </DialogFooter>
