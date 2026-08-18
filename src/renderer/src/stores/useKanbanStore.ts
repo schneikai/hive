@@ -229,6 +229,8 @@ interface KanbanState {
   simpleModeByProject: Record<string, boolean>
   /** Per-board+column "sort by latest transition" toggle (transitionSortKey) — persisted */
   transitionSortByColumn: Record<string, boolean>
+  /** Project chosen the last time a ticket was created from the pinned board — persisted */
+  pinnedBoardLastCreateProjectId: string | null
   /** Currently selected ticket ID for the detail modal (null = closed) */
   selectedTicketId: string | null
   selectedTicketRef: TicketRef | null
@@ -285,6 +287,7 @@ interface KanbanState {
   reorderTicket: (ticketId: string, projectId: string, newSortOrder: number) => Promise<void>
   toggleBoardView: () => void
   setSimpleMode: (projectId: string, enabled: boolean) => Promise<void>
+  setPinnedBoardLastCreateProjectId: (projectId: string | null) => void
   setTransitionSort: (projectId: string, column: KanbanTicketColumn, enabled: boolean) => void
   archiveTicket: (ticketId: string, projectId: string) => Promise<void>
   archiveAllDone: (projectId: string, includeMerged?: boolean) => Promise<number>
@@ -387,6 +390,7 @@ export const useKanbanStore = create<KanbanState>()(
       isPinnedBoardActive: false,
       simpleModeByProject: {} as Record<string, boolean>,
       transitionSortByColumn: {} as Record<string, boolean>,
+      pinnedBoardLastCreateProjectId: null,
       selectedTicketId: null,
       selectedTicketRef: null,
       isDragging: false,
@@ -1213,6 +1217,11 @@ export const useKanbanStore = create<KanbanState>()(
         }))
       },
 
+      // ── setPinnedBoardLastCreateProjectId ────────────────────────
+      setPinnedBoardLastCreateProjectId: (projectId: string | null) => {
+        set({ pinnedBoardLastCreateProjectId: projectId })
+      },
+
       // ── setSimpleMode ────────────────────────────────────────────
       setSimpleMode: async (projectId: string, enabled: boolean) => {
         set((state) => ({
@@ -2005,7 +2014,8 @@ export const useKanbanStore = create<KanbanState>()(
         isBoardViewActive: state.isBoardViewActive,
         isPinnedBoardActive: state.isPinnedBoardActive,
         simpleModeByProject: state.simpleModeByProject,
-        transitionSortByColumn: state.transitionSortByColumn
+        transitionSortByColumn: state.transitionSortByColumn,
+        pinnedBoardLastCreateProjectId: state.pinnedBoardLastCreateProjectId
       })
     }
   )
