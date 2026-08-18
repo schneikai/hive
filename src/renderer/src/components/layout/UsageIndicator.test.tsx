@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { ProviderUsageBlock, UsageAccountRow } from './UsageIndicator'
+import { autoSwitchIneligibilityReason } from '@/lib/auto-switch-score'
 import { useAccountStore, useUsageStore } from '@/stores'
 import { useAccountScheduleStore } from '@/stores/useAccountScheduleStore'
 import type { AccountMemberInfo } from './MemberAvatarStack'
@@ -523,6 +524,102 @@ describe('UsageAccountRow', () => {
     expect(screen.queryByTestId('member-avatar')).toBeNull()
     expect(screen.queryByTestId('member-avatar-stack-loading')).toBeNull()
   })
+
+  it('renders a non-blocking opacity overlay when given an auto-switch ineligibility reason', async () => {
+    const user = userEvent.setup()
+    const onSwitch = vi.fn()
+    render(
+      <UsageAccountRow
+        row={{
+          id: 'acc-2',
+          email: 'other@example.com',
+          usage: sampleUsage,
+          status: 'ok',
+          lastError: null,
+          isActive: false,
+          isRefreshing: false
+        }}
+        onSwitch={onSwitch}
+        autoSwitchIneligibleReason="At 85% — auto-switch only targets accounts below 80%"
+      />
+    )
+
+    const overlay = screen.getByTestId('auto-switch-ineligible-overlay')
+    expect(overlay.getAttribute('title')).toBe(
+      'At 85% — auto-switch only targets accounts below 80%'
+    )
+    expect(overlay.className).toContain('pointer-events-none')
+    // The overlay dims but doesn't block: manual switching still works.
+    await user.click(screen.getByRole('button', { name: /switch to other@example.com/i }))
+    expect(onSwitch).toHaveBeenCalledTimes(1)
+  })
+
+  it('renders no overlay without an ineligibility reason', () => {
+    render(
+      <UsageAccountRow
+        row={{
+          id: 'acc-2',
+          email: 'other@example.com',
+          usage: sampleUsage,
+          status: 'ok',
+          lastError: null,
+          isActive: false,
+          isRefreshing: false
+        }}
+      />
+    )
+    expect(screen.queryByTestId('auto-switch-ineligible-overlay')).toBeNull()
+  })
+})
+
+describe('autoSwitchIneligibilityReason', () => {
+  const now = Date.now()
+  const base = { status: 'ok' as const, isActive: false }
+
+  it('is null when auto-switch is not armed', () => {
+    const usage: UsageData = {
+      five_hour: { utilization: 95, resets_at: inOneHour() },
+      seven_day: { utilization: 10, resets_at: inOneDay() }
+    }
+    expect(autoSwitchIneligibilityReason({ ...base, usage }, undefined, now)).toBeNull()
+  })
+
+  it('flags an account whose max window is at or over the threshold', () => {
+    const usage: UsageData = {
+      five_hour: { utilization: 20, resets_at: inOneHour() },
+      seven_day: { utilization: 80, resets_at: inOneDay() }
+    }
+    expect(autoSwitchIneligibilityReason({ ...base, usage }, 80, now)).toMatch(/At 80%/)
+    expect(autoSwitchIneligibilityReason({ ...base, usage }, 81, now)).toBeNull()
+  })
+
+  it('ignores windows whose reset time has already passed', () => {
+    const usage: UsageData = {
+      five_hour: { utilization: 99, resets_at: oneHourAgo() },
+      seven_day: { utilization: 10, resets_at: inOneDay() }
+    }
+    expect(autoSwitchIneligibilityReason({ ...base, usage }, 80, now)).toBeNull()
+  })
+
+  it('never flags the active account, and does not flag unknown usage', () => {
+    const usage: UsageData = {
+      five_hour: { utilization: 99, resets_at: inOneHour() },
+      seven_day: { utilization: 10, resets_at: inOneDay() }
+    }
+    expect(
+      autoSwitchIneligibilityReason({ ...base, usage, isActive: true }, 80, now)
+    ).toBeNull()
+    expect(autoSwitchIneligibilityReason({ ...base, usage: null }, 80, now)).toBeNull()
+  })
+
+  it('flags stale and errored accounts', () => {
+    expect(
+      autoSwitchIneligibilityReason({ ...base, usage: null, status: 'stale' }, 80, now)
+    ).toMatch(/expired/i)
+    expect(
+      autoSwitchIneligibilityReason({ ...base, usage: null, status: 'error' }, 80, now)
+    ).toMatch(/refresh failed/i)
+  })
 })
 
 describe('UsageAccountRow refresh countdown', () => {
@@ -962,6 +1059,60 @@ describe('ProviderUsageBlock provider toggle', () => {
     await user.hover(screen.getByTestId('usage-trigger-openai'))
     await screen.findByText('OpenAI API Usage')
     expect(screen.queryByTestId('auto-switch-controls')).toBeNull()
+  })
+
+  it('dims saved accounts over the armed auto-switch threshold, but not the active or viable ones', async () => {
+    const user = userEvent.setup()
+    useAccountScheduleStore.setState({
+      schedules: {},
+      autoSwitch: { openai: { provider: 'openai', thresholdPercent: 80, createdAt: Date.now() } }
+    })
+    const usageAt = (percent: number): OpenAIUsageData => ({
+      ...sampleOpenAIUsage,
+      rate_limit: {
+        ...sampleOpenAIUsage.rate_limit,
+        primary_window: { ...sampleOpenAIUsage.rate_limit.primary_window!, used_percent: percent }
+      }
+    })
+    const account = (id: string, email: string, percent: number) => ({
+      id,
+      provider: 'openai' as const,
+      email,
+      last_usage: usageAt(percent),
+      last_fetched_at: null,
+      status: 'ok' as const,
+      last_error: null,
+      created_at: new Date().toISOString(),
+      plan: 'plus'
+    })
+    useUsageStore.setState((state) => ({
+      savedAccounts: {
+        ...state.savedAccounts,
+        openai: [
+          account('openai-active', 'openai@example.com', 95),
+          account('openai-over', 'over@example.com', 90),
+          account('openai-under', 'under@example.com', 30)
+        ]
+      }
+    }))
+
+    render(
+      <ProviderUsageBlock provider="openai" isExplicitlySelected toggleProviders={['openai']} />
+    )
+    await user.hover(screen.getByTestId('usage-trigger-openai'))
+    await screen.findByText('OpenAI API Usage')
+
+    const overlays = screen.getAllByTestId('auto-switch-ineligible-overlay')
+    expect(overlays).toHaveLength(1)
+    expect(overlays[0].getAttribute('title')).toMatch(/At 90%.*below 80%/)
+    const dimmedRow = overlays[0].parentElement!
+    expect(dimmedRow.textContent).toContain('over@example.com')
+
+    // Disarming removes the layer.
+    act(() => useAccountScheduleStore.setState({ schedules: {}, autoSwitch: {} }))
+    await waitFor(() =>
+      expect(screen.queryByTestId('auto-switch-ineligible-overlay')).toBeNull()
+    )
   })
 
   it('keeps the provider toggle outside the scroll container', async () => {

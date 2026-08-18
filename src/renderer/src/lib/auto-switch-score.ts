@@ -1,4 +1,4 @@
-import type { UsageData } from '@shared/types/usage'
+import type { SavedUsageStatus, UsageData } from '@shared/types/usage'
 
 // How much each window's remaining headroom counts toward an account's score.
 // The 5h window dominates: it resets within hours, so headroom there is worth
@@ -95,4 +95,29 @@ export function scoreAccountHeadroom(usage: UsageData, nowMs: number): number {
     (score, c) => score * Math.pow(c.headroom, c.weight / totalWeight),
     1
   )
+}
+
+/**
+ * Why an account can't be an auto-switch target right now, mirroring the
+ * candidate filter in useAccountScheduleStore's sweep: the token must be
+ * valid and every usage window must sit below the armed threshold. Null when
+ * the account is (or may turn out to be, once refreshed) a viable target —
+ * unknown usage is not dimmed since the sweep refreshes it before deciding.
+ * The active account is never a candidate, but it's the one being left, so
+ * it isn't dimmed either.
+ */
+export function autoSwitchIneligibilityReason(
+  row: { usage: UsageData | null; status: SavedUsageStatus; isActive: boolean },
+  thresholdPercent: number | undefined,
+  nowMs: number
+): string | null {
+  if (thresholdPercent === undefined || row.isActive) return null
+  if (row.status === 'stale') return 'Expired — not an auto-switch target'
+  if (row.status === 'error') return 'Refresh failed — not an auto-switch target'
+  if (!row.usage) return null
+  const maxPercent = getMaxUsagePercent(row.usage, nowMs)
+  if (maxPercent !== null && maxPercent >= thresholdPercent) {
+    return `At ${Math.round(maxPercent)}% — auto-switch only targets accounts below ${thresholdPercent}%`
+  }
+  return null
 }
