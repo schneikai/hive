@@ -348,6 +348,26 @@ export function ConnectionPRModal({ connectionId }: ConnectionPRModalProps): Rea
     setOpen(false)
   }, [setOpen])
 
+  // ── Cmd/Ctrl+Enter submits the current phase's primary action ───
+  const canCommitAndContinue =
+    !!commitSummary.trim() && membersWithStagedFiles.length > 0 && !isCommitting
+  const canCreate = includedCount > 0
+  const handleDialogKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLDivElement>) => {
+      if (e.key !== 'Enter' || !(e.metaKey || e.ctrlKey)) return
+      if (phase === 'commit') {
+        if (!canCommitAndContinue) return
+        e.preventDefault()
+        void handleCommitAndContinue()
+      } else if (phase === 'form') {
+        if (!canCreate) return
+        e.preventDefault()
+        handleCreate()
+      }
+    },
+    [phase, canCommitAndContinue, canCreate, handleCommitAndContinue, handleCreate]
+  )
+
   // ── Render: Loading ─────────────────────────────────────────────
   const renderLoading = (): React.JSX.Element => (
     <div className="flex items-center justify-center gap-2 py-10 text-sm text-muted-foreground">
@@ -669,9 +689,7 @@ export function ConnectionPRModal({ connectionId }: ConnectionPRModalProps): Rea
             </Button>
             <Button
               onClick={handleCommitAndContinue}
-              disabled={
-                !commitSummary.trim() || membersWithStagedFiles.length === 0 || isCommitting
-              }
+              disabled={!canCommitAndContinue}
               data-testid="connection-pr-commit-button"
             >
               {isCommitting ? (
@@ -696,7 +714,7 @@ export function ConnectionPRModal({ connectionId }: ConnectionPRModalProps): Rea
             </Button>
             <Button
               onClick={handleCreate}
-              disabled={includedCount === 0}
+              disabled={!canCreate}
               data-testid="connection-pr-create-button"
             >
               <GitPullRequest className="h-4 w-4 mr-1.5" />
@@ -709,7 +727,11 @@ export function ConnectionPRModal({ connectionId }: ConnectionPRModalProps): Rea
 
   return (
     <Dialog open={open} onOpenChange={(isOpen) => setOpen(isOpen, isOpen ? connectionId : undefined)}>
-      <DialogContent className="sm:max-w-xl" data-testid="connection-pr-modal">
+      <DialogContent
+        className="sm:max-w-xl"
+        data-testid="connection-pr-modal"
+        onKeyDown={handleDialogKeyDown}
+      >
         <DialogHeader>
           <DialogTitle>
             <span className="flex items-center gap-2">
