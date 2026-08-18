@@ -326,6 +326,25 @@ export function CreatePRModal({ worktreeId, worktreePath }: CreatePRModalProps):
     setOpen(false)
   }, [setOpen])
 
+  // ── Cmd/Ctrl+Enter submits the current phase's primary action ───
+  const canCommitAndContinue = !!commitSummary.trim() && stagedCount > 0 && !isCommitting
+  const canCreate = !!baseBranch
+  const handleDialogKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLDivElement>) => {
+      if (e.key !== 'Enter' || !(e.metaKey || e.ctrlKey)) return
+      if (phase === 'commit') {
+        if (!canCommitAndContinue) return
+        e.preventDefault()
+        void handleCommitAndContinue()
+      } else if (phase === 'form') {
+        if (!canCreate) return
+        e.preventDefault()
+        void handleCreate()
+      }
+    },
+    [phase, canCommitAndContinue, canCreate, handleCommitAndContinue, handleCreate]
+  )
+
   // ── Render: Commit ──────────────────────────────────────────────
   const renderCommit = (): React.JSX.Element => (
     <>
@@ -558,10 +577,7 @@ export function CreatePRModal({ worktreeId, worktreePath }: CreatePRModalProps):
             <Button variant="ghost" onClick={handleSkipCommit}>
               Skip
             </Button>
-            <Button
-              onClick={handleCommitAndContinue}
-              disabled={!commitSummary.trim() || stagedCount === 0 || isCommitting}
-            >
+            <Button onClick={handleCommitAndContinue} disabled={!canCommitAndContinue}>
               {isCommitting ? (
                 <>
                   <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
@@ -582,7 +598,7 @@ export function CreatePRModal({ worktreeId, worktreePath }: CreatePRModalProps):
             <Button variant="ghost" onClick={handleCancel}>
               Cancel
             </Button>
-            <Button onClick={handleCreate} disabled={!baseBranch}>
+            <Button onClick={handleCreate} disabled={!canCreate}>
               <GitPullRequest className="h-4 w-4 mr-1.5" />
               Create Pull Request
             </Button>
@@ -593,7 +609,7 @@ export function CreatePRModal({ worktreeId, worktreePath }: CreatePRModalProps):
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="sm:max-w-lg" onKeyDown={handleDialogKeyDown}>
         <DialogHeader>
           <DialogTitle>
             <span className="flex items-center gap-2">
