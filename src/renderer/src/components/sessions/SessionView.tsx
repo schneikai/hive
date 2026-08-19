@@ -87,6 +87,7 @@ import { useWorktreeStore, useDropAttachmentStore } from '@/stores'
 import { useProjectStore } from '@/stores/useProjectStore'
 import { useKanbanStore } from '@/stores/useKanbanStore'
 import { usePRReviewStore } from '@/stores/usePRReviewStore'
+import { useGitStore } from '@/stores/useGitStore'
 import { useDiffCommentStore } from '@/stores/useDiffCommentStore'
 import { useFileTreeStore } from '@/stores/useFileTreeStore'
 import { mapOpencodeMessagesToSessionViewMessages } from '@/lib/opencode-transcript'
@@ -570,6 +571,10 @@ function ErrorState({ message, onRetry }: ErrorStateProps): React.JSX.Element {
 const PrCommentAttachments = memo(function PrCommentAttachments(): React.JSX.Element | null {
   const attachedComments = usePRReviewStore((s) => s.attachedComments)
   const removeAttachment = usePRReviewStore((s) => s.removeAttachment)
+  const attachedFromWorktreeId = usePRReviewStore((s) => s.attachedFromWorktreeId)
+  const commentForge = useGitStore((s) =>
+    attachedFromWorktreeId ? (s.remoteInfo.get(attachedFromWorktreeId)?.forge ?? null) : null
+  )
 
   if (attachedComments.length === 0) return null
 
@@ -583,7 +588,7 @@ const PrCommentAttachments = memo(function PrCommentAttachments(): React.JSX.Ele
             className="group relative flex flex-col gap-1 px-3 py-2 rounded-lg bg-background border border-border text-sm max-w-[400px] min-w-[220px]"
           >
             <div className="flex items-center gap-2">
-              <ProviderIcon provider="github" />
+              <ProviderIcon provider={commentForge ?? 'github'} />
               <img
                 src={c.user.avatarUrl}
                 alt={c.user.login}

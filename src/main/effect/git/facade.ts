@@ -77,6 +77,9 @@ export const humanMessage = (error: GitError): string => {
   if (error instanceof GitUnknown && /GitHub CLI is not installed|spawn gh ENOENT|gh: command not found/i.test(stderr)) {
     return 'GitHub CLI is not installed or not in PATH'
   }
+  if (error instanceof GitUnknown && /GitLab CLI \(glab\) is not installed|spawn glab ENOENT|glab: command not found/i.test(stderr)) {
+    return 'GitLab CLI (glab) is not installed or not in PATH'
+  }
   return stderr || (error instanceof Error ? error.message : String(error))
 }
 

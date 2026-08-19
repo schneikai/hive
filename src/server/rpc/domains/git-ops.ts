@@ -21,7 +21,17 @@ import { isDesktopCommandResult, makeDesktopCommandRequest } from '@shared/deskt
 import { GIT_STATUS_CHANGED_CHANNEL } from '@shared/git-events'
 import { getImageMimeType } from '@shared/types/file-utils'
 import type { GitBranchInfo, GitFileStatus, PRReviewComment } from '@shared/types/git'
+import { extractPullRequestUrl, parsePullRequestNumber } from '@shared/git-forge'
 import { telemetryService } from '../../../main/services/telemetry-service'
+import { resolveRepoForge, type ForgeResolver } from '../../../main/services/git-forge-remote'
+import {
+  describeGlabError,
+  glabCreateMergeRequest,
+  glabGetMergeRequest,
+  glabGetMergeRequestReviewComments,
+  glabListOpenMergeRequests,
+  glabMergeMergeRequest
+} from '../../../main/services/gitlab-cli'
 import type { EventBus } from '../../events/event-bus'
 import type { RpcHandler } from '../router'
 
@@ -575,6 +585,12 @@ export interface GitOpsRpcServiceDependencies {
   readonly runCommand?: CommandRunner
   readonly track?: (event: string, properties?: Record<string, unknown>) => void
   readonly eventBus?: EventBus
+  /**
+   * Which PR host (GitHub via `gh`, GitLab via `glab`) a repository pushes to.
+   * Defaults to reading the `origin` remote; null (no remote / unknown host)
+   * keeps the historical GitHub behaviour.
+   */
+  readonly resolveForge?: ForgeResolver
   readonly generatePRContent?: (options: {
     readonly baseBranch: string
     readonly headBranch: string
@@ -594,6 +610,7 @@ export const makeLiveGitOpsRpcService = (
   const runCommand = dependencies.runCommand ?? execFileAsync
   const track = dependencies.track ?? telemetryService.track.bind(telemetryService)
   const eventBus = dependencies.eventBus
+  const resolveForge = dependencies.resolveForge ?? resolveRepoForge
   const applyHunkPatch = async (
     worktreePath: string,
     patch: string,
@@ -1486,6 +1503,15 @@ export const makeLiveGitOpsRpcService = (
           }
 
           const normalizedBaseBranch = baseBranch.replace(/^[^/]+\//, '')
+          const forgeInfo = await resolveForge(worktreePath)
+          if (forgeInfo?.forge === 'gitlab') {
+            return glabCreateMergeRequest(runCommand, worktreePath, forgeInfo, {
+              baseBranch: normalizedBaseBranch,
+              title,
+              body
+            })
+          }
+
           const tempDir = mkdtempSync(join(tmpdir(), 'hive-gh-pr-'))
           const tempFile = join(tempDir, 'body.md')
 
@@ -1511,15 +1537,9 @@ export const makeLiveGitOpsRpcService = (
           } catch (error) {
             const message = error instanceof Error ? error.message : String(error)
             if (/already exists/i.test(message)) {
-              const urlMatch = message.match(/https:\/\/github\.com\/[^\s]+\/pull\/\d+/)
-              const url = urlMatch?.[0]
-              const numberMatch = url?.match(/\/pull\/(\d+)/)
-              return {
-                success: false,
-                error: message,
-                url,
-                number: numberMatch ? parseInt(numberMatch[1], 10) : undefined
-              }
+              const url = extractPullRequestUrl(message) ?? undefined
+              const number = parsePullRequestNumber(url) ?? undefined
+              return { success: false, error: message, url, number }
             }
 
             return { success: false, error: message }
@@ -1590,13 +1610,15 @@ export const makeLiveGitOpsRpcService = (
               headBranch = 'HEAD'
             }
 
+            const forgeInfo = await resolveForge(worktreePath)
             const generator =
               dependencies.generatePRContent ??
               (async (options) => {
                 const module = await import('../../../main/services/pr-content-generator')
                 return module.generatePRContent({
                   ...options,
-                  provider: options.provider as never
+                  provider: options.provider as never,
+                  ...(forgeInfo ? { forge: forgeInfo.forge } : {})
                 })
               })
             const result = await generator({
@@ -1628,16 +1650,36 @@ export const makeLiveGitOpsRpcService = (
       Effect.tryPromise({
         try: async (): Promise<GitOperationResult> => {
           try {
-            await runCommand('gh', ['pr', 'merge', String(prNumber), '--merge'], {
-              cwd: worktreePath
-            })
+            const forgeInfo = await resolveForge(worktreePath)
+            let targetBranch: string
+            if (forgeInfo?.forge === 'gitlab') {
+              const merged = await glabMergeMergeRequest(
+                runCommand,
+                worktreePath,
+                forgeInfo,
+                prNumber
+              )
+              if (!merged.success) return { success: false, error: merged.error }
+              let mergedRequest: Awaited<ReturnType<typeof glabGetMergeRequest>> = null
+              try {
+                mergedRequest = await glabGetMergeRequest(runCommand, worktreePath, prNumber)
+              } catch {
+                mergedRequest = null
+              }
+              targetBranch = mergedRequest?.targetBranch ?? ''
+            } else {
+              await runCommand('gh', ['pr', 'merge', String(prNumber), '--merge'], {
+                cwd: worktreePath
+              })
 
-            const prInfoResult = await runCommand(
-              'gh',
-              ['pr', 'view', String(prNumber), '--json', 'baseRefName', '-q', '.baseRefName'],
-              { cwd: worktreePath }
-            )
-            const targetBranch = prInfoResult.stdout.trim()
+              const prInfoResult = await runCommand(
+                'gh',
+                ['pr', 'view', String(prNumber), '--json', 'baseRefName', '-q', '.baseRefName'],
+                { cwd: worktreePath }
+              )
+              targetBranch = prInfoResult.stdout.trim()
+            }
+            if (!targetBranch) return { success: true }
 
             const worktreeListResult = await runCommand(
               'git',
@@ -1707,6 +1749,28 @@ export const makeLiveGitOpsRpcService = (
     listPRs: (projectPath) =>
       Effect.tryPromise({
         try: async (): Promise<GitListPullRequestsResult> => {
+          const forgeInfo = await resolveForge(projectPath)
+          if (forgeInfo?.forge === 'gitlab') {
+            try {
+              await runCommand('git', ['fetch', 'origin'], { cwd: projectPath })
+            } catch {
+              // Listing still works against the API when the fetch fails (offline remote refs are cosmetic).
+            }
+            try {
+              const mergeRequests = await glabListOpenMergeRequests(runCommand, projectPath)
+              return {
+                success: true,
+                prs: mergeRequests.map((mr) => ({
+                  number: mr.iid,
+                  title: mr.title,
+                  author: mr.author,
+                  headRefName: mr.sourceBranch
+                }))
+              }
+            } catch (error) {
+              return { success: false, prs: [], error: describeGlabError(error, forgeInfo.remote.host) }
+            }
+          }
           try {
             await runCommand('git', ['fetch', 'origin'], { cwd: projectPath })
             const { stdout } = await runCommand(
@@ -1765,6 +1829,16 @@ export const makeLiveGitOpsRpcService = (
     getPRState: (projectPath, prNumber) =>
       Effect.tryPromise({
         try: async (): Promise<GitPullRequestStateResult> => {
+          const forgeInfo = await resolveForge(projectPath)
+          if (forgeInfo?.forge === 'gitlab') {
+            try {
+              const mergeRequest = await glabGetMergeRequest(runCommand, projectPath, prNumber)
+              if (!mergeRequest) return { success: false, error: 'Merge request not found' }
+              return { success: true, state: mergeRequest.state, title: mergeRequest.title }
+            } catch (error) {
+              return { success: false, error: describeGlabError(error, forgeInfo.remote.host) }
+            }
+          }
           try {
             const { stdout } = await runCommand(
               'gh',
@@ -1785,6 +1859,15 @@ export const makeLiveGitOpsRpcService = (
     getPRReviewComments: (projectPath, prNumber) =>
       Effect.tryPromise({
         try: async (): Promise<GitPullRequestReviewCommentsResult> => {
+          const forgeInfo = await resolveForge(projectPath)
+          if (forgeInfo?.forge === 'gitlab') {
+            return glabGetMergeRequestReviewComments(
+              runCommand,
+              projectPath,
+              forgeInfo,
+              prNumber
+            )
+          }
           try {
             const { stdout: repoInfo } = await runCommand(
               'gh',

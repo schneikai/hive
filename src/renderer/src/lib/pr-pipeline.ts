@@ -1,3 +1,4 @@
+import { buildPullRequestUrl, extractPullRequestUrl } from '@shared/git-forge'
 import { gitApi } from '@/api/git-api'
 import { useGitStore } from '@/stores/useGitStore'
 import { usePRNotificationStore } from '@/stores/usePRNotificationStore'
@@ -131,22 +132,33 @@ export async function runCreatePRPipeline(
       let existingUrl = createResult.url
 
       if (!existingNumber) {
-        // Fallback: parse the error message ([\s\S] to match across newlines)
+        // Fallback: parse the error message ([\s\S] to match across newlines).
+        // Covers gh ("...pull/12 already exists"), GitLab ("Another open merge
+        // request already exists for this source branch: !12"), and prose
+        // ("pull request #12 ... already").
         const errMsg = createResult.error ?? ''
         const alreadyExistsMatch = errMsg.match(
-          /already exists[\s\S]*?\/pull\/(\d+)|pull request.*?#(\d+).*?already/i
+          /already exists[\s\S]*?\/(?:pull|merge_requests)\/(\d+)|already exists[^!\n]*!(\d+)|pull request.*?#(\d+).*?already/i
         )
         if (alreadyExistsMatch) {
-          existingNumber = parseInt(alreadyExistsMatch[1] || alreadyExistsMatch[2], 10)
+          existingNumber = parseInt(
+            alreadyExistsMatch[1] || alreadyExistsMatch[2] || alreadyExistsMatch[3],
+            10
+          )
           if (!existingUrl) {
-            const urlMatch = errMsg.match(/https:\/\/github\.com\/[^\s]+\/pull\/\d+/)
-            existingUrl = urlMatch?.[0] ?? `https://github.com/unknown/pull/${existingNumber}`
+            existingUrl = extractPullRequestUrl(errMsg) ?? undefined
           }
         }
       }
 
       if (existingNumber) {
-        existingUrl = existingUrl ?? `https://github.com/unknown/pull/${existingNumber}`
+        if (!existingUrl) {
+          // Build from the worktree's remote when the backend/error gave no URL.
+          const remoteUrl = useGitStore.getState().remoteInfo.get(worktreeId)?.url ?? null
+          existingUrl =
+            buildPullRequestUrl(remoteUrl, existingNumber) ??
+            `https://github.com/unknown/pull/${existingNumber}`
+        }
 
         // Auto-attach the existing PR
         await attachPR(worktreeId, existingNumber, existingUrl)

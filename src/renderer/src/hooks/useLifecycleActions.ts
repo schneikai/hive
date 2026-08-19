@@ -14,6 +14,7 @@ import { bumpWorktreeLastMessage } from '@/lib/last-message-utils'
 import { snapshotTokenBaseline } from '@/lib/token-baselines'
 import { unwrapEnvelope } from '@/lib/ipc-envelope'
 import { moveWorktreeTicketsToMerged } from '@/lib/pr-merge-ticket-move'
+import { buildPullRequestUrl, type GitForge } from '@shared/git-forge'
 import { systemApi } from '@/api/system-api'
 import { opencodeApi } from '@/api/opencode-api'
 import { dbApi } from '@/api/db-api'
@@ -38,6 +39,10 @@ interface LifecycleActions {
   hasAttachedPR: boolean
   prLiveState: { state?: string; title?: string } | null
   isGitHub: boolean
+  /** PR host of this worktree's remote ('github' | 'gitlab'), null when unsupported. */
+  forge: GitForge | null
+  /** True when the remote supports Hive's PR flows (GitHub or GitLab). */
+  supportsPR: boolean
   isMergingPR: boolean
   isArchiving: boolean
   branchInfo: { name?: string; tracking?: string | null } | null
@@ -131,6 +136,8 @@ export function useLifecycleActions(worktreeId: string | null): LifecycleActions
 
   // --- Derived state ---
   const isGitHub = remoteInfo?.isGitHub ?? false
+  const forge = remoteInfo?.forge ?? null
+  const supportsPR = remoteInfo?.supportsPR ?? false
   const attachedPR = storeAttachedPR ?? null
   const hasAttachedPR = !!storeAttachedPR
   const isCleanTree = !fileStatuses || fileStatuses.length === 0
@@ -379,7 +386,7 @@ export function useLifecycleActions(worktreeId: string | null): LifecycleActions
     (prNumber: number) => {
       if (!worktreeId || !remoteInfo?.url) return
       const cleanUrl = remoteInfo.url.replace(/\.git$/, '')
-      const prUrl = `${cleanUrl}/pull/${prNumber}`
+      const prUrl = buildPullRequestUrl(remoteInfo.url, prNumber) ?? `${cleanUrl}/pull/${prNumber}`
       useGitStore.getState().attachPR(worktreeId, prNumber, prUrl)
     },
     [worktreeId, remoteInfo?.url]
@@ -474,6 +481,8 @@ export function useLifecycleActions(worktreeId: string | null): LifecycleActions
       hasAttachedPR: false,
       prLiveState: null,
       isGitHub: false,
+      forge: null,
+      supportsPR: false,
       isMergingPR: false,
       isArchiving: false,
       branchInfo: null,
@@ -502,6 +511,8 @@ export function useLifecycleActions(worktreeId: string | null): LifecycleActions
     hasAttachedPR,
     prLiveState,
     isGitHub,
+    forge,
+    supportsPR,
     isMergingPR,
     isArchiving,
     branchInfo,

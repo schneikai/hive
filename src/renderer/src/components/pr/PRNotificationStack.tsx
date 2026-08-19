@@ -246,7 +246,7 @@ function PRNotificationCard({
             )}
           >
             <ExternalLink className="h-3 w-3" />
-            Open on GitHub
+            {/\/merge_requests\//.test(prUrl) ? 'Open on GitLab' : 'Open on GitHub'}
           </a>
         )}
         {showMergeButton && (

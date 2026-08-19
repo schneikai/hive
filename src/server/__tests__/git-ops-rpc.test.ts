@@ -1709,3 +1709,237 @@ describe('git ops RPC domain', () => {
     expect(process.send).not.toHaveBeenCalled()
   })
 })
+
+describe('git ops RPC domain — GitLab dispatch', () => {
+  const GITLAB_FORGE = {
+    forge: 'gitlab' as const,
+    remote: {
+      forge: 'gitlab' as const,
+      protocol: 'scp' as const,
+      host: 'gitlab.tedooo.com',
+      port: null,
+      path: 'backend/a-team'
+    },
+    remoteUrl: 'git@gitlab.tedooo.com:backend/a-team.git'
+  }
+  const resolveForge = async (): Promise<typeof GITLAB_FORGE> => GITLAB_FORGE
+
+  it('creates a merge request through glab for GitLab remotes', async () => {
+    const calls: Array<{ file: string; args: ReadonlyArray<string> }> = []
+    const runCommand = vi.fn(async (file: string, args: ReadonlyArray<string>) => {
+      calls.push({ file, args })
+      return {
+        stdout: 'https://gitlab.tedooo.com/backend/a-team/-/merge_requests/13\n',
+        stderr: ''
+      }
+    })
+    const service = makeLiveGitOpsRpcService({ runCommand, resolveForge })
+
+    const result = await Effect.runPromise(
+      service.createPR('/tmp/hive', 'origin/main', 'Add RPC', 'Body text')
+    )
+
+    expect(result).toEqual({
+      success: true,
+      url: 'https://gitlab.tedooo.com/backend/a-team/-/merge_requests/13',
+      number: 13
+    })
+    expect(calls).toEqual([
+      {
+        file: 'glab',
+        args: [
+          'mr',
+          'create',
+          '--target-branch',
+          'main',
+          '--title',
+          'Add RPC',
+          '--description',
+          'Body text',
+          '--yes'
+        ]
+      }
+    ])
+  })
+
+  it('returns existing merge request details when glab reports a conflict', async () => {
+    const runCommand = vi.fn(async (file: string, args: ReadonlyArray<string>) => {
+      if (file === 'glab' && args[1] === 'create') {
+        throw Object.assign(new Error('exit status 1'), {
+          stderr:
+            'ERROR: 409 Conflict: Another open merge request already exists for this source branch: !4'
+        })
+      }
+      if (file === 'git') return { stdout: 'feat\n', stderr: '' }
+      return { stdout: '', stderr: '' }
+    })
+    const service = makeLiveGitOpsRpcService({ runCommand, resolveForge })
+
+    const result = await Effect.runPromise(
+      service.createPR('/tmp/hive', 'main', 'Add RPC', 'Body text')
+    )
+
+    expect(result.success).toBe(false)
+    expect(result.number).toBe(4)
+    expect(result.url).toBe('https://gitlab.tedooo.com/backend/a-team/-/merge_requests/4')
+  })
+
+  it('merges a merge request via glab and syncs the local target branch', async () => {
+    const calls: Array<{ file: string; args: ReadonlyArray<string> }> = []
+    const runCommand = vi.fn(async (file: string, args: ReadonlyArray<string>) => {
+      calls.push({ file, args })
+      if (file === 'glab' && args[1] === 'view') {
+        return {
+          stdout: JSON.stringify({ iid: 12, title: 'T', state: 'merged', target_branch: 'main' }),
+          stderr: ''
+        }
+      }
+      if (file === 'git' && args.join(' ') === 'worktree list --porcelain') {
+        return {
+          stdout: ['worktree /tmp/hive-main', 'HEAD abc123', 'branch refs/heads/main'].join('\n'),
+          stderr: ''
+        }
+      }
+      if (file === 'git' && args.join(' ') === 'branch --show-current') {
+        return { stdout: 'feature\n', stderr: '' }
+      }
+      return { stdout: '', stderr: '' }
+    })
+    const service = makeLiveGitOpsRpcService({ runCommand, resolveForge })
+
+    const result = await Effect.runPromise(service.prMerge('/tmp/hive-feature', 12))
+
+    expect(result).toEqual({ success: true })
+    expect(calls[0]).toEqual({
+      file: 'glab',
+      args: ['mr', 'merge', '12', '--yes', '--auto-merge=false']
+    })
+    expect(calls.some((c) => c.file === 'git' && c.args[0] === 'worktree')).toBe(true)
+    expect(calls.at(-1)).toEqual({ file: 'git', args: ['merge', 'feature'], cwd: undefined })
+  })
+
+  it('lists open merge requests via glab mr list', async () => {
+    const runCommand = vi.fn(async (file: string, args: ReadonlyArray<string>) => {
+      if (file === 'git') return { stdout: '', stderr: '' }
+      if (file === 'glab' && args[1] === 'list') {
+        return {
+          stdout: JSON.stringify([
+            {
+              iid: 5,
+              title: 'Five',
+              state: 'opened',
+              source_branch: 'f5',
+              author: { username: 'mor' }
+            }
+          ]),
+          stderr: ''
+        }
+      }
+      throw new Error(`unexpected ${file} ${args.join(' ')}`)
+    })
+    const service = makeLiveGitOpsRpcService({ runCommand, resolveForge })
+
+    await expect(Effect.runPromise(service.listPRs('/tmp/hive'))).resolves.toEqual({
+      success: true,
+      prs: [{ number: 5, title: 'Five', author: 'mor', headRefName: 'f5' }]
+    })
+  })
+
+  it('reads merge request state via glab mr view', async () => {
+    const runCommand = vi.fn(async () => ({
+      stdout: JSON.stringify({ iid: 12, title: 'The MR', state: 'opened' }),
+      stderr: ''
+    }))
+    const service = makeLiveGitOpsRpcService({ runCommand, resolveForge })
+
+    await expect(Effect.runPromise(service.getPRState('/tmp/hive', 12))).resolves.toEqual({
+      success: true,
+      state: 'OPEN',
+      title: 'The MR'
+    })
+  })
+
+  it('fetches merge request review comments via glab api graphql', async () => {
+    const runCommand = vi.fn(async (file: string, args: ReadonlyArray<string>) => {
+      expect(file).toBe('glab')
+      expect(args.slice(0, 2)).toEqual(['api', 'graphql'])
+      return {
+        stdout: JSON.stringify({
+          data: {
+            project: {
+              mergeRequest: {
+                targetBranch: 'main',
+                discussions: {
+                  pageInfo: { hasNextPage: false, endCursor: null },
+                  nodes: [
+                    {
+                      notes: {
+                        nodes: [
+                          {
+                            id: 'gid://gitlab/DiffNote/321',
+                            body: 'nit',
+                            bodyHtml: '<p>nit</p>',
+                            system: false,
+                            createdAt: '2026-08-19T10:00:00Z',
+                            updatedAt: '2026-08-19T10:00:00Z',
+                            author: { username: 'rev', avatarUrl: '/uploads/a.png' },
+                            position: {
+                              positionType: 'text',
+                              newPath: 'src/a.ts',
+                              oldPath: 'src/a.ts',
+                              newLine: 7,
+                              oldLine: null
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }),
+        stderr: ''
+      }
+    })
+    const service = makeLiveGitOpsRpcService({ runCommand, resolveForge })
+
+    const result = await Effect.runPromise(service.getPRReviewComments('/tmp/hive', 12))
+
+    expect(result.success).toBe(true)
+    expect(result.baseBranch).toBe('main')
+    expect(result.comments).toEqual([
+      {
+        id: 321,
+        body: 'nit',
+        bodyHTML: '<p>nit</p>',
+        path: 'src/a.ts',
+        line: 7,
+        originalLine: null,
+        side: 'RIGHT',
+        diffHunk: '',
+        user: { login: 'rev', avatarUrl: 'https://gitlab.tedooo.com/uploads/a.png' },
+        createdAt: '2026-08-19T10:00:00Z',
+        updatedAt: '2026-08-19T10:00:00Z',
+        inReplyToId: null,
+        pullRequestReviewId: null,
+        subjectType: 'line'
+      }
+    ])
+  })
+
+  it('reports glab-not-installed errors from listPRs', async () => {
+    const runCommand = vi.fn(async (file: string) => {
+      if (file === 'git') return { stdout: '', stderr: '' }
+      throw Object.assign(new Error('spawn glab ENOENT'), { code: 'ENOENT' })
+    })
+    const service = makeLiveGitOpsRpcService({ runCommand, resolveForge })
+
+    await expect(Effect.runPromise(service.listPRs('/tmp/hive'))).resolves.toEqual({
+      success: false,
+      prs: [],
+      error: 'GitLab CLI (glab) is not installed'
+    })
+  })
+})

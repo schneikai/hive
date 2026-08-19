@@ -5,6 +5,7 @@ import {
   type GitPushResult,
   type GitService
 } from './git-service'
+import { detectForge } from '@shared/git-forge'
 import { generatePRContent as defaultGeneratePRContent } from './pr-content-generator'
 import { createLogger } from './logger'
 
@@ -40,6 +41,7 @@ export interface GitServiceLike {
     title: string
     body: string
   }): Promise<{ success: boolean; url?: string; number?: number; error?: string }>
+  getRemoteUrl?(remote?: string): Promise<{ success: boolean; url: string | null }>
 }
 
 export interface CreatePrDeps {
@@ -90,6 +92,14 @@ export async function createPrFromWorktree(
       return { status: 'nothing' }
     }
 
+    let forge: 'github' | 'gitlab' | null = null
+    try {
+      const remote = await git.getRemoteUrl?.()
+      forge = detectForge(remote?.url)
+    } catch {
+      forge = null
+    }
+
     let title = ''
     let body = ''
     try {
@@ -100,7 +110,8 @@ export async function createPrFromWorktree(
         diffSummary: range.diffSummary,
         diffPatch: range.diffPatch,
         provider: 'claude-code',
-        cwd: input.worktreePath
+        cwd: input.worktreePath,
+        ...(forge ? { forge } : {})
       })
       title = content.title
       body = content.body
@@ -145,11 +156,19 @@ function friendly(error: unknown): string {
       message
     )
   ) {
-    return 'This worktree is not connected to a GitHub repository with a usable remote.'
+    return 'This worktree is not connected to a GitHub or GitLab repository with a usable remote.'
   }
 
   if (/github cli is not installed|gh: command not found|spawn gh enoent/i.test(message)) {
     return 'GitHub CLI is not installed or not in PATH.'
+  }
+
+  if (/gitlab cli \(glab\) is not installed|glab: command not found|spawn glab enoent/i.test(message)) {
+    return 'GitLab CLI (glab) is not installed or not in PATH.'
+  }
+
+  if (/glab auth login|none of the git remotes .* known gitlab host/i.test(message)) {
+    return message
   }
 
   if (/gh auth login|authentication required|not logged in|not authenticated/i.test(message)) {

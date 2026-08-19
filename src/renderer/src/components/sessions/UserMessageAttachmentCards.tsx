@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react'
 import { KanbanSquare, FileText, MessageSquareText, X } from 'lucide-react'
 import { ProviderIcon } from '@/components/ui/provider-icon'
+import { useGitStore } from '@/stores/useGitStore'
+import { useWorktreeStore } from '@/stores/useWorktreeStore'
 import type {
   ParsedTicket,
   ParsedPrComment,
@@ -25,6 +27,12 @@ export function UserMessageAttachmentCards({
   dataAttachments,
   diffComments
 }: UserMessageAttachmentCardsProps): React.JSX.Element | null {
+  // Forge of the selected worktree's remote — picks the GitLab icon for MR
+  // comment cards; historical messages always belong to the viewed worktree.
+  const selectedWorktreeId = useWorktreeStore((s) => s.selectedWorktreeId)
+  const prForge = useGitStore((s) =>
+    selectedWorktreeId ? (s.remoteInfo.get(selectedWorktreeId)?.forge ?? null) : null
+  )
   const [expandedImage, setExpandedImage] = useState<{ dataUrl: string; name: string } | null>(null)
   useGhosttySuppression('image-lightbox', expandedImage !== null)
 
@@ -85,7 +93,7 @@ export function UserMessageAttachmentCards({
               data-testid="parsed-pr-comment-card"
             >
               <div className="flex items-center gap-2">
-                <ProviderIcon provider="github" />
+                <ProviderIcon provider={prForge ?? 'github'} />
                 <span className="font-medium text-foreground truncate">{c.author}</span>
               </div>
               <span className="text-xs text-muted-foreground truncate">

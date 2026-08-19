@@ -398,7 +398,7 @@ describe('connection-pr', () => {
       expect(callsTo('gitOps.createPR')).toHaveLength(0)
       expect(callsTo('gitOps.push')).toHaveLength(0)
       expect(notifications()[0]).toMatchObject({ status: 'info', worktreeId: 'wt-a' })
-      expect(String(notifications()[0].message)).toContain('no GitHub remote')
+      expect(String(notifications()[0].message)).toContain('no GitHub or GitLab remote')
     })
 
     it('does nothing for members the user excluded', async () => {

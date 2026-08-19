@@ -19,6 +19,7 @@ import {
   Archive,
   Loader2,
   Github,
+  Gitlab,
   Upload,
   Lock,
   Plus,
@@ -1985,7 +1986,7 @@ function EditModeContent({
           )}
           {ticket.column === 'done' &&
             ticket.worktree_id &&
-            lifecycle.isGitHub &&
+            lifecycle.supportsPR &&
             lifecycle.hasAttachedPR &&
             lifecycle.prLiveState?.state !== 'MERGED' &&
             lifecycle.prLiveState?.state !== 'CLOSED' && (
@@ -3515,7 +3516,12 @@ function ReviewModeContent({
                 onClick={() => lifecycle.openPRInBrowser()}
                 className="inline-flex items-center gap-1 rounded-full bg-muted/40 px-2 py-0.5 text-[11px] font-medium text-muted-foreground hover:bg-muted/60 transition-colors"
               >
-                <Github className="h-3 w-3" />#{lifecycle.attachedPR.number}
+                {lifecycle.forge === 'gitlab' ? (
+                  <Gitlab className="h-3 w-3" />
+                ) : (
+                  <Github className="h-3 w-3" />
+                )}
+                #{lifecycle.attachedPR.number}
               </button>
             )}
             <JumpToSessionButton ticket={ticket} onClose={onClose} />
@@ -3597,7 +3603,7 @@ function ReviewModeContent({
           </Button>
         )}
         {ticket.worktree_id &&
-          lifecycle.isGitHub &&
+          lifecycle.supportsPR &&
           !lifecycle.hasAttachedPR &&
           (isCreatingPR ? (
             <Button type="button" variant="outline" className="gap-1.5" disabled>
@@ -3627,7 +3633,7 @@ function ReviewModeContent({
             </Button>
           ))}
         {ticket.worktree_id &&
-          lifecycle.isGitHub &&
+          lifecycle.supportsPR &&
           lifecycle.hasAttachedPR &&
           lifecycle.prLiveState?.state !== 'MERGED' &&
           lifecycle.prLiveState?.state !== 'CLOSED' && (

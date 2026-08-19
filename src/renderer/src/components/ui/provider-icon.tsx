@@ -1,4 +1,4 @@
-import { Github, type LucideIcon } from 'lucide-react'
+import { Github, Gitlab, type LucideIcon } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import jiraIcon from '@/assets/provider-icons/jira.svg'
 
@@ -17,6 +17,12 @@ const PROVIDER_CONFIG: Record<string, ProviderConfig> = {
     bg: 'bg-neutral-200 dark:bg-neutral-700',
     color: 'text-neutral-700 dark:text-neutral-200',
     label: 'GitHub',
+  },
+  gitlab: {
+    Icon: Gitlab,
+    bg: 'bg-orange-100 dark:bg-orange-950',
+    color: 'text-orange-600 dark:text-orange-400',
+    label: 'GitLab',
   },
   jira: {
     imgSrc: jiraIcon,
