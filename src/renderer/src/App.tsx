@@ -2,8 +2,10 @@ import { useEffect, useRef, useState } from 'react'
 import {
   isHiveTelemetryEnabled,
   markHiveOrgPolicySettled,
-  refreshHiveEnterpriseOrg
+  refreshHiveEnterpriseOrg,
+  reportHiveAppVersion
 } from '@/api/hive-enterprise/client'
+import { updaterApi } from '@/api/updater-api'
 import { AppLayout } from '@/components/layout'
 import { DesktopWindowEscapeChrome } from '@/components/layout/DesktopWindowEscapeChrome'
 import { ErrorBoundary } from '@/components/error'
@@ -43,6 +45,7 @@ function App(): React.JSX.Element {
     didRefreshHiveOrg.current = true
     void refreshHiveEnterpriseOrg().finally(markHiveOrgPolicySettled)
     void reportActiveAccountsSnapshot()
+    void updaterApi.getVersion().then(reportHiveAppVersion).catch(() => {})
   }, [hiveAuthToken, hiveOrganizationId, settingsLoading])
 
   if (!ready) return <DesktopWindowEscapeChrome boot />

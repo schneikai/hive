@@ -61,6 +61,8 @@ export type GqlMember = {
   __typename?: 'Member';
   email: Scalars['String']['output'];
   id: Scalars['InteractId']['output'];
+  lastAppVersion?: Maybe<Scalars['String']['output']>;
+  lastAppVersionAt?: Maybe<Scalars['String']['output']>;
   name?: Maybe<Scalars['String']['output']>;
   picture?: Maybe<Scalars['String']['output']>;
   role: GqlUserRole;
@@ -83,6 +85,7 @@ export type GqlMutation = {
   recordQuestionsAnswered: GqlQuestionAnsweredResult;
   removeMember: Scalars['Boolean']['output'];
   reportActiveAccounts: GqlReportActiveAccountsResult;
+  reportAppVersion: GqlPromptMutationResult;
   reportSessionUsage: GqlPromptMutationResult;
 };
 
@@ -131,6 +134,11 @@ export type GqlMutationRemoveMemberArgs = {
 
 export type GqlMutationReportActiveAccountsArgs = {
   accounts: Array<GqlActiveAccountInput>;
+};
+
+
+export type GqlMutationReportAppVersionArgs = {
+  version: Scalars['String']['input'];
 };
 
 
@@ -377,6 +385,26 @@ export type GqlHiveEnterpriseReportActiveAccountsMutation = (
     { __typename?: 'ReportActiveAccountsResult' }
     & Pick<
       GqlReportActiveAccountsResult,
+      | 'recorded'
+      | 'storePrompts'
+      | 'recordQuestions'
+      | 'forceBoardMode'
+      | 'minAppVersion'
+    >
+  ) }
+);
+
+export type GqlHiveEnterpriseReportAppVersionMutationVariables = Exact<{
+  version: Scalars['String']['input'];
+}>;
+
+
+export type GqlHiveEnterpriseReportAppVersionMutation = (
+  { __typename?: 'Mutation' }
+  & { reportAppVersion: (
+    { __typename?: 'PromptMutationResult' }
+    & Pick<
+      GqlPromptMutationResult,
       | 'recorded'
       | 'storePrompts'
       | 'recordQuestions'

@@ -65,6 +65,18 @@ export const ReportActiveAccountsDocument = /* GraphQL */ `
   }
 `
 
+export const ReportAppVersionDocument = /* GraphQL */ `
+  mutation HiveEnterpriseReportAppVersion($version: String!) {
+    reportAppVersion(version: $version) {
+      recorded
+      storePrompts
+      recordQuestions
+      forceBoardMode
+      minAppVersion
+    }
+  }
+`
+
 export const CreateAccountShareDocument = /* GraphQL */ `
   mutation HiveEnterpriseCreateAccountShare($provider: AccountProvider!, $encryptedPayload: String!) {
     createAccountShare(provider: $provider, encryptedPayload: $encryptedPayload) {
