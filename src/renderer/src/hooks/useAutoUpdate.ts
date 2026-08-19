@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import { toast } from '@/lib/toast'
 import { useSettingsStore } from '@/stores/useSettingsStore'
 import { useUpdateStore } from '@/stores/useUpdateStore'
+import { useForceUpdateStore } from '@/stores/useForceUpdateStore'
 import { updaterApi } from '@/api/updater-api'
 
 export function useAutoUpdate(): void {
@@ -15,8 +16,11 @@ export function useAutoUpdate(): void {
         const isManual = data.isManualCheck ?? false
 
         // Suppress for "Skip this version" — a legacy setting written by the
-        // removed toast UI; still respected, but nothing sets it anymore
-        if (skippedUpdateVersion === data.version && !isManual) return
+        // removed toast UI; still respected, but nothing sets it anymore.
+        // Never suppress while the org's forced update is enforcing: the
+        // blocking modal needs the available state to offer the download.
+        const forceUpdateActive = useForceUpdateStore.getState().requiredVersion !== null
+        if (skippedUpdateVersion === data.version && !isManual && !forceUpdateActive) return
 
         useUpdateStore.getState().setAvailable(data.version, { revealDismissed: isManual })
         if (isManual) {

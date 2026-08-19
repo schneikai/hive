@@ -142,6 +142,7 @@ export type GqlOrganization = {
   __typename?: 'Organization';
   forceBoardMode: Scalars['Boolean']['output'];
   id: Scalars['InteractId']['output'];
+  minAppVersion?: Maybe<Scalars['String']['output']>;
   name: Scalars['String']['output'];
   recordQuestions: Scalars['Boolean']['output'];
   storePrompts: Scalars['Boolean']['output'];
@@ -158,6 +159,7 @@ export type GqlPromptIdleInput = {
 export type GqlPromptMutationResult = {
   __typename?: 'PromptMutationResult';
   forceBoardMode: Scalars['Boolean']['output'];
+  minAppVersion?: Maybe<Scalars['String']['output']>;
   recordQuestions: Scalars['Boolean']['output'];
   recorded: Scalars['Boolean']['output'];
   storePrompts: Scalars['Boolean']['output'];
@@ -190,6 +192,7 @@ export type GqlPromptStartInput = {
 export type GqlPromptStartResult = {
   __typename?: 'PromptStartResult';
   forceBoardMode: Scalars['Boolean']['output'];
+  minAppVersion?: Maybe<Scalars['String']['output']>;
   promptId?: Maybe<Scalars['InteractId']['output']>;
   recordQuestions: Scalars['Boolean']['output'];
   recorded: Scalars['Boolean']['output'];
@@ -227,6 +230,7 @@ export type GqlQuestionAnsweredInput = {
 export type GqlQuestionAnsweredResult = {
   __typename?: 'QuestionAnsweredResult';
   forceBoardMode: Scalars['Boolean']['output'];
+  minAppVersion?: Maybe<Scalars['String']['output']>;
   recordQuestions: Scalars['Boolean']['output'];
   recorded: Scalars['Boolean']['output'];
   storePrompts: Scalars['Boolean']['output'];
@@ -235,6 +239,7 @@ export type GqlQuestionAnsweredResult = {
 export type GqlReportActiveAccountsResult = {
   __typename?: 'ReportActiveAccountsResult';
   forceBoardMode: Scalars['Boolean']['output'];
+  minAppVersion?: Maybe<Scalars['String']['output']>;
   recordQuestions: Scalars['Boolean']['output'];
   recorded: Scalars['Boolean']['output'];
   storePrompts: Scalars['Boolean']['output'];
@@ -294,6 +299,7 @@ export type GqlHiveEnterpriseMeQuery = (
         | 'storePrompts'
         | 'recordQuestions'
         | 'forceBoardMode'
+        | 'minAppVersion'
       >
     )> }
   )> }
@@ -315,6 +321,7 @@ export type GqlHiveEnterpriseRecordPromptStartMutation = (
       | 'storePrompts'
       | 'recordQuestions'
       | 'forceBoardMode'
+      | 'minAppVersion'
     >
   ) }
 );
@@ -334,6 +341,7 @@ export type GqlHiveEnterpriseRecordPromptIdleMutation = (
       | 'storePrompts'
       | 'recordQuestions'
       | 'forceBoardMode'
+      | 'minAppVersion'
     >
   ) }
 );
@@ -353,6 +361,7 @@ export type GqlHiveEnterpriseRecordQuestionsAnsweredMutation = (
       | 'storePrompts'
       | 'recordQuestions'
       | 'forceBoardMode'
+      | 'minAppVersion'
     >
   ) }
 );
@@ -372,6 +381,7 @@ export type GqlHiveEnterpriseReportActiveAccountsMutation = (
       | 'storePrompts'
       | 'recordQuestions'
       | 'forceBoardMode'
+      | 'minAppVersion'
     >
   ) }
 );

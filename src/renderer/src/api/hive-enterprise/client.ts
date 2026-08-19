@@ -1,5 +1,6 @@
 import { GraphQLClient } from 'graphql-request'
 import { useSettingsStore, type AppSettings } from '@/stores/useSettingsStore'
+import { compareAppVersions } from '@/lib/version-compare'
 import {
   CreateAccountShareDocument,
   ListAccountMembersDocument,
@@ -40,6 +41,35 @@ type ForceBoardModeSettings = TelemetryGateSettings &
  */
 export function isForceBoardMode(settings: ForceBoardModeSettings): boolean {
   return isHiveTelemetryEnabled(settings) && settings.hiveOrganizationForceBoardMode === true
+}
+
+type ForceUpdateSettings = TelemetryGateSettings &
+  Pick<AppSettings, 'hiveOrganizationMinAppVersion'>
+
+/**
+ * Org policy: the minimum app version members must run before continuing to
+ * use Hive. Null when not signed in to an organization or when the org does
+ * not enforce one — the token+orgId gate means logging out clears a stale
+ * policy, like the other org settings.
+ */
+export function requiredHiveMinAppVersion(settings: ForceUpdateSettings): string | null {
+  if (!isHiveTelemetryEnabled(settings)) return null
+  const minVersion = settings.hiveOrganizationMinAppVersion?.trim()
+  return minVersion ? minVersion : null
+}
+
+/**
+ * True when the org enforces a minimum app version and the running app is
+ * older than it. `currentVersion` is null until the updater RPC answers —
+ * treated as "not required" so enforcement never fires on unknown versions.
+ */
+export function isHiveUpdateRequired(
+  settings: ForceUpdateSettings,
+  currentVersion: string | null
+): boolean {
+  const minVersion = requiredHiveMinAppVersion(settings)
+  if (!minVersion || !currentVersion) return false
+  return compareAppVersions(currentVersion, minVersion) < 0
 }
 
 // Enforcement of org policy reads the locally persisted flag, which can be one
@@ -251,7 +281,8 @@ export async function completeHiveEnterpriseLogin(token: string): Promise<void> 
     hiveOrganizationName: me?.organization?.name ?? null,
     hiveOrganizationStorePrompts: me?.organization?.storePrompts ?? true,
     hiveOrganizationRecordQuestions: me?.organization?.recordQuestions ?? true,
-    hiveOrganizationForceBoardMode: me?.organization?.forceBoardMode ?? false
+    hiveOrganizationForceBoardMode: me?.organization?.forceBoardMode ?? false,
+    hiveOrganizationMinAppVersion: me?.organization?.minAppVersion ?? null
   })
 }
 
@@ -261,6 +292,7 @@ async function reconcileOrgSettings(result: {
   storePrompts?: boolean | null
   recordQuestions?: boolean | null
   forceBoardMode?: boolean | null
+  minAppVersion?: string | null
 }): Promise<void> {
   const state = useSettingsStore.getState()
   const updates: Partial<AppSettings> = {}
@@ -282,6 +314,14 @@ async function reconcileOrgSettings(result: {
   ) {
     updates.hiveOrganizationForceBoardMode = result.forceBoardMode
   }
+  // Absent (old server) is not the same as null (policy cleared) — only
+  // reconcile when the server actually sent the field.
+  if (
+    result.minAppVersion !== undefined &&
+    (result.minAppVersion ?? null) !== state.hiveOrganizationMinAppVersion
+  ) {
+    updates.hiveOrganizationMinAppVersion = result.minAppVersion ?? null
+  }
   if (Object.keys(updates).length > 0) {
     await useSettingsStore.getState().updateSettings(updates)
   }
@@ -298,7 +338,8 @@ export async function refreshHiveEnterpriseOrg(): Promise<void> {
       hiveOrganizationName: me?.organization?.name ?? null,
       hiveOrganizationStorePrompts: me?.organization?.storePrompts ?? true,
       hiveOrganizationRecordQuestions: me?.organization?.recordQuestions ?? true,
-      hiveOrganizationForceBoardMode: me?.organization?.forceBoardMode ?? false
+      hiveOrganizationForceBoardMode: me?.organization?.forceBoardMode ?? false,
+      hiveOrganizationMinAppVersion: me?.organization?.minAppVersion ?? null
     })
   } catch (error) {
     console.warn('[HiveEnterprise] org refresh failed:', error)

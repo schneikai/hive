@@ -174,6 +174,7 @@ export interface AppSettings {
   hiveOrganizationStorePrompts: boolean
   hiveOrganizationRecordQuestions: boolean
   hiveOrganizationForceBoardMode: boolean
+  hiveOrganizationMinAppVersion: string | null
 
   // Tips
   tipsEnabled: boolean
@@ -274,6 +275,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   hiveOrganizationStorePrompts: true,
   hiveOrganizationRecordQuestions: true,
   hiveOrganizationForceBoardMode: false,
+  hiveOrganizationMinAppVersion: null,
   tipsEnabled: true,
   telegramConfig: null,
   teleport: null,
@@ -487,6 +489,7 @@ function extractSettings(state: SettingsState): AppSettings {
     hiveOrganizationStorePrompts: state.hiveOrganizationStorePrompts,
     hiveOrganizationRecordQuestions: state.hiveOrganizationRecordQuestions,
     hiveOrganizationForceBoardMode: state.hiveOrganizationForceBoardMode,
+    hiveOrganizationMinAppVersion: state.hiveOrganizationMinAppVersion,
     tipsEnabled: state.tipsEnabled,
     telegramConfig: null,
     teleport: state.teleport,
@@ -858,6 +861,7 @@ export const useSettingsStore = create<SettingsState>()(
         hiveOrganizationStorePrompts: state.hiveOrganizationStorePrompts,
         hiveOrganizationRecordQuestions: state.hiveOrganizationRecordQuestions,
         hiveOrganizationForceBoardMode: state.hiveOrganizationForceBoardMode,
+        hiveOrganizationMinAppVersion: state.hiveOrganizationMinAppVersion,
         tipsEnabled: state.tipsEnabled,
         pet: state.pet,
         environmentVariables: state.environmentVariables,

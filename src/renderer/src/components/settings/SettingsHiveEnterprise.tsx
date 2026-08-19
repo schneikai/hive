@@ -28,7 +28,8 @@ export function SettingsHiveEnterprise(): React.JSX.Element {
         hiveOrganizationName: me?.organization?.name ?? null,
         hiveOrganizationStorePrompts: me?.organization?.storePrompts ?? true,
         hiveOrganizationRecordQuestions: me?.organization?.recordQuestions ?? true,
-        hiveOrganizationForceBoardMode: me?.organization?.forceBoardMode ?? false
+        hiveOrganizationForceBoardMode: me?.organization?.forceBoardMode ?? false,
+        hiveOrganizationMinAppVersion: me?.organization?.minAppVersion ?? null
       })
       toast.success('Hive Enterprise account refreshed')
     } catch (error) {
