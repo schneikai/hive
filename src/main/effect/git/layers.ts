@@ -8,6 +8,8 @@ import { Effect, Either, Layer, Ref } from 'effect'
 import simpleGit, { type SimpleGit, type BranchSummary } from 'simple-git'
 
 import { getImageMimeType } from '@shared/types/file-utils'
+import { detectForgeRemote, extractPullRequestUrl, parsePullRequestNumber, pullRequestHeadRef } from '@shared/git-forge'
+import { glabCreateMergeRequest } from '../../services/gitlab-cli'
 import { selectUniqueBreedName } from '../../services/breed-names'
 import { normalizeWorktreePath } from '../../services/path-utils'
 import { classifyGitError } from './classifier'
@@ -831,7 +833,19 @@ const make = Effect.gen(function* () {
             const autoPull = options?.autoPull !== false
             const createScript = options?.worktreeCreateScript ?? null
             let pullResult = { success: true, updated: false }
-            if (prNumber != null) await git.raw(['fetch', 'origin', `pull/${prNumber}/head`])
+            if (prNumber != null) {
+              let headRef = pullRequestHeadRef('github', prNumber)
+              try {
+                const remotes = await git.getRemotes(true)
+                const origin = remotes.find((r) => r.name === 'origin') ?? remotes[0]
+                const originUrl = origin?.refs?.fetch || origin?.refs?.push || null
+                const forge = detectForgeRemote(originUrl)?.forge
+                if (forge) headRef = pullRequestHeadRef(forge, prNumber)
+              } catch {
+                // Fall back to the GitHub ref shape when remotes can't be read.
+              }
+              await git.raw(['fetch', 'origin', headRef])
+            }
             else if (autoPull) {
               try {
                 const remotes = await git.getRemotes()
@@ -1261,8 +1275,36 @@ const make = Effect.gen(function* () {
         if (invalidBranch(options.baseBranch)) {
           return Effect.succeed({ success: false as const, error: 'Invalid branch name' })
         }
-        return writeOp(repoPath, 'gh pr create', async () => {
+        return writeOp(repoPath, 'gh pr create', async (git) => {
           const baseBranch = options.baseBranch.replace(/^[^/]+\//, '')
+
+          let remoteUrl: string | null = null
+          try {
+            const remotes = await git.getRemotes(true)
+            const origin = remotes.find((r) => r.name === 'origin') ?? remotes[0]
+            remoteUrl = origin?.refs?.fetch || origin?.refs?.push || null
+          } catch {
+            remoteUrl = null
+          }
+          const forgeRemote = detectForgeRemote(remoteUrl)
+          if (forgeRemote?.forge === 'gitlab') {
+            const runCommand = (
+              file: string,
+              args: ReadonlyArray<string>,
+              opts: { readonly cwd: string; readonly maxBuffer?: number }
+            ): Promise<{ stdout: string; stderr: string }> =>
+              execFileAsync(file, [...args], { cwd: opts.cwd, ...(opts.maxBuffer ? { maxBuffer: opts.maxBuffer } : {}) })
+            const result = await glabCreateMergeRequest(
+              runCommand,
+              repoPath,
+              { remote: forgeRemote, remoteUrl },
+              { baseBranch, title: options.title, body: options.body }
+            )
+            return result.success
+              ? { success: true as const, url: result.url ?? '', number: result.number }
+              : { success: false as const, error: result.error ?? 'Merge request creation failed', url: result.url, number: result.number }
+          }
+
           const tempDir = mkdtempSync(join(tmpdir(), 'hive-gh-pr-'))
           const tempFile = join(tempDir, 'body.md')
           try {
@@ -1274,14 +1316,12 @@ const make = Effect.gen(function* () {
           } catch (error) {
             const message = error instanceof Error ? error.message : String(error)
             if (/already exists/i.test(message)) {
-              const urlMatch = message.match(/https:\/\/github\.com\/[^\s]+\/pull\/\d+/)
-              const prUrl = urlMatch?.[0]
-              const numMatch = prUrl?.match(/\/pull\/(\d+)/)
+              const prUrl = extractPullRequestUrl(message) ?? undefined
               return {
                 success: false as const,
                 error: message,
                 url: prUrl,
-                number: numMatch ? parseInt(numMatch[1], 10) : undefined
+                number: parsePullRequestNumber(prUrl) ?? undefined
               }
             }
             throw error
@@ -1296,7 +1336,9 @@ const make = Effect.gen(function* () {
           Effect.mapError((error) =>
             /spawn gh ENOENT|gh: command not found/i.test(error.stderrExcerpt ?? '')
               ? new GitUnknown({ ...error, stderrExcerpt: 'GitHub CLI is not installed or not in PATH' })
-              : error
+              : /spawn glab ENOENT|glab: command not found/i.test(error.stderrExcerpt ?? '')
+                ? new GitUnknown({ ...error, stderrExcerpt: 'GitLab CLI (glab) is not installed or not in PATH' })
+                : error
           )
         )
       }

@@ -31,6 +31,7 @@ import {
   createConnectionPRs,
   emitArchivePrompts,
   isPRWorthy,
+  memberSupportsPR,
   type MemberAssessment
 } from '@/lib/connection-pr'
 import { useGitStore, type GitFileStatus } from '@/stores/useGitStore'
@@ -118,7 +119,7 @@ export function ConnectionPRModal({ connectionId }: ConnectionPRModalProps): Rea
     setIncludeByWorktree((prev) => {
       const next = new Map(prev)
       for (const a of worthy) {
-        if (!next.has(a.worktreeId)) next.set(a.worktreeId, a.isGitHub)
+        if (!next.has(a.worktreeId)) next.set(a.worktreeId, memberSupportsPR(a))
       }
       return next
     })
@@ -196,7 +197,7 @@ export function ConnectionPRModal({ connectionId }: ConnectionPRModalProps): Rea
   useEffect(() => {
     if (phase !== 'form') return
     for (const assessment of eligible) {
-      if (!assessment.isGitHub) continue
+      if (!memberSupportsPR(assessment)) continue
       if (remoteBranchesByWorktree.has(assessment.worktreeId)) continue
       gitApi
         .listBranchesWithStatus(assessment.worktreePath)
@@ -293,7 +294,9 @@ export function ConnectionPRModal({ connectionId }: ConnectionPRModalProps): Rea
   // ── Create PRs (background — closes modal immediately) ──────────
   const includedCount = useMemo(
     () =>
-      eligible.filter((a) => a.isGitHub && (includeByWorktree.get(a.worktreeId) ?? a.isGitHub))
+      eligible.filter(
+        (a) => memberSupportsPR(a) && (includeByWorktree.get(a.worktreeId) ?? memberSupportsPR(a))
+      )
         .length,
     [eligible, includeByWorktree]
   )
@@ -305,12 +308,12 @@ export function ConnectionPRModal({ connectionId }: ConnectionPRModalProps): Rea
     const plans = eligible.map((assessment) => ({
       assessment,
       baseBranch: baseBranchByWorktree.get(assessment.worktreeId) ?? assessment.defaultBase,
-      include: includeByWorktree.get(assessment.worktreeId) ?? assessment.isGitHub
+      include: includeByWorktree.get(assessment.worktreeId) ?? memberSupportsPR(assessment)
     }))
 
     // Persist the selected target branches like the single-worktree flow
     for (const plan of plans) {
-      if (!plan.include || !plan.assessment.isGitHub) continue
+      if (!plan.include || !memberSupportsPR(plan.assessment)) continue
       const normalized = plan.baseBranch.startsWith('origin/')
         ? plan.baseBranch
         : `origin/${plan.baseBranch}`
@@ -525,7 +528,7 @@ export function ConnectionPRModal({ connectionId }: ConnectionPRModalProps): Rea
 
   // ── Render: Form phase ──────────────────────────────────────────
   const renderFormRow = (assessment: MemberAssessment): React.JSX.Element => {
-    const included = includeByWorktree.get(assessment.worktreeId) ?? assessment.isGitHub
+    const included = includeByWorktree.get(assessment.worktreeId) ?? memberSupportsPR(assessment)
     const baseBranch = baseBranchByWorktree.get(assessment.worktreeId) ?? assessment.defaultBase
     const rawOptions = remoteBranchesByWorktree.get(assessment.worktreeId) ?? []
     const options = rawOptions.includes(baseBranch) ? rawOptions : [baseBranch, ...rawOptions]
@@ -544,7 +547,7 @@ export function ConnectionPRModal({ connectionId }: ConnectionPRModalProps): Rea
         <div className="flex items-center gap-2 min-w-0">
           <Checkbox
             checked={included}
-            disabled={!assessment.isGitHub}
+            disabled={!memberSupportsPR(assessment)}
             onCheckedChange={(checked) =>
               setIncludeByWorktree((prev) =>
                 new Map(prev).set(assessment.worktreeId, checked === true)
@@ -562,8 +565,8 @@ export function ConnectionPRModal({ connectionId }: ConnectionPRModalProps): Rea
           </span>
         </div>
 
-        {!assessment.isGitHub ? (
-          <p className="text-xs text-amber-500">No GitHub remote — PR will be skipped</p>
+        {!memberSupportsPR(assessment) ? (
+          <p className="text-xs text-amber-500">No GitHub or GitLab remote — PR will be skipped</p>
         ) : assessment.attachedPR ? (
           <p className="text-xs text-blue-400">
             PR #{assessment.attachedPR.number} attached — will push updates

@@ -246,6 +246,8 @@ describe('Session 10: PR to GitHub Backend', () => {
       expect(info).toEqual({
         hasRemote: true,
         isGitHub: true,
+        forge: 'github',
+        supportsPR: true,
         url: 'git@github.com:org/repo.git'
       })
     })
@@ -263,11 +265,13 @@ describe('Session 10: PR to GitHub Backend', () => {
       expect(info).toEqual({
         hasRemote: true,
         isGitHub: true,
+        forge: 'github',
+        supportsPR: true,
         url: 'https://github.com/org/repo.git'
       })
     })
 
-    test('checkRemoteInfo detects non-GitHub remote', async () => {
+    test('checkRemoteInfo detects GitLab remote as PR-capable', async () => {
       gitApiMocks.getRemoteUrl.mockResolvedValue({
         success: true,
         url: 'https://gitlab.com/org/repo.git',
@@ -280,7 +284,28 @@ describe('Session 10: PR to GitHub Backend', () => {
       expect(info).toEqual({
         hasRemote: true,
         isGitHub: false,
+        forge: 'gitlab',
+        supportsPR: true,
         url: 'https://gitlab.com/org/repo.git'
+      })
+    })
+
+    test('checkRemoteInfo detects self-hosted GitLab from SSH URL', async () => {
+      gitApiMocks.getRemoteUrl.mockResolvedValue({
+        success: true,
+        url: 'git@gitlab.tedooo.com:backend/a-team.git',
+        remote: 'origin'
+      })
+
+      await useGitStore.getState().checkRemoteInfo('wt-gl', '/test/path')
+
+      const info = useGitStore.getState().remoteInfo.get('wt-gl')
+      expect(info).toEqual({
+        hasRemote: true,
+        isGitHub: false,
+        forge: 'gitlab',
+        supportsPR: true,
+        url: 'git@gitlab.tedooo.com:backend/a-team.git'
       })
     })
 
@@ -297,6 +322,8 @@ describe('Session 10: PR to GitHub Backend', () => {
       expect(info).toEqual({
         hasRemote: false,
         isGitHub: false,
+        forge: null,
+        supportsPR: false,
         url: null
       })
     })
@@ -310,6 +337,8 @@ describe('Session 10: PR to GitHub Backend', () => {
       expect(info).toEqual({
         hasRemote: false,
         isGitHub: false,
+        forge: null,
+        supportsPR: false,
         url: null
       })
     })
@@ -355,7 +384,7 @@ describe('Session 10: PR to GitHub Backend', () => {
       expect(useGitStore.getState().prTargetBranch.get('wt-1')).toBe('origin/release')
     })
 
-    test('checkRemoteInfo detects Bitbucket as non-GitHub', async () => {
+    test('checkRemoteInfo detects Bitbucket as unsupported for PRs', async () => {
       gitApiMocks.getRemoteUrl.mockResolvedValue({
         success: true,
         url: 'git@bitbucket.org:org/repo.git',
@@ -366,6 +395,8 @@ describe('Session 10: PR to GitHub Backend', () => {
 
       const info = useGitStore.getState().remoteInfo.get('wt-7')
       expect(info?.isGitHub).toBe(false)
+      expect(info?.forge).toBeNull()
+      expect(info?.supportsPR).toBe(false)
       expect(info?.hasRemote).toBe(true)
     })
   })

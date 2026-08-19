@@ -639,7 +639,7 @@ export const KanbanTicketCard = memo(function KanbanTicketCard({
         if (!worktrees) return false
         return worktrees.some((wt) => {
           const info = state.remoteInfo.get(wt.id)
-          return info?.hasRemote === true && info.isGitHub === true
+          return info?.hasRemote === true && info.supportsPR === true
         })
       },
       [ticket.project_id]

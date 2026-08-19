@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { detectForge, type GitForge } from '@shared/git-forge'
 import { useWorktreeStore } from './useWorktreeStore'
 import { useKanbanStore } from './useKanbanStore'
 import { dbApi } from '@/api/db-api'
@@ -38,6 +39,10 @@ interface GitBranchInfo {
 interface RemoteInfo {
   hasRemote: boolean
   isGitHub: boolean
+  /** PR host of the remote: github.com -> 'github', any other host containing "gitlab" -> 'gitlab'. */
+  forge: GitForge | null
+  /** True when Hive can drive PRs/MRs for this remote (GitHub or GitLab). */
+  supportsPR: boolean
   url: string | null
 }
 
@@ -468,9 +473,12 @@ export const useGitStore = create<GitStoreState>()((set, get) => ({
   checkRemoteInfo: async (worktreeId: string, worktreePath: string) => {
     try {
       const result = await gitApi.getRemoteUrl(worktreePath)
+      const forge = detectForge(result.url)
       const info: RemoteInfo = {
         hasRemote: !!result.url,
         isGitHub: result.url?.includes('github.com') ?? false,
+        forge,
+        supportsPR: forge !== null,
         url: result.url ?? null
       }
       set((state) => {
@@ -482,7 +490,13 @@ export const useGitStore = create<GitStoreState>()((set, get) => ({
       // Non-critical — default to no remote
       set((state) => {
         const newRemoteInfo = new Map(state.remoteInfo)
-        newRemoteInfo.set(worktreeId, { hasRemote: false, isGitHub: false, url: null })
+        newRemoteInfo.set(worktreeId, {
+          hasRemote: false,
+          isGitHub: false,
+          forge: null,
+          supportsPR: false,
+          url: null
+        })
         return { remoteInfo: newRemoteInfo }
       })
     }

@@ -15,6 +15,8 @@ interface PRReviewStoreState {
 
   // Attached comments for session input (persists across tab switches)
   attachedComments: PRReviewComment[]
+  /** Worktree the attached comments came from — lets the UI pick the forge icon. */
+  attachedFromWorktreeId: string | null
 
   // Actions
   fetchComments: (worktreeId: string, projectPath: string, prNumber: number) => Promise<void>
@@ -42,6 +44,7 @@ export const usePRReviewStore = create<PRReviewStoreState>((set, get) => ({
   selectedCommentIds: new Set(),
   hiddenReviewers: new Set(),
   attachedComments: [],
+  attachedFromWorktreeId: null,
 
   fetchComments: async (worktreeId, projectPath, prNumber) => {
     set((s) => {
@@ -150,6 +153,7 @@ export const usePRReviewStore = create<PRReviewStoreState>((set, get) => ({
 
     set({
       attachedComments: [...state.attachedComments, ...newAttachments],
+      attachedFromWorktreeId: worktreeId,
       selectedCommentIds: new Set()
     })
   },
@@ -161,7 +165,7 @@ export const usePRReviewStore = create<PRReviewStoreState>((set, get) => ({
   },
 
   clearAttachments: () => {
-    set({ attachedComments: [], selectedCommentIds: new Set() })
+    set({ attachedComments: [], selectedCommentIds: new Set(), attachedFromWorktreeId: null })
   },
 
   getVisibleComments: (worktreeId) => {

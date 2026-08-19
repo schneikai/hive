@@ -20812,9 +20812,8 @@ describe('renderer API cleanup', () => {
     expect(remoteInfoSource).toContain('hasRemote: !!result.url')
     expect(remoteInfoSource).toContain("isGitHub: result.url?.includes('github.com') ?? false")
     expect(remoteInfoSource).toContain('url: result.url ?? null')
-    expect(remoteInfoSource).toContain(
-      'newRemoteInfo.set(worktreeId, { hasRemote: false, isGitHub: false, url: null })'
-    )
+    expect(remoteInfoSource).toContain('hasRemote: false,')
+    expect(remoteInfoSource).toContain('supportsPR: false,')
     expect(remoteInfoSource).not.toContain('window.gitOps.getRemoteUrl')
     expect(remoteInfoSource).not.toContain('unwrapEnvelope(await')
   })

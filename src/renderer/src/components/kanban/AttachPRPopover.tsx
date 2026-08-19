@@ -8,6 +8,7 @@ import { useProjectStore } from '@/stores/useProjectStore'
 import { useGitStore } from '@/stores/useGitStore'
 import { useWorktreeStore } from '@/stores/useWorktreeStore'
 import type { KanbanTicket } from '../../../../main/db/types'
+import { buildPullRequestUrl } from '@shared/git-forge'
 import { gitApi } from '@/api/git-api'
 import { kanbanApi } from '@/api/kanban-api'
 
@@ -64,8 +65,8 @@ export function AttachPRPopover({ ticket, open, onOpenChange }: AttachPRPopoverP
     for (const wt of worktrees) {
       const info = useGitStore.getState().remoteInfo.get(wt.id)
       if (info?.url) {
-        const match = info.url.match(/github\.com[/:]([^/]+)\/([^/.]+)/)
-        if (match) return `https://github.com/${match[1]}/${match[2]}/pull/${prNumber}`
+        const url = buildPullRequestUrl(info.url, prNumber)
+        if (url) return url
       }
     }
     return ''

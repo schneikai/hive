@@ -1,6 +1,7 @@
 import { generateText } from './text-generation-router'
 import { createLogger } from './logger'
 import type { AgentSdkId } from './agent-sdk-types'
+import type { GitForge } from '@shared/git-forge'
 
 const log = createLogger({ component: 'PRContentGenerator' })
 
@@ -9,13 +10,17 @@ const MAX_DIFF_SUMMARY_LENGTH = 12 * 1024
 const MAX_DIFF_PATCH_LENGTH = 40 * 1024
 const MAX_TITLE_LENGTH = 256
 
-const SYSTEM_PROMPT = `You write GitHub pull request content.
+const buildSystemPrompt = (forge: GitForge): string => `You write ${
+  forge === 'gitlab' ? 'GitLab merge request' : 'GitHub pull request'
+} content.
 Return a JSON object with keys: title, body.
 Rules:
 - title should be concise and specific
 - body must be markdown with headings '## Summary' and '## Testing'
 - under Summary, provide short bullet points
 - under Testing, include bullet points with concrete checks or 'Not run'`
+
+const SYSTEM_PROMPT = buildSystemPrompt('github')
 
 export const PR_CONTENT_JSON_SCHEMA = JSON.stringify({
   type: 'object',
@@ -39,6 +44,8 @@ export interface GeneratePRContentOptions {
   /** Reasoning-effort level; falls back to the router's default ('low'). */
   effort?: string
   cwd: string
+  /** PR host the content is for — GitLab remotes get "merge request" wording. Defaults to GitHub. */
+  forge?: GitForge
 }
 
 export interface PRContent {
@@ -56,8 +63,18 @@ export interface PRContent {
  * Returns null if generation fails or the response cannot be parsed.
  */
 export async function generatePRContent(options: GeneratePRContentOptions): Promise<PRContent> {
-  const { baseBranch, headBranch, commitSummary, diffSummary, diffPatch, provider, model, effort, cwd } =
-    options
+  const {
+    baseBranch,
+    headBranch,
+    commitSummary,
+    diffSummary,
+    diffPatch,
+    provider,
+    model,
+    effort,
+    cwd,
+    forge = 'github'
+  } = options
 
   const truncatedCommitSummary = truncate(commitSummary, MAX_COMMIT_SUMMARY_LENGTH)
   const truncatedDiffSummary = truncate(diffSummary, MAX_DIFF_SUMMARY_LENGTH)
@@ -75,11 +92,11 @@ ${truncatedDiffSummary}
 Diff patch:
 ${truncatedDiffPatch}`
 
-  log.info('Generating PR content', { baseBranch, headBranch, provider, model, effort, cwd })
+  log.info('Generating PR content', { baseBranch, headBranch, provider, model, effort, cwd, forge })
 
   const response = await generateText(
     prompt,
-    SYSTEM_PROMPT,
+    forge === 'github' ? SYSTEM_PROMPT : buildSystemPrompt(forge),
     provider,
     {
       cwd,

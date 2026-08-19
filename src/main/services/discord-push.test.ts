@@ -127,7 +127,7 @@ describe('pushWorktree', () => {
     expect(result).toEqual({
       status: 'error',
       message:
-        'Failed to push branch: This worktree is not connected to a GitHub repository with a usable remote.'
+        'Failed to push branch: This worktree is not connected to a GitHub or GitLab repository with a usable remote.'
     })
   })
 })

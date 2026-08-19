@@ -1,3 +1,4 @@
+import type { GitForge } from '@shared/git-forge'
 import { gitApi } from '@/api/git-api'
 import { runCreatePRPipeline } from '@/lib/pr-pipeline'
 import type { PRContentProvider } from '@/lib/pr-content-provider'
@@ -9,6 +10,11 @@ import { useWorktreeStore } from '@/stores/useWorktreeStore'
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
+
+/** True when Hive can drive PRs for this member (GitHub or GitLab remote). */
+export function memberSupportsPR(assessment: MemberAssessment): boolean {
+  return assessment.supportsPR ?? assessment.isGitHub
+}
 
 /** The slice of a connection member the PR flow needs */
 export interface ConnectionPRMember {
@@ -28,6 +34,10 @@ export interface MemberAssessment {
   branchName: string
   isDefaultWorktree: boolean
   isGitHub: boolean
+  /** PR host of the member's remote; null when neither GitHub nor GitLab. */
+  forge?: GitForge | null
+  /** True when Hive can open PRs/MRs on this member's remote. */
+  supportsPR?: boolean
   hasUncommitted: boolean
   /** Commits ahead of defaultBase (`getRangeDiff`) — 0 on backend errors */
   commitsAhead: number
@@ -101,6 +111,8 @@ async function assessMember(member: ConnectionPRMember): Promise<MemberAssessmen
     branchName: member.worktree_branch,
     isDefaultWorktree,
     isGitHub: false,
+    forge: null,
+    supportsPR: false,
     hasUncommitted: false,
     commitsAhead: 0,
     trackingAhead: 0,
@@ -113,7 +125,10 @@ async function assessMember(member: ConnectionPRMember): Promise<MemberAssessmen
     if (!gitStore.remoteInfo.get(member.worktree_id)) {
       await gitStore.checkRemoteInfo(member.worktree_id, member.worktree_path)
     }
-    const isGitHub = useGitStore.getState().remoteInfo.get(member.worktree_id)?.isGitHub ?? false
+    const memberRemote = useGitStore.getState().remoteInfo.get(member.worktree_id)
+    const isGitHub = memberRemote?.isGitHub ?? false
+    const forge = memberRemote?.forge ?? null
+    const supportsPR = memberRemote?.supportsPR ?? false
 
     const [hasUncommitted, rangeDiff] = await Promise.all([
       gitApi.hasUncommittedChanges(member.worktree_path),
@@ -127,6 +142,8 @@ async function assessMember(member: ConnectionPRMember): Promise<MemberAssessmen
     return {
       ...base,
       isGitHub,
+      forge,
+      supportsPR,
       hasUncommitted,
       commitsAhead: rangeDiff.commitCount,
       trackingAhead
@@ -243,12 +260,12 @@ export async function createConnectionPRs(options: CreateConnectionPRsOptions): 
       const assessment = plan.assessment
       const prefix = `${assessment.projectName}: `
 
-      if (!assessment.isGitHub) {
+      if (!memberSupportsPR(assessment)) {
         // Committed in the commit phase, but there is no remote to PR against
         if (assessment.hasUncommitted || assessment.commitsAhead > 0) {
           show({
             status: 'info',
-            message: `${prefix}committed — no GitHub remote, PR skipped`,
+            message: `${prefix}committed — no GitHub or GitLab remote, PR skipped`,
             worktreeId: assessment.worktreeId
           })
         }

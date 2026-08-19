@@ -149,7 +149,7 @@ export function Header(): React.JSX.Element {
   )
   const isConnectionMode = !!selectedConnectionId && !selectedWorktreeId
 
-  // Pre-warm GitHub remote detection for connection members so the PR button
+  // Pre-warm remote-forge detection for connection members so the PR button
   // can appear as soon as a connection is selected
   useEffect(() => {
     if (!isConnectionMode || !selectedConnection) return
@@ -160,9 +160,9 @@ export function Header(): React.JSX.Element {
     }
   }, [isConnectionMode, selectedConnection])
 
-  const connectionHasGitHubMember = useGitStore((s) =>
+  const connectionHasPRMember = useGitStore((s) =>
     isConnectionMode && selectedConnection
-      ? selectedConnection.members.some((m) => s.remoteInfo.get(m.worktree_id)?.isGitHub)
+      ? selectedConnection.members.some((m) => s.remoteInfo.get(m.worktree_id)?.supportsPR)
       : false
   )
 
@@ -176,7 +176,7 @@ export function Header(): React.JSX.Element {
 
   // Destructure lifecycle state for template use
   const {
-    attachedPR, hasAttachedPR, prLiveState, isGitHub,
+    attachedPR, hasAttachedPR, prLiveState, supportsPR,
     isMergingPR, isArchiving: isArchivingWorktree, branchInfo, remoteBranches,
     prTargetBranch, reviewTargetBranch, isCleanTree
   } = lifecycle
@@ -402,7 +402,7 @@ export function Header(): React.JSX.Element {
         }
       >
         {/* Connection PR button — creates one PR per connected project with changes */}
-        {isConnectionMode && connectionHasGitHubMember && (
+        {isConnectionMode && connectionHasPRMember && (
           <Button
             size="sm"
             variant="outline"
@@ -420,7 +420,7 @@ export function Header(): React.JSX.Element {
           </Button>
         )}
         {!isConnectionMode &&
-          isGitHub &&
+          supportsPR &&
           hasAttachedPR &&
           prLiveState?.state === 'MERGED' &&
           !lifecycle.isDefault && (
@@ -450,7 +450,7 @@ export function Header(): React.JSX.Element {
             </Button>
           )}
         {!isConnectionMode &&
-          isGitHub &&
+          supportsPR &&
           hasAttachedPR &&
           prLiveState?.state !== 'MERGED' &&
           prLiveState?.state !== 'CLOSED' &&
@@ -570,7 +570,7 @@ export function Header(): React.JSX.Element {
           </>
         )}
         {/* PR Badge with Popover Picker — shown when a PR is attached */}
-        {!isConnectionMode && isGitHub && hasAttachedPR && (
+        {!isConnectionMode && supportsPR && hasAttachedPR && (
           <ContextMenu>
             <Popover open={prPickerOpen} onOpenChange={setPrPickerOpen}>
               <ContextMenuTrigger asChild>
@@ -678,7 +678,7 @@ export function Header(): React.JSX.Element {
           </ContextMenu>
         )}
         {/* Create PR button — shown when no PR attached */}
-        {!isConnectionMode && isGitHub && !hasAttachedPR && (
+        {!isConnectionMode && supportsPR && !hasAttachedPR && (
           <Popover open={prPickerOpen} onOpenChange={setPrPickerOpen}>
             <PopoverAnchor asChild>
               <Button

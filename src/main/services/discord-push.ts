@@ -78,7 +78,7 @@ function friendly(error: unknown): string {
       message
     )
   ) {
-    return 'This worktree is not connected to a GitHub repository with a usable remote.'
+    return 'This worktree is not connected to a GitHub or GitLab repository with a usable remote.'
   }
 
   return message
