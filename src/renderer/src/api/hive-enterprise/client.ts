@@ -8,7 +8,8 @@ import {
   RecordPromptIdleDocument,
   RecordPromptStartDocument,
   RecordQuestionsAnsweredDocument,
-  ReportActiveAccountsDocument
+  ReportActiveAccountsDocument,
+  ReportAppVersionDocument
 } from './operations'
 import type {
   GqlHiveEnterpriseListAccountMembersQuery,
@@ -20,7 +21,9 @@ import type {
   GqlHiveEnterpriseRecordQuestionsAnsweredMutation,
   GqlHiveEnterpriseRecordQuestionsAnsweredMutationVariables,
   GqlHiveEnterpriseReportActiveAccountsMutation,
-  GqlHiveEnterpriseReportActiveAccountsMutationVariables
+  GqlHiveEnterpriseReportActiveAccountsMutationVariables,
+  GqlHiveEnterpriseReportAppVersionMutation,
+  GqlHiveEnterpriseReportAppVersionMutationVariables
 } from './generated'
 
 type TelemetryGateSettings = Pick<AppSettings, 'hiveAuthToken' | 'hiveOrganizationId'>
@@ -245,6 +248,26 @@ export async function fetchHiveAccountMembers(): Promise<
   } catch (error) {
     console.warn('[HiveEnterprise] listAccountMembers failed:', error)
     return null
+  }
+}
+
+/**
+ * Report the running app version so the org's members page can show which
+ * version each member last launched. Fired once per launch (and after an org
+ * login) from App; fire-and-forget — a failure only loses this launch's
+ * report. Echoes org settings back like the other telemetry mutations.
+ */
+export async function reportHiveAppVersion(version: string): Promise<void> {
+  const settings = useSettingsStore.getState()
+  if (!isHiveTelemetryEnabled(settings)) return
+  try {
+    const data = await requestWithRefresh<
+      GqlHiveEnterpriseReportAppVersionMutation,
+      GqlHiveEnterpriseReportAppVersionMutationVariables
+    >(ReportAppVersionDocument, { version })
+    await reconcileOrgSettings(data.reportAppVersion)
+  } catch (error) {
+    console.warn('[HiveEnterprise] reportAppVersion failed:', error)
   }
 }
 
