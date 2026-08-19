@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { renderHook } from '@testing-library/react'
 import { useAutoUpdate } from '@/hooks/useAutoUpdate'
 import { useUpdateStore } from '@/stores/useUpdateStore'
+import { useForceUpdateStore } from '@/stores/useForceUpdateStore'
 import { toast } from '@/lib/toast'
 import type {
   UpdaterAvailablePayload,
@@ -90,6 +91,7 @@ describe('useAutoUpdate', () => {
       downloadFailed: false,
       dismissedVersion: null
     })
+    useForceUpdateStore.getState().clearEnforcement()
   })
 
   it('drives the update store through the full update lifecycle', () => {
@@ -121,6 +123,15 @@ describe('useAutoUpdate', () => {
       description: 'Download it from the button at the bottom of the sidebar',
       action: expect.objectContaining({ label: 'Download' })
     })
+  })
+
+  it('ignores a stale skipped version while a forced update is enforcing', () => {
+    renderHook(() => useAutoUpdate())
+    mockSkippedUpdateVersion = '1.3.0'
+    useForceUpdateStore.getState().openModal('1.3.0')
+
+    handlers.available?.({ version: '1.3.0' })
+    expect(useUpdateStore.getState().status).toBe('available')
   })
 
   it('reports the actual download state when a manual check re-announces', () => {

@@ -10,6 +10,7 @@ export const MeDocument = /* GraphQL */ `
         storePrompts
         recordQuestions
         forceBoardMode
+        minAppVersion
       }
     }
   }
@@ -23,6 +24,7 @@ export const RecordPromptStartDocument = /* GraphQL */ `
       storePrompts
       recordQuestions
       forceBoardMode
+      minAppVersion
     }
   }
 `
@@ -34,6 +36,7 @@ export const RecordPromptIdleDocument = /* GraphQL */ `
       storePrompts
       recordQuestions
       forceBoardMode
+      minAppVersion
     }
   }
 `
@@ -45,6 +48,7 @@ export const RecordQuestionsAnsweredDocument = /* GraphQL */ `
       storePrompts
       recordQuestions
       forceBoardMode
+      minAppVersion
     }
   }
 `
@@ -56,6 +60,7 @@ export const ReportActiveAccountsDocument = /* GraphQL */ `
       storePrompts
       recordQuestions
       forceBoardMode
+      minAppVersion
     }
   }
 `
