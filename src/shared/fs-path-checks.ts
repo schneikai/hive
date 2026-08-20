@@ -26,18 +26,24 @@ export function isGitRepository(path: string): boolean {
 }
 
 /**
- * The one spelling of a path we compare and store. realpath rather than resolve,
- * because the filesystem follows a symlink before a "..", so resolving lexically can
- * land on a different directory.
- *
- * Falls back to the lexical form when realpath fails, which happens on macOS when a
- * ".." follows a symlink, even though opening that path works. Callers should treat
- * the fallback as a best effort and still check the path exists.
+ * The one spelling of a path we compare and store, or null when the filesystem
+ * cannot resolve it. realpath rather than resolve, because the filesystem follows a
+ * symlink before a "..", so resolving lexically can land on a different directory.
  */
-export function canonicalPath(path: string): string {
+export function tryCanonicalPath(path: string): string | null {
   try {
     return realpathSync(path)
   } catch {
-    return resolve(path)
+    return null
   }
+}
+
+/**
+ * Canonical path, falling back to the lexical form when the filesystem cannot
+ * resolve it. Only for comparing two paths, where a best effort beats nothing.
+ * Anything that stores or opens the result should use tryCanonicalPath and handle
+ * the null, because the lexical form can name a different directory.
+ */
+export function canonicalPath(path: string): string {
+  return tryCanonicalPath(path) ?? resolve(path)
 }

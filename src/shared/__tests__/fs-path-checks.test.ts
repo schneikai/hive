@@ -3,7 +3,12 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
-import { isValidDirectory, isGitRepository, canonicalPath } from '../fs-path-checks'
+import {
+  isValidDirectory,
+  isGitRepository,
+  canonicalPath,
+  tryCanonicalPath
+} from '../fs-path-checks'
 
 // This is imported statically by three RPC domains (project-ops, github-ops) and by
 // main/services/project-ops, replacing what used to be three copied definitions.
@@ -73,8 +78,20 @@ describe('fs-path-checks', () => {
     })
 
     it('falls back to the lexical form when the path cannot be resolved', () => {
-      // Callers have to check the path exists, the fallback is only a best effort.
+      // Only safe for comparing. Anything that stores or opens a path uses
+      // tryCanonicalPath and handles the null.
       expect(canonicalPath(join(base, 'missing', '..', 'missing'))).toBe(join(base, 'missing'))
+    })
+  })
+
+  describe('tryCanonicalPath', () => {
+    it('resolves a real path', () => {
+      mkdirSync(join(base, 'repo'))
+      expect(tryCanonicalPath(join(base, 'repo', '..', 'repo'))).toBe(join(base, 'repo'))
+    })
+
+    it('returns null instead of guessing when the path cannot be resolved', () => {
+      expect(tryCanonicalPath(join(base, 'missing'))).toBeNull()
     })
   })
 })

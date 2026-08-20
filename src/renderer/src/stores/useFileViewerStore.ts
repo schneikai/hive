@@ -57,7 +57,11 @@ function diffTabKey(diff: { filePath: string; staged: boolean; compareBranch?: s
 export function diffTabAbsolutePath(diff: { worktreePath: string; filePath: string }): string {
   const separator = isWindows() ? '\\' : '/'
   const filePath = isWindows() ? diff.filePath.replace(/\//g, separator) : diff.filePath
-  return `${diff.worktreePath}${separator}${filePath}`
+  // A worktree at the filesystem root already ends in a separator, and path.join on
+  // the backend side does not double it either.
+  const { worktreePath } = diff
+  const prefix = worktreePath.endsWith(separator) ? worktreePath : worktreePath + separator
+  return `${prefix}${filePath}`
 }
 
 /** The file a tab shows, as an absolute path. Null for tabs that show no file. */
@@ -69,13 +73,16 @@ export function tabAbsolutePath(tab: TabEntry): string | null {
 
 /**
  * Same file? Stored paths are canonical and the backend hands us native paths, so
- * this only has to forgive the one thing that is still ambiguous: on Windows both
- * separators mean the same thing. Off Windows a backslash is a normal filename
- * character, so `a\b.ts` and `a/b.ts` are two different files there.
+ * this only has to forgive what Windows itself treats as insignificant: either
+ * separator, and the casing, including the drive letter.
+ *
+ * Neither applies off Windows, where a backslash is a normal filename character and
+ * `a.ts` and `A.ts` can be two different files.
  */
 export function isSameFilePath(a: string, b: string): boolean {
   if (a === b) return true
-  return isWindows() && a.replace(/\\/g, '/') === b.replace(/\\/g, '/')
+  if (!isWindows()) return false
+  return a.replace(/\\/g, '/').toLowerCase() === b.replace(/\\/g, '/').toLowerCase()
 }
 
 interface FileViewerState {

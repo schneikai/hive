@@ -10,7 +10,7 @@ import {
   getProjectIconDataUrl,
   removeProjectIcon
 } from './project-icons'
-import { isValidDirectory, isGitRepository, canonicalPath } from '../../shared/fs-path-checks'
+import { isValidDirectory, isGitRepository, tryCanonicalPath } from '../../shared/fs-path-checks'
 
 export {
   detectProjectLanguage,
@@ -56,14 +56,23 @@ export function validateProject(path: string): {
   name?: string
   error?: string
 } {
-  // Canonicalize first, then check. Everything downstream joins onto the stored path
-  // with path.join, which drops dot segments and repeated separators, so a raw path
-  // like /repo/../repo would stop matching the paths built from it. Checking after
-  // canonicalizing also means a path realpath could not resolve gets rejected here,
-  // rather than reaching the database.
-  const canonical = canonicalPath(path)
+  // Check the path as given first. realpath resolves ".." lexically on macOS, so for
+  // a path whose ".." crosses a symlink it can hand back a directory the filesystem
+  // would never open, and storing that would point the project at another repository.
+  // The filesystem's own answer for the original path is the thing to trust.
+  if (!isValidDirectory(path)) {
+    return {
+      success: false,
+      error: 'The selected path is not a valid directory.'
+    }
+  }
 
-  if (!isValidDirectory(canonical)) {
+  // Then canonicalize, because everything downstream joins onto the stored path with
+  // path.join, which drops dot segments and repeated separators, so a raw path like
+  // /repo/../repo would stop matching the paths built from it.
+  const canonical = tryCanonicalPath(path)
+
+  if (!canonical || !isValidDirectory(canonical)) {
     return {
       success: false,
       error: 'The selected path is not a valid directory.'
@@ -81,7 +90,9 @@ export function validateProject(path: string): {
   return {
     success: true,
     path: canonical,
-    name: basename(canonical)
+    // Name from what the user picked, not from the canonical path. Adding a repo
+    // through a named symlink should keep that name, not the symlink's target.
+    name: basename(path) || basename(canonical)
   }
 }
 

@@ -19,12 +19,34 @@ describe('diffTabAbsolutePath', () => {
       'C:\\wt\\src\\a.ts'
     )
   })
+
+  it('does not double the separator for a worktree at the filesystem root', () => {
+    // path.join gives the rows "/src/a.ts", so this has to match it.
+    isWindows.mockReturnValue(false)
+    expect(diffTabAbsolutePath({ worktreePath: '/', filePath: 'src/a.ts' })).toBe('/src/a.ts')
+
+    isWindows.mockReturnValue(true)
+    expect(diffTabAbsolutePath({ worktreePath: 'C:\\', filePath: 'src/a.ts' })).toBe(
+      'C:\\src\\a.ts'
+    )
+  })
 })
 
 describe('isSameFilePath', () => {
   it('accepts either separator for the same file on Windows', () => {
     isWindows.mockReturnValue(true)
     expect(isSameFilePath('C:\\wt\\src\\a.ts', 'C:\\wt/src/a.ts')).toBe(true)
+  })
+
+  it('ignores casing on Windows, including the drive letter', () => {
+    isWindows.mockReturnValue(true)
+    expect(isSameFilePath('C:\\wt\\src\\Foo.ts', 'c:\\wt\\src\\foo.ts')).toBe(true)
+  })
+
+  it('keeps casing significant off Windows', () => {
+    isWindows.mockReturnValue(false)
+    // Two different files on a case-sensitive volume.
+    expect(isSameFilePath('/wt/src/Foo.ts', '/wt/src/foo.ts')).toBe(false)
   })
 
   it('keeps backslash filenames distinct off Windows', () => {

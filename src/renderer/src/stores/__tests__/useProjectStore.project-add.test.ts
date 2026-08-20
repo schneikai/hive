@@ -91,6 +91,29 @@ describe('useProjectStore project adding', () => {
     expect(request).toHaveBeenCalledWith('db.project.getByPath', { path: '/repo/hive' })
   })
 
+  it('still finds a project stored under its pre-canonical path', async () => {
+    // Projects added before paths were canonicalized keep their original spelling,
+    // and re-adding one must not create a duplicate.
+    request.mockImplementation((method, params) => {
+      if (method === 'projectOps.validateProject') {
+        return Promise.resolve({ success: true, name: 'Hive', path: '/repo/hive' })
+      }
+      if (method === 'db.project.getByPath') {
+        const path = (params as { path: string }).path
+        return Promise.resolve(path === '/link/hive' ? existingProject : null)
+      }
+      return Promise.resolve(null)
+    })
+
+    await expect(useProjectStore.getState().addProject('/link/hive')).resolves.toEqual({
+      success: false,
+      error: 'This project has already been added to Hive.'
+    })
+
+    expect(request).toHaveBeenCalledWith('db.project.getByPath', { path: '/link/hive' })
+    expect(request).not.toHaveBeenCalledWith('db.project.create', expect.anything())
+  })
+
   it('creates new projects through dbApi after duplicate checks pass', async () => {
     request.mockImplementation((method) => {
       if (method === 'projectOps.validateProject') {

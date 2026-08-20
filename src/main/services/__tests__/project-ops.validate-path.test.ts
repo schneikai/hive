@@ -36,6 +36,15 @@ describe('validateProject path canonicalization', () => {
     expect(validateProject(join(base, 'link')).path).toBe(join(base, 'repo'))
   })
 
+  it('keeps the name the user picked when adding through a symlink', () => {
+    // /projects/customer-app -> /repos/monorepo should stay "customer-app".
+    symlinkSync(join(base, 'repo'), join(base, 'customer-app'))
+    const result = validateProject(join(base, 'customer-app'))
+
+    expect(result.name).toBe('customer-app')
+    expect(result.path).toBe(join(base, 'repo'))
+  })
+
   it('rejects a path whose ".." crosses a symlink, rather than storing a guess', () => {
     // Built by hand because path.join would collapse the ".." before the filesystem
     // sees it. On macOS realpath resolves such a path lexically and reports ENOENT,
@@ -45,6 +54,16 @@ describe('validateProject path canonicalization', () => {
     mkdirSync(join(base, 'repo', 'sibling', '.git'), { recursive: true })
 
     expect(validateProject(`${base}/inner/link/../repo/sibling`).success).toBe(false)
+  })
+
+  it('rejects rather than accepting a different repo the lexical path happens to hit', () => {
+    // inner/link points at repo, so the filesystem reads link/.. as base. Resolving
+    // it lexically instead lands on base/inner, and if a repo sits there the old
+    // fallback would have stored that unrelated repository.
+    mkdirSync(join(base, 'inner', 'decoy', '.git'), { recursive: true })
+    symlinkSync(join(base, 'repo'), join(base, 'inner', 'link'))
+
+    expect(validateProject(`${base}/inner/link/../decoy`).success).toBe(false)
   })
 
   it('leaves an already canonical path alone', () => {

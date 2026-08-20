@@ -138,9 +138,13 @@ export const useProjectStore = create<ProjectState>()(
             return { success: false, error: validation.error }
           }
 
-          // Check if project already exists, by the canonical path validation returned,
-          // so the same folder spelled differently is not added twice
-          const existingProject = await dbApi.project.getByPath<Project>(validation.path!)
+          // Check the canonical path, so the same folder spelled differently is not
+          // added twice, and the spelling as given, because projects added before
+          // paths were canonicalized are still stored under their original spelling.
+          const canonicalPath = validation.path!
+          const existingProject =
+            (await dbApi.project.getByPath<Project>(canonicalPath)) ??
+            (canonicalPath === path ? null : await dbApi.project.getByPath<Project>(path))
           if (existingProject) {
             return { success: false, error: 'This project has already been added to Hive.' }
           }
