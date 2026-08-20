@@ -19,6 +19,7 @@ import { Options, PermissionMode } from '@anthropic-ai/claude-agent-sdk'
 import { CommandFilterService, type CommandFilterSettings } from './command-filter-service'
 import { APP_SETTINGS_DB_KEY } from '@shared/types/settings'
 import type { OpenCodeStreamEvent } from '@shared/types/opencode'
+import type { ClaudeCliBackgroundWorkPayload } from '@shared/types/claude-cli-background-work'
 import { Cause, Exit } from 'effect'
 import {
   claudeAgentFacade,
@@ -39,6 +40,35 @@ import {
 } from './claude-abort'
 
 const log = createLogger({ component: 'ClaudeCodeImplementer' })
+
+/**
+ * How long the CLI may stay completely silent after a result that left
+ * background work running before Hive closes stdin anyway. Pure safety net:
+ * the CLI reports every change of its background-task set, so the normal path
+ * closes on the next result. Without the net, one lost report would keep the
+ * session busy and the CLI process alive forever.
+ */
+const BACKGROUND_WORK_SILENCE_TIMEOUT_MS = 600_000
+
+/**
+ * How long the CLI must stay quiet after a result before Hive closes stdin.
+ *
+ * A result is not always the end. The CLI starts a follow-up turn on its own
+ * when a background task finished mid-turn, too late to be folded into the
+ * running turn: its notification is queued and delivered as a fresh turn. That
+ * turn is already queued when the result lands, so it announces itself within
+ * tens of milliseconds. Waiting a moment tells "done" from "about to continue"
+ * without guessing at the queue.
+ */
+const CLOSE_AFTER_RESULT_QUIET_MS = 1_500
+
+/**
+ * How long a headless run waits for a client to answer a question, plan or
+ * permission request. Headless Hive still serves the web UI, so an attached
+ * browser client can answer, but with nothing attached the wait would never
+ * end and the session would sit dead with no sign of why.
+ */
+const HEADLESS_INTERACTION_TIMEOUT_MS = 300_000
 
 const CLAUDE_EFFORT_VARIANTS = { low: {}, medium: {}, high: {} }
 const CLAUDE_OPUS_EFFORT_VARIANTS = { low: {}, medium: {}, high: {}, xhigh: {}, max: {} }
@@ -106,12 +136,22 @@ interface RewindFilesResult {
 export interface PendingQuestionState {
   requestId: string
   questions: { question: string; header: string }[]
-  resolve: (response: { answers: string[][]; rejected?: boolean }) => void
+  resolve: (response: { answers: string[][]; rejected?: boolean; timedOut?: boolean }) => void
 }
 
 export interface PendingPlanApprovalState {
   requestId: string
   resolve: (response: { approved: boolean; feedback?: string }) => void
+}
+
+/**
+ * The stdin stream of one prompt turn. It yields the user message and then
+ * stays open: the CLI's permission channel runs over stdin, so closing it ends
+ * every later permission request with "AbortError: Stream closed".
+ */
+interface PromptInputStream {
+  readonly iterable: AsyncIterable<Record<string, unknown>>
+  readonly close: () => void
 }
 
 export interface ClaudeSessionState {
@@ -149,6 +189,14 @@ export interface ClaudeSessionState {
   titleDeferred: boolean
   /** Accumulated stderr output from the Claude Code process for the current prompt */
   stderrBuffer: string[]
+  /** Open stdin of the current prompt turn; closing it lets the CLI exit */
+  promptInput: PromptInputStream | null
+  /** Task ids the CLI currently reports as live background work */
+  liveBackgroundTasks: Set<string>
+  /** Close lined up after a result, cancelled if the CLI keeps talking */
+  pendingCloseTimer: NodeJS.Timeout | null
+  /** Safety net that closes stdin if background work never reports done */
+  backgroundWorkWatchdog: NodeJS.Timeout | null
 }
 
 export class ClaudeCodeImplementer implements AgentSdkImplementer {
@@ -186,6 +234,7 @@ export class ClaudeCodeImplementer implements AgentSdkImplementer {
         remember?: 'allow' | 'block'
         pattern?: string
         patterns?: string[]
+        timedOut?: boolean
       }) => void
       toolName: string
       input: Record<string, unknown>
@@ -193,6 +242,8 @@ export class ClaudeCodeImplementer implements AgentSdkImplementer {
       hiveSessionId: string
     }
   >()
+  /** True when Hive runs without a window (--headless / HIVE_HEADLESS=1) */
+  private headless = false
 
   setDatabaseService(db: DatabaseService): void {
     this.dbService = db
@@ -200,6 +251,10 @@ export class ClaudeCodeImplementer implements AgentSdkImplementer {
 
   setClaudeBinaryPath(path: string | null): void {
     this.claudeBinaryPath = path
+  }
+
+  setHeadless(headless: boolean): void {
+    this.headless = headless
   }
 
   // ── Lifecycle ────────────────────────────────────────────────────
@@ -229,7 +284,11 @@ export class ClaudeCodeImplementer implements AgentSdkImplementer {
       pendingFork: false,
       pendingResumeSessionAt: null,
       titleDeferred: false,
-      stderrBuffer: []
+      stderrBuffer: [],
+      promptInput: null,
+      liveBackgroundTasks: new Set(),
+      pendingCloseTimer: null,
+      backgroundWorkWatchdog: null
     }
     this.sessions.set(key, state)
 
@@ -282,7 +341,11 @@ export class ClaudeCodeImplementer implements AgentSdkImplementer {
       pendingFork: false,
       pendingResumeSessionAt: null,
       titleDeferred: false,
-      stderrBuffer: []
+      stderrBuffer: [],
+      promptInput: null,
+      liveBackgroundTasks: new Set(),
+      pendingCloseTimer: null,
+      backgroundWorkWatchdog: null
     }
     this.sessions.set(key, state)
 
@@ -298,6 +361,8 @@ export class ClaudeCodeImplementer implements AgentSdkImplementer {
       log.warn('Disconnect: session not found, ignoring', { worktreePath, agentSessionId })
       return
     }
+
+    this.closePromptInput(session, 'session disconnected')
 
     if (session.query) {
       try {
@@ -327,6 +392,7 @@ export class ClaudeCodeImplementer implements AgentSdkImplementer {
   async cleanup(): Promise<void> {
     log.info('Cleaning up all Claude Code sessions', { count: this.sessions.size })
     for (const [key, session] of this.sessions) {
+      this.closePromptInput(session, 'app cleanup')
       if (session.query) {
         try {
           session.query.close()
@@ -366,6 +432,11 @@ export class ClaudeCodeImplementer implements AgentSdkImplementer {
     if (!session) {
       throw new Error(`Prompt failed: session not found for ${worktreePath} / ${agentSessionId}`)
     }
+
+    // A previous turn can still hold the CLI open for background work. Each
+    // prompt gets its own query, so retire the old one first: two live
+    // processes on one session would both resume the same transcript.
+    await this.retirePreviousTurn(session)
 
     // Clear revert boundary — a new prompt invalidates prior undo state
     session.revertMessageID = null
@@ -588,16 +659,20 @@ export class ClaudeCodeImplementer implements AgentSdkImplementer {
         hasFileAttachments: !!contentBlocks
       })
 
-      // When file attachments are present, use AsyncIterable<SDKUserMessage> prompt path
-      // with proper Anthropic content blocks (base64 images/documents);
-      // otherwise use the plain string path (preserves all existing behavior).
-      const sdkPrompt = contentBlocks
-        ? this.createUserMessageIterable(contentBlocks, session.claudeSessionId)
-        : prompt
+      // File attachments travel as Anthropic content blocks (base64
+      // images/documents), everything else as one text block.
+      const promptInput = this.createPromptInputStream(
+        contentBlocks ?? prompt,
+        session.claudeSessionId
+      )
+      session.promptInput = promptInput
+      // The CLI reports background work per process, so start from empty.
+      session.liveBackgroundTasks = new Set()
 
-      const queryData = sdk.query({ prompt: sdkPrompt as never, options }) as AsyncIterable<
-        Record<string, unknown>
-      >
+      const queryData = sdk.query({
+        prompt: promptInput.iterable as never,
+        options
+      }) as AsyncIterable<Record<string, unknown>>
       session.pendingFork = false
       session.query = queryData as unknown as ClaudeQuery
 
@@ -620,6 +695,8 @@ export class ClaudeCodeImplementer implements AgentSdkImplementer {
             log.info('Prompt: aborted or superseded, breaking loop')
             return
           }
+
+          this.trackBackgroundWork(session, sdkMessage)
 
           const msgType = sdkMessage.type as string
 
@@ -972,6 +1049,7 @@ export class ClaudeCodeImplementer implements AgentSdkImplementer {
           // result-text emission for all subsequent non-streamed results.
           if (msgType === 'result') {
             hasStreamedContent = false
+            this.closePromptInputWhenIdle(session)
           }
         }
       })
@@ -1082,6 +1160,7 @@ export class ClaudeCodeImplementer implements AgentSdkImplementer {
           this.emitStatus(session.hiveSessionId, 'idle')
         } finally {
           if (ownsSession()) {
+            this.closePromptInput(session, 'turn finished')
             session.lastQuery = session.query
             session.query = null
           }
@@ -1132,9 +1211,42 @@ export class ClaudeCodeImplementer implements AgentSdkImplementer {
         })
       }
       this.emitStatus(session.hiveSessionId, 'idle')
+      this.closePromptInput(session, 'prompt failed to start')
       session.lastQuery = session.query
       session.query = null
       throw error
+    }
+  }
+
+  /**
+   * Shut down the turn that is still holding this session, if any. Only a turn
+   * whose background work outlived its result can still be here.
+   */
+  private async retirePreviousTurn(session: ClaudeSessionState): Promise<void> {
+    if (!session.promptInput && !session.query) return
+
+    log.info('Prompt: retiring the previous turn before starting a new one', {
+      hiveSessionId: session.hiveSessionId,
+      liveBackgroundTasks: [...session.liveBackgroundTasks]
+    })
+
+    this.closePromptInput(session, 'new prompt started')
+
+    if (session.subscription) {
+      await session.subscription.abort()
+      session.subscription = null
+    }
+
+    if (session.query) {
+      try {
+        session.query.close()
+      } catch {
+        log.warn('Prompt: query.close() on the previous turn threw, ignoring', {
+          hiveSessionId: session.hiveSessionId
+        })
+      }
+      session.lastQuery = session.query
+      session.query = null
     }
   }
 
@@ -1170,6 +1282,10 @@ export class ClaudeCodeImplementer implements AgentSdkImplementer {
     if (session.abortController) {
       session.abortController.abort()
     }
+
+    // Stdin can go now: the pending replies above are already flushed, and with
+    // it still open the CLI would idle instead of exiting.
+    this.closePromptInput(session, 'session aborted')
 
     const subscription = session.subscription
     if (subscription) {
@@ -2056,6 +2172,8 @@ export class ClaudeCodeImplementer implements AgentSdkImplementer {
     const sessionKey = this.getSessionKey(session.worktreePath, session.claudeSessionId)
     this.pendingPlanSessions.set(requestId, sessionKey)
 
+    let cancelHeadlessTimeout: () => void = () => {}
+
     // Block execution with a Promise that waits for user response
     const userResponse = await new Promise<{ approved: boolean; feedback?: string }>((resolve) => {
       session.pendingPlanApproval = { requestId, resolve }
@@ -2102,7 +2220,25 @@ export class ClaudeCodeImplementer implements AgentSdkImplementer {
         }
       }
       options.signal.addEventListener('abort', onAbort, { once: true })
+
+      cancelHeadlessTimeout = this.armHeadlessInteractionTimeout(
+        session,
+        'plan approval',
+        requestId,
+        () => {
+          if (session.pendingPlanApproval?.requestId !== requestId) return
+          session.pendingPlanApproval = null
+          this.pendingPlanSessions.delete(requestId)
+          this.sendToRenderer('opencode:stream', {
+            type: 'plan.resolved',
+            sessionId: session.hiveSessionId,
+            data: { approved: false, aborted: true }
+          })
+          resolve({ approved: false, feedback: headlessTimeoutMessage('plan approval') })
+        }
+      )
     })
+    cancelHeadlessTimeout()
 
     // Clean up tracking state
     session.pendingPlanApproval = null
@@ -2139,6 +2275,10 @@ export class ClaudeCodeImplementer implements AgentSdkImplementer {
     | { behavior: 'deny'; message: string }
   > {
     return async (toolName, input, options) => {
+      // A decision request proves the CLI is working, so never close stdin
+      // from under it: the answer travels back over that same stdin.
+      this.holdPromptInputOpen(session, `permission request for ${toolName}`)
+
       // Handle ExitPlanMode — blocks until user approves or rejects the plan
       if (toolName === 'ExitPlanMode') {
         return this.handleExitPlanMode(session, input, options)
@@ -2231,47 +2371,68 @@ export class ClaudeCodeImplementer implements AgentSdkImplementer {
       const sessionKey = this.getSessionKey(session.worktreePath, session.claudeSessionId)
       this.pendingQuestionSessions.set(requestId, sessionKey)
 
+      let cancelHeadlessTimeout: () => void = () => {}
+
       // Block execution with a Promise that waits for user response
-      const userResponse = await new Promise<{ answers: string[][]; rejected?: boolean }>(
-        (resolve) => {
-          session.pendingQuestion = {
-            requestId,
-            questions: sdkQuestions.map((q) => ({ question: q.question, header: q.header })),
-            resolve
-          }
-
-          // Emit question.asked event to renderer (matches OpenCode event format)
-          this.sendToRenderer('opencode:stream', {
-            type: 'question.asked',
-            sessionId: session.hiveSessionId,
-            data: questionRequest
-          })
-
-          log.info('canUseTool: emitted question.asked, waiting for response', {
-            requestId,
-            hiveSessionId: session.hiveSessionId
-          })
-
-          this.maybeNotifyUserFeedbackNeeded(session.hiveSessionId, 'question')
-
-          // If the session is aborted while waiting, auto-reject
-          const onAbort = (): void => {
-            if (session.pendingQuestion?.requestId === requestId) {
-              log.info('canUseTool: session aborted while question pending, auto-rejecting', {
-                requestId
-              })
-              session.pendingQuestion = null
-              this.pendingQuestionSessions.delete(requestId)
-              resolve({ answers: [], rejected: true })
-            }
-          }
-          options.signal.addEventListener('abort', onAbort, { once: true })
+      const userResponse = await new Promise<{
+        answers: string[][]
+        rejected?: boolean
+        timedOut?: boolean
+      }>((resolve) => {
+        session.pendingQuestion = {
+          requestId,
+          questions: sdkQuestions.map((q) => ({ question: q.question, header: q.header })),
+          resolve
         }
-      )
+
+        // Emit question.asked event to renderer (matches OpenCode event format)
+        this.sendToRenderer('opencode:stream', {
+          type: 'question.asked',
+          sessionId: session.hiveSessionId,
+          data: questionRequest
+        })
+
+        log.info('canUseTool: emitted question.asked, waiting for response', {
+          requestId,
+          hiveSessionId: session.hiveSessionId
+        })
+
+        this.maybeNotifyUserFeedbackNeeded(session.hiveSessionId, 'question')
+
+        // If the session is aborted while waiting, auto-reject
+        const onAbort = (): void => {
+          if (session.pendingQuestion?.requestId === requestId) {
+            log.info('canUseTool: session aborted while question pending, auto-rejecting', {
+              requestId
+            })
+            session.pendingQuestion = null
+            this.pendingQuestionSessions.delete(requestId)
+            resolve({ answers: [], rejected: true })
+          }
+        }
+        options.signal.addEventListener('abort', onAbort, { once: true })
+
+        cancelHeadlessTimeout = this.armHeadlessInteractionTimeout(
+          session,
+          'question',
+          requestId,
+          () => {
+            if (session.pendingQuestion?.requestId !== requestId) return
+            session.pendingQuestion = null
+            this.pendingQuestionSessions.delete(requestId)
+            resolve({ answers: [], timedOut: true })
+          }
+        )
+      })
+      cancelHeadlessTimeout()
 
       // Clean up tracking state
       session.pendingQuestion = null
       this.pendingQuestionSessions.delete(requestId)
+
+      if (userResponse.timedOut) {
+        return { behavior: 'deny' as const, message: headlessTimeoutMessage('question') }
+      }
 
       if (userResponse.rejected) {
         log.info('canUseTool: AskUserQuestion rejected by user', { requestId })
@@ -2361,12 +2522,16 @@ export class ClaudeCodeImplementer implements AgentSdkImplementer {
 
     this.maybeNotifyUserFeedbackNeeded(session.hiveSessionId, 'permission')
 
-    // Block execution with a Promise that waits for user response (no timeout, like questions)
+    let cancelHeadlessTimeout: () => void = () => {}
+
+    // Block execution with a Promise that waits for user response
+    // (only headless runs time out, see armHeadlessInteractionTimeout)
     const userResponse = await new Promise<{
       approved: boolean
       remember?: 'allow' | 'block'
       pattern?: string
       patterns?: string[]
+      timedOut?: boolean
     }>((resolve) => {
       this.pendingApprovals.set(requestId, {
         resolve: (response) => {
@@ -2402,10 +2567,31 @@ export class ClaudeCodeImplementer implements AgentSdkImplementer {
         }
       }
       options.signal.addEventListener('abort', onAbort, { once: true })
+
+      cancelHeadlessTimeout = this.armHeadlessInteractionTimeout(
+        session,
+        'command approval',
+        requestId,
+        () => {
+          if (!this.pendingApprovals.has(requestId)) return
+          this.sendToRenderer('opencode:stream', {
+            type: 'command.approval_replied',
+            sessionId: session.hiveSessionId,
+            data: { requestId, id: requestId, approved: false }
+          })
+          this.pendingApprovals.delete(requestId)
+          resolve({ approved: false, timedOut: true })
+        }
+      )
     })
+    cancelHeadlessTimeout()
 
     // Clean up tracking state
     this.pendingApprovals.delete(requestId)
+
+    if (userResponse.timedOut) {
+      return { behavior: 'deny' as const, message: headlessTimeoutMessage('command approval') }
+    }
 
     // Handle "remember" choice - update settings with user-selected pattern(s)
     if (userResponse.remember) {
@@ -3393,35 +3579,212 @@ export class ClaudeCodeImplementer implements AgentSdkImplementer {
   }
 
   /**
-   * Create an AsyncIterable that yields a single SDKUserMessage with the given content blocks.
-   * Used when the prompt contains file attachments that need structured content blocks
-   * instead of a plain text string.
+   * Build the stdin stream for one prompt turn: one SDKUserMessage, then the
+   * stream parks until close() is called.
+   *
+   * A plain string prompt would make the SDK run in single-turn mode and close
+   * stdin on the first result. Stdin also carries the permission channel, so
+   * every later decision request would fail with "AbortError: Stream closed",
+   * and background subagents keep asking long after the result. An iterable
+   * that simply ends is no better: the SDK closes stdin once it is exhausted.
    */
-  private createUserMessageIterable(
-    contentBlocks: Array<Record<string, unknown>>,
+  private createPromptInputStream(
+    content: string | Array<Record<string, unknown>>,
     sessionId: string
-  ): AsyncIterable<Record<string, unknown>> {
+  ): PromptInputStream {
     const message = {
       type: 'user' as const,
       message: {
         role: 'user' as const,
-        content: contentBlocks
+        content: typeof content === 'string' ? [{ type: 'text', text: content }] : content
       },
       parent_tool_use_id: null,
       session_id: sessionId
     }
 
-    return {
-      [Symbol.asyncIterator]() {
-        let done = false
-        return {
-          async next() {
-            if (done) return { value: undefined, done: true as const }
-            done = true
-            return { value: message, done: false as const }
-          }
-        }
-      }
+    let release: () => void = () => {}
+    const closed = new Promise<void>((resolve) => {
+      release = resolve
+    })
+
+    async function* stream(): AsyncGenerator<Record<string, unknown>> {
+      yield message
+      await closed
+    }
+
+    return { iterable: stream(), close: () => release() }
+  }
+
+  // ── Background work and stdin lifetime ───────────────────────────
+
+  /**
+   * Mirror the CLI's live background work into the session, and treat any
+   * output as proof that the CLI is not done: a close lined up after a result
+   * is called off and the silence watchdog starts over.
+   *
+   * `background_tasks_changed` carries the full live set on every membership
+   * change (replace semantics), so a single lost message cannot wedge the
+   * count. That is why the per-task start/stop events are not tracked. CLI
+   * builds that do not send it leave the set empty, so stdin closes on the
+   * result exactly as it did before.
+   */
+  private trackBackgroundWork(
+    session: ClaudeSessionState,
+    sdkMessage: Record<string, unknown>
+  ): void {
+    this.holdPromptInputOpen(session, 'CLI is still sending messages')
+
+    if (sdkMessage.type !== 'system' || sdkMessage.subtype !== 'background_tasks_changed') return
+
+    const tasks = (Array.isArray(sdkMessage.tasks) ? sdkMessage.tasks : []).filter(
+      (task): task is { task_id: string; task_type?: string } =>
+        typeof (task as { task_id?: unknown }).task_id === 'string' &&
+        (task as { task_id: string }).task_id.length > 0
+    )
+    session.liveBackgroundTasks = new Set(tasks.map((task) => task.task_id))
+
+    log.debug('Prompt: background work changed', {
+      hiveSessionId: session.hiveSessionId,
+      liveBackgroundTasks: [...session.liveBackgroundTasks]
+    })
+
+    // A background subagent writes to its own transcript, so between the result
+    // and its follow-up turn there is nothing to draw. Report the same counts
+    // the claude-cli hook path reports, so both feed one store and one set of
+    // indicators instead of the UI looking finished.
+    const isShell = (type?: string): boolean => !!type && /bash|shell/.test(type)
+    const isMonitor = (type?: string): boolean => !!type && /monitor/.test(type)
+    const work: Omit<ClaudeCliBackgroundWorkPayload, 'sessionId'> = {
+      runningShells: tasks.filter((t) => isShell(t.task_type)).length,
+      runningMonitors: tasks.filter((t) => isMonitor(t.task_type)).length,
+      runningSubagents: tasks.filter((t) => !isShell(t.task_type) && !isMonitor(t.task_type)).length
+    }
+    this.sendToRenderer('opencode:stream', {
+      type: 'session.background_work',
+      sessionId: session.hiveSessionId,
+      data: work
+    })
+  }
+
+  /**
+   * Decide what a result means for stdin.
+   *
+   * A result is not the end of the work. Background subagents outlive it and
+   * still need the permission channel, and the CLI itself may start a
+   * follow-up turn to deliver a background task's notification. So stdin only
+   * closes on a result that leaves no live background work and is followed by
+   * a moment of quiet.
+   */
+  private closePromptInputWhenIdle(session: ClaudeSessionState): void {
+    if (!session.promptInput) return
+
+    if (session.liveBackgroundTasks.size > 0) {
+      log.info('Prompt: result arrived while background work runs, keeping stdin open', {
+        hiveSessionId: session.hiveSessionId,
+        liveBackgroundTasks: [...session.liveBackgroundTasks]
+      })
+      this.armBackgroundWorkWatchdog(session)
+      return
+    }
+
+    this.clearBackgroundWorkWatchdog(session)
+    if (session.pendingCloseTimer) clearTimeout(session.pendingCloseTimer)
+    session.pendingCloseTimer = setTimeout(() => {
+      session.pendingCloseTimer = null
+      this.closePromptInput(session, 'result, then the CLI went quiet')
+    }, CLOSE_AFTER_RESULT_QUIET_MS)
+    session.pendingCloseTimer.unref?.()
+  }
+
+  /**
+   * Call off a close lined up after a result, because something proved the CLI
+   * is still working. Re-arms the silence watchdog so a turn that never ends
+   * cannot leave stdin open forever.
+   */
+  private holdPromptInputOpen(session: ClaudeSessionState, reason: string): void {
+    const closeWasPending = session.pendingCloseTimer !== null
+    if (closeWasPending) {
+      clearTimeout(session.pendingCloseTimer!)
+      session.pendingCloseTimer = null
+      log.info('Prompt: CLI kept working after the result, keeping stdin open', {
+        hiveSessionId: session.hiveSessionId,
+        reason
+      })
+    }
+    if (closeWasPending || session.backgroundWorkWatchdog) {
+      this.armBackgroundWorkWatchdog(session)
     }
   }
+
+  private closePromptInput(session: ClaudeSessionState, reason: string): void {
+    this.clearBackgroundWorkWatchdog(session)
+    if (session.pendingCloseTimer) {
+      clearTimeout(session.pendingCloseTimer)
+      session.pendingCloseTimer = null
+    }
+    if (!session.promptInput) return
+
+    log.info('Prompt: closing stdin to the CLI', {
+      hiveSessionId: session.hiveSessionId,
+      reason,
+      liveBackgroundTasks: [...session.liveBackgroundTasks]
+    })
+    session.promptInput.close()
+    session.promptInput = null
+  }
+
+  private armBackgroundWorkWatchdog(session: ClaudeSessionState): void {
+    this.clearBackgroundWorkWatchdog(session)
+    session.backgroundWorkWatchdog = setTimeout(() => {
+      session.backgroundWorkWatchdog = null
+      log.warn('Prompt: background work went silent, closing stdin anyway', {
+        hiveSessionId: session.hiveSessionId,
+        liveBackgroundTasks: [...session.liveBackgroundTasks],
+        silenceMs: BACKGROUND_WORK_SILENCE_TIMEOUT_MS
+      })
+      this.closePromptInput(session, 'background work silent for too long')
+    }, BACKGROUND_WORK_SILENCE_TIMEOUT_MS)
+    session.backgroundWorkWatchdog.unref?.()
+  }
+
+  private clearBackgroundWorkWatchdog(session: ClaudeSessionState): void {
+    if (!session.backgroundWorkWatchdog) return
+    clearTimeout(session.backgroundWorkWatchdog)
+    session.backgroundWorkWatchdog = null
+  }
+
+  /**
+   * Time-box a wait for a user decision when Hive runs headless. Returns a
+   * canceller, and is a no-op with a window attached: there a request may
+   * legitimately sit unanswered for hours.
+   */
+  private armHeadlessInteractionTimeout(
+    session: ClaudeSessionState,
+    kind: string,
+    requestId: string,
+    onTimeout: () => void
+  ): () => void {
+    if (!this.headless) return () => {}
+
+    const timer = setTimeout(() => {
+      log.error(
+        `Headless: no client answered the ${kind} request`,
+        new Error(`Headless ${kind} request timed out`),
+        {
+          hiveSessionId: session.hiveSessionId,
+          requestId,
+          timeoutMs: HEADLESS_INTERACTION_TIMEOUT_MS
+        }
+      )
+      onTimeout()
+    }, HEADLESS_INTERACTION_TIMEOUT_MS)
+    timer.unref?.()
+
+    return () => clearTimeout(timer)
+  }
+}
+
+function headlessTimeoutMessage(kind: string): string {
+  const minutes = Math.round(HEADLESS_INTERACTION_TIMEOUT_MS / 60_000)
+  return `No Hive client answered this ${kind} request within ${minutes} minutes. Hive runs headless, so there may be no user attached. Continue without it or stop and report what you need.`
 }
