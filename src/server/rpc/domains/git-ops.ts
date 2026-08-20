@@ -34,6 +34,10 @@ import {
 import type { EventBus } from '../../events/event-bus'
 import type { RpcHandler } from '../router'
 import { canonicalPath } from '../../../shared/fs-path-checks'
+import {
+  normalizeBranchDisplayName,
+  parseWorktreeForBranch
+} from '../../../shared/git-output'
 
 export interface GitFileStatusResult {
   readonly success: boolean
@@ -548,25 +552,7 @@ const parseNumstat = (line: string): GitDiffStatFile | null => {
   }
 }
 
-const parseWorktreeForBranch = (porcelainOutput: string, branchName: string): string | null => {
-  const blocks = porcelainOutput.trim().split('\n\n')
-  for (const block of blocks) {
-    const lines = block.split('\n')
-    let worktreePath = ''
-    let branch = ''
-    for (const line of lines) {
-      if (line.startsWith('worktree ')) worktreePath = line.slice('worktree '.length)
-      if (line.startsWith('branch refs/heads/')) branch = line.slice('branch refs/heads/'.length)
-    }
-    if (branch === branchName && worktreePath) return worktreePath
-  }
-  return null
-}
-
 const invalidBranch = (branch: string): boolean => !branch || branch.startsWith('-')
-
-const normalizeBranchDisplayName = (branchName: string): string =>
-  branchName.startsWith('remotes/') ? branchName.replace(/^remotes\//, '') : branchName
 
 const preserveRequestedProjectPath = (reportedPath: string, projectPath: string): string =>
   canonicalPath(reportedPath) === canonicalPath(projectPath) ? projectPath : reportedPath
