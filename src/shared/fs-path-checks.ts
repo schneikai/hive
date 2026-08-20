@@ -1,5 +1,5 @@
-import { existsSync, statSync } from 'node:fs'
-import { join } from 'node:path'
+import { existsSync, realpathSync, statSync } from 'node:fs'
+import { join, resolve } from 'node:path'
 
 /**
  * Sync fs checks shared by main and server project code. Kept Electron-free so the
@@ -22,5 +22,22 @@ export function isGitRepository(path: string): boolean {
     return existsSync(gitPath) && statSync(gitPath).isDirectory()
   } catch {
     return false
+  }
+}
+
+/**
+ * The one spelling of a path we compare and store. realpath rather than resolve,
+ * because the filesystem follows a symlink before a "..", so resolving lexically can
+ * land on a different directory.
+ *
+ * Falls back to the lexical form when realpath fails, which happens on macOS when a
+ * ".." follows a symlink, even though opening that path works. Callers should treat
+ * the fallback as a best effort and still check the path exists.
+ */
+export function canonicalPath(path: string): string {
+  try {
+    return realpathSync(path)
+  } catch {
+    return resolve(path)
   }
 }

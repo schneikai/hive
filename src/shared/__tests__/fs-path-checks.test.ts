@@ -1,9 +1,9 @@
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs'
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync, realpathSync, symlinkSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
-import { isValidDirectory, isGitRepository } from '../fs-path-checks'
+import { isValidDirectory, isGitRepository, canonicalPath } from '../fs-path-checks'
 
 // This is imported statically by three RPC domains (project-ops, github-ops) and by
 // main/services/project-ops, replacing what used to be three copied definitions.
@@ -11,7 +11,7 @@ describe('fs-path-checks', () => {
   let base: string
 
   beforeEach(() => {
-    base = mkdtempSync(join(tmpdir(), 'hive-fs-path-checks-'))
+    base = realpathSync(mkdtempSync(join(tmpdir(), 'hive-fs-path-checks-')))
   })
 
   afterEach(() => {
@@ -48,6 +48,33 @@ describe('fs-path-checks', () => {
       // A git worktree links back with a .git *file*, which is not a repo root itself.
       writeFileSync(join(base, '.git'), 'gitdir: /elsewhere')
       expect(isGitRepository(base)).toBe(false)
+    })
+  })
+
+  describe('canonicalPath', () => {
+    beforeEach(() => {
+      mkdirSync(join(base, 'repo'))
+    })
+
+    it('drops dot segments, repeated separators and a trailing separator', () => {
+      const expected = join(base, 'repo')
+      expect(canonicalPath(join(base, 'repo', '..', 'repo'))).toBe(expected)
+      expect(canonicalPath(`${base}//repo`)).toBe(expected)
+      expect(canonicalPath(`${base}/repo/`)).toBe(expected)
+    })
+
+    it('resolves a symlink to the real directory', () => {
+      symlinkSync(join(base, 'repo'), join(base, 'link'))
+      expect(canonicalPath(join(base, 'link'))).toBe(join(base, 'repo'))
+    })
+
+    it('leaves an already canonical path alone', () => {
+      expect(canonicalPath(join(base, 'repo'))).toBe(join(base, 'repo'))
+    })
+
+    it('falls back to the lexical form when the path cannot be resolved', () => {
+      // Callers have to check the path exists, the fallback is only a best effort.
+      expect(canonicalPath(join(base, 'missing', '..', 'missing'))).toBe(join(base, 'missing'))
     })
   })
 })

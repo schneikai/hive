@@ -1,6 +1,6 @@
 import { app } from 'electron'
-import { existsSync, writeFileSync, mkdirSync, unlinkSync, readdirSync, realpathSync } from 'fs'
-import { join, basename, extname, resolve } from 'path'
+import { existsSync, writeFileSync, mkdirSync, unlinkSync, readdirSync } from 'fs'
+import { join, basename, extname } from 'path'
 import { createLogger } from './logger'
 import { getDatabase } from '../db'
 import type { DatabaseService } from '../db/database'
@@ -10,7 +10,7 @@ import {
   getProjectIconDataUrl,
   removeProjectIcon
 } from './project-icons'
-import { isValidDirectory, isGitRepository } from '../../shared/fs-path-checks'
+import { isValidDirectory, isGitRepository, canonicalPath } from '../../shared/fs-path-checks'
 
 export {
   detectProjectLanguage,
@@ -56,10 +56,12 @@ export function validateProject(path: string): {
   name?: string
   error?: string
 } {
-  // Canonicalize first, then check. The checks join onto the path, and joining
-  // resolves dot segments lexically, which picks the wrong directory when a ".."
-  // follows a symlink.
-  const canonical = canonicalProjectPath(path)
+  // Canonicalize first, then check. Everything downstream joins onto the stored path
+  // with path.join, which drops dot segments and repeated separators, so a raw path
+  // like /repo/../repo would stop matching the paths built from it. Checking after
+  // canonicalizing also means a path realpath could not resolve gets rejected here,
+  // rather than reaching the database.
+  const canonical = canonicalPath(path)
 
   if (!isValidDirectory(canonical)) {
     return {
@@ -80,26 +82,6 @@ export function validateProject(path: string): {
     success: true,
     path: canonical,
     name: basename(canonical)
-  }
-}
-
-/**
- * The stored path has to be canonical, because everything downstream joins onto it
- * with path.join, which drops dot segments and repeated separators. A raw path like
- * /repo/../repo would then no longer match the paths built from it.
- *
- * realpath rather than resolve, because it follows symlinks the way the filesystem
- * does: for /link/../other the kernel resolves the link first, so the lexical answer
- * would point at a different directory.
- */
-function canonicalProjectPath(path: string): string {
-  try {
-    return realpathSync(path)
-  } catch {
-    // realpath can fail where opening the path works, for instance on macOS when a
-    // ".." follows a symlink. Fall back to the lexical form, which the checks below
-    // then reject, so a wrong path never reaches the database.
-    return resolve(path)
   }
 }
 
