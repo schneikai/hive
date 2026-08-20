@@ -47,8 +47,13 @@ const log = createLogger({ component: 'ClaudeCodeImplementer' })
  * the CLI reports every change of its background-task set, so the normal path
  * closes on the next result. Without the net, one lost report would keep the
  * session busy and the CLI process alive forever.
+ *
+ * Deliberately generous. Closing too early brings back the bug this whole
+ * mechanism exists to fix, and real sessions do go quiet for minutes at a time
+ * (the longest gap between SDK messages in a day of logs here was 406s), while
+ * closing too late only leaves a session busy that Stop can end at any time.
  */
-const BACKGROUND_WORK_SILENCE_TIMEOUT_MS = 600_000
+const BACKGROUND_WORK_SILENCE_TIMEOUT_MS = 1_800_000
 
 /**
  * How long the CLI must stay quiet after a result before Hive closes stdin.
@@ -1227,10 +1232,23 @@ export class ClaudeCodeImplementer implements AgentSdkImplementer {
 
     log.info('Prompt: retiring the previous turn before starting a new one', {
       hiveSessionId: session.hiveSessionId,
-      liveBackgroundTasks: [...session.liveBackgroundTasks]
+      liveBackgroundTasks: [...(session.liveBackgroundTasks ?? [])]
     })
 
+    // Reply to whatever the old turn was blocked on while its transport is
+    // still up, same reason as abort(): an unanswered request never resolves
+    // and its prompt would sit in the UI over the new turn.
+    this.denyPendingRequests(session, 'superseded by a new prompt')
+
+    // Hand ownership over before tearing anything down. The old finisher wakes
+    // from the interrupt below, and while it still holds this controller it
+    // passes ownsSession(), so it would publish idle over the turn that is
+    // starting and null out its query handle.
+    const retiredController = session.abortController
+    session.abortController = null
+
     this.closePromptInput(session, 'new prompt started')
+    retiredController?.abort()
 
     if (session.subscription) {
       await session.subscription.abort()
@@ -2420,6 +2438,14 @@ export class ClaudeCodeImplementer implements AgentSdkImplementer {
             if (session.pendingQuestion?.requestId !== requestId) return
             session.pendingQuestion = null
             this.pendingQuestionSessions.delete(requestId)
+            // question.rejected is what drops the prompt from the renderer's
+            // question store. Without it a late-arriving client still sees the
+            // question, answering it fails, and the session stays blocked.
+            this.sendToRenderer('opencode:stream', {
+              type: 'question.rejected',
+              sessionId: session.hiveSessionId,
+              data: { requestId, id: requestId }
+            })
             resolve({ answers: [], timedOut: true })
           }
         )
@@ -3722,6 +3748,11 @@ export class ClaudeCodeImplementer implements AgentSdkImplementer {
       clearTimeout(session.pendingCloseTimer)
       session.pendingCloseTimer = null
     }
+    // Closing stdin ends this CLI process, so nothing it reported as running is
+    // running any more. Report that before returning: the level signal is
+    // per-process and says nothing at startup, so a stale count would otherwise
+    // sit in the UI until the next task happens to start.
+    this.clearBackgroundWork(session)
     if (!session.promptInput) return
 
     log.info('Prompt: closing stdin to the CLI', {
@@ -3731,6 +3762,27 @@ export class ClaudeCodeImplementer implements AgentSdkImplementer {
     })
     session.promptInput.close()
     session.promptInput = null
+  }
+
+  /**
+   * Drop the session's background work and tell the renderer it is gone. No-op
+   * when nothing was running, so sessions whose CLI never reports background
+   * work never publish an event at all.
+   */
+  private clearBackgroundWork(session: ClaudeSessionState): void {
+    // Optional read: teardown also runs for sessions that never started a turn.
+    if (!session.liveBackgroundTasks?.size) return
+
+    log.info('Prompt: background work ended with the CLI process', {
+      hiveSessionId: session.hiveSessionId,
+      liveBackgroundTasks: [...session.liveBackgroundTasks]
+    })
+    session.liveBackgroundTasks = new Set()
+    this.sendToRenderer('opencode:stream', {
+      type: 'session.background_work',
+      sessionId: session.hiveSessionId,
+      data: { runningShells: 0, runningMonitors: 0, runningSubagents: 0 }
+    })
   }
 
   private armBackgroundWorkWatchdog(session: ClaudeSessionState): void {

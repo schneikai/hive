@@ -190,6 +190,78 @@ describe('ClaudeCodeImplementer – prompt stdin lifetime', () => {
     stream.endStream()
   })
 
+  it('reports background work as gone when the turn is torn down with work still live', async () => {
+    const { sessionId } = await impl.connect('/proj', 'hive-1')
+    const stream = createOpenQueryIterator()
+    mockQuery.mockReturnValue(stream.iterator)
+
+    await impl.prompt('/proj', sessionId, 'launch a background agent')
+    readPromptInput()
+
+    stream.emit(backgroundTasks('task-1'))
+    await vi.waitFor(() => {
+      expect((impl as any).getSession('/proj', 'sdk-1')?.liveBackgroundTasks.size).toBe(1)
+    })
+
+    // Stop kills the CLI process, so nothing it reported is running any more.
+    // Without a terminal zero the renderer keeps the indicator and the kanban
+    // badges forever: the store only drops the entry on all-zero counts.
+    await impl.abort('/proj', 'sdk-1')
+
+    const last = publishedEvents()
+      .filter((e) => e.type === 'session.background_work')
+      .pop()
+    expect(last.data).toEqual({
+      runningSubagents: 0,
+      runningShells: 0,
+      runningMonitors: 0
+    })
+    expect((impl as any).getSession('/proj', 'sdk-1')?.liveBackgroundTasks.size).toBe(0)
+
+    stream.endStream()
+  })
+
+  it('does not let a retired turn report idle over the prompt that replaced it', async () => {
+    const { sessionId } = await impl.connect('/proj', 'hive-1')
+    const first = createOpenQueryIterator()
+    mockQuery.mockReturnValue(first.iterator)
+
+    await impl.prompt('/proj', sessionId, 'launch a background agent')
+    first.emit(backgroundTasks('task-1'))
+    first.emit(result())
+    await vi.waitFor(() => {
+      expect((impl as any).getSession('/proj', 'sdk-1')?.liveBackgroundTasks.size).toBe(1)
+    })
+
+    // Ownership has to change hands before the old stream is torn down. If it
+    // does not, the retired finisher wakes from the interrupt still owning the
+    // session and reports idle over the turn that is starting. Record what the
+    // session held at the moment of teardown, which is when the finisher wakes.
+    const session = (impl as any).getSession('/proj', 'sdk-1')
+    const retiredController = session.abortController
+    let stillOwnedAtTeardown: boolean | null = null
+    first.iterator.return = vi.fn(async () => {
+      stillOwnedAtTeardown = session.abortController === retiredController
+      return { done: true, value: undefined }
+    })
+
+    const second = createOpenQueryIterator()
+    mockQuery.mockReturnValue(second.iterator)
+    await impl.prompt('/proj', 'sdk-1', 'a new prompt while it runs')
+    await new Promise((resolve) => setTimeout(resolve, 200))
+
+    expect(stillOwnedAtTeardown).toBe(false)
+    expect(retiredController.signal.aborted).toBe(true)
+
+    const statuses = publishedEvents()
+      .filter((e) => e.type === 'session.status')
+      .map((e) => e.statusPayload?.type)
+    expect(statuses[statuses.length - 1]).toBe('busy')
+
+    first.endStream()
+    second.endStream()
+  })
+
   it('reports live background work to the renderer, split by kind', async () => {
     const { sessionId } = await impl.connect('/proj', 'hive-1')
     const stream = createOpenQueryIterator()
