@@ -39,6 +39,24 @@ export interface ActiveDiff {
   prReviewWorktreeId?: string
 }
 
+function diffTabKey(diff: { filePath: string; staged: boolean; compareBranch?: string }): string {
+  return diff.compareBranch
+    ? `diff:${diff.filePath}:branch:${diff.compareBranch}`
+    : `diff:${diff.filePath}:${diff.staged ? 'staged' : 'unstaged'}`
+}
+
+/** A diff tab keeps its file path split in two, so only the store knows how to join it. */
+export function diffTabAbsolutePath(diff: { worktreePath: string; filePath: string }): string {
+  return `${diff.worktreePath}/${diff.filePath}`
+}
+
+/** The file a tab shows, as an absolute path. Null for tabs that show no file. */
+export function tabAbsolutePath(tab: TabEntry): string | null {
+  if (tab.type === 'file') return tab.path
+  if (tab.type === 'diff') return diffTabAbsolutePath(tab)
+  return null
+}
+
 interface FileViewerState {
   openFiles: Map<string, TabEntry>
   activeFilePath: string | null
@@ -209,9 +227,7 @@ export const useFileViewerStore = create<FileViewerState>((set, get) => ({
       set({ activeDiff: null })
       return
     }
-    const tabKey = diff.compareBranch
-      ? `diff:${diff.filePath}:branch:${diff.compareBranch}`
-      : `diff:${diff.filePath}:${diff.staged ? 'staged' : 'unstaged'}`
+    const tabKey = diffTabKey(diff)
     set((state) => {
       const openFiles = new Map(state.openFiles)
       openFiles.set(tabKey, {
