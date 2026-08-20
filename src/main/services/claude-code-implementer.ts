@@ -1224,14 +1224,28 @@ export class ClaudeCodeImplementer implements AgentSdkImplementer {
   }
 
   /**
+   * Reply to whatever the CLI is blocked on, and give those replies time to
+   * reach it. They go out over stdin asynchronously, so tearing the stream down
+   * first makes the CLI record "Tool permission request failed: AbortError:
+   * Stream closed" for the tool call instead of the denial we sent.
+   *
+   * Always call this before teardownStream().
+   */
+  private async denyAndFlushPendingRequests(
+    session: ClaudeSessionState,
+    reason: string
+  ): Promise<void> {
+    const denied = this.denyPendingRequests(session, reason)
+    if (denied === 0) return
+    await new Promise((resolve) => setTimeout(resolve, ABORT_REPLY_FLUSH_MS))
+  }
+
+  /**
    * Close stdin and tear the message stream down. Bounded, because a wedged
    * child process must not block the caller: the stop button has to stay
    * responsive, and a superseding prompt has to reach sdk.query().
    *
-   * Shared by both paths that end a turn. Reply to anything the CLI is blocked
-   * on (denyPendingRequests) before calling this: once the stream is gone the
-   * replies cannot reach the CLI, which is what makes it report
-   * "Tool permission request failed: AbortError: Stream closed".
+   * Shared by both paths that end a turn.
    */
   private async teardownStream(session: ClaudeSessionState, reason: string): Promise<void> {
     this.closePromptInput(session, reason)
@@ -1254,11 +1268,10 @@ export class ClaudeCodeImplementer implements AgentSdkImplementer {
    * whose background work outlived its result can still be here.
    *
    * Same shape as abort(): reply to pending requests, then tear the stream
-   * down. It differs on purpose in three places. It skips the graceful
-   * interrupt and the reply-flush wait, because a new prompt is waiting and the
-   * process is about to be killed regardless. It closes the query rather than
-   * only dropping the handle, so the old process cannot outlive the new one.
-   * And it hands ownership over first, which abort() must not do.
+   * down. It differs on purpose in two places. It skips the graceful interrupt,
+   * because a prompt is waiting and this process is being closed outright
+   * rather than asked to stop. And it hands ownership over first, which abort()
+   * must not do.
    */
   private async retirePreviousTurn(session: ClaudeSessionState): Promise<void> {
     if (!session.promptInput && !session.query) return
@@ -1268,7 +1281,7 @@ export class ClaudeCodeImplementer implements AgentSdkImplementer {
       liveBackgroundTasks: [...(session.liveBackgroundTasks ?? [])]
     })
 
-    this.denyPendingRequests(session, 'superseded by a new prompt')
+    await this.denyAndFlushPendingRequests(session, 'superseded by a new prompt')
 
     // Hand ownership over before tearing anything down. The old finisher wakes
     // from the teardown below, and while it still holds this controller it
@@ -1300,14 +1313,7 @@ export class ClaudeCodeImplementer implements AgentSdkImplementer {
       return false
     }
 
-    // Reply to whatever the CLI is blocked on *before* the transport goes away.
-    // Killing the stream with a permission request still in flight is what makes
-    // Claude report "Tool permission request failed: AbortError: Stream closed"
-    // as a failed tool call.
-    const denied = this.denyPendingRequests(session, 'abort')
-    if (denied > 0) {
-      await new Promise((resolve) => setTimeout(resolve, ABORT_REPLY_FLUSH_MS))
-    }
+    await this.denyAndFlushPendingRequests(session, 'abort')
 
     // Graceful interrupt first, while the stream is still alive. Every step is
     // bounded: a wedged child process must not keep the stop button spinning.
@@ -3798,10 +3804,31 @@ export class ClaudeCodeImplementer implements AgentSdkImplementer {
     })
   }
 
+  /** True while the CLI is blocked on a decision from a person. */
+  private hasPendingInteraction(session: ClaudeSessionState): boolean {
+    if (session.pendingQuestion || session.pendingPlanApproval) return true
+    for (const pending of this.pendingApprovals.values()) {
+      if (pending.hiveSessionId === session.hiveSessionId) return true
+    }
+    return false
+  }
+
   private armBackgroundWorkWatchdog(session: ClaudeSessionState): void {
     this.clearBackgroundWorkWatchdog(session)
     session.backgroundWorkWatchdog = setTimeout(() => {
       session.backgroundWorkWatchdog = null
+
+      // A request waiting on a person explains the silence, and with a window
+      // attached that wait is allowed to last hours. Closing stdin here would
+      // break the very request being waited on, so give it another window.
+      if (this.hasPendingInteraction(session)) {
+        log.info('Prompt: background work silent while a request waits on the user', {
+          hiveSessionId: session.hiveSessionId
+        })
+        this.armBackgroundWorkWatchdog(session)
+        return
+      }
+
       log.warn('Prompt: background work went silent, closing stdin anyway', {
         hiveSessionId: session.hiveSessionId,
         liveBackgroundTasks: [...session.liveBackgroundTasks],

@@ -262,6 +262,44 @@ describe('ClaudeCodeImplementer – prompt stdin lifetime', () => {
     second.endStream()
   })
 
+  it('holds stdin open past the silence watchdog while a request waits on the user', async () => {
+    const { sessionId } = await impl.connect('/proj', 'hive-1')
+    const stream = createOpenQueryIterator()
+    mockQuery.mockReturnValue(stream.iterator)
+
+    await impl.prompt('/proj', sessionId, 'launch a background agent')
+    const input = readPromptInput()
+
+    // Fake timers have to be installed before the watchdog is armed, or it is
+    // left on a real timer that fake time never reaches.
+    vi.useFakeTimers()
+    try {
+      stream.emit(backgroundTasks('task-1'))
+      stream.emit(result())
+      await vi.advanceTimersByTimeAsync(10)
+
+      const session = (impl as any).getSession('/proj', 'sdk-1')
+      expect(session.backgroundWorkWatchdog).toBeTruthy()
+
+      // The CLI is silent because it is waiting for an answer, not because it
+      // is wedged, and with a window attached that wait may last hours.
+      // Closing stdin here would break the very request being waited on.
+      session.pendingQuestion = { requestId: 'q-1', questions: [], resolve: vi.fn() }
+      await vi.advanceTimersByTimeAsync(45 * 60_000)
+      expect(input.isClosed()).toBe(false)
+      expect(session.backgroundWorkWatchdog).toBeTruthy()
+
+      // Once it is answered, the watchdog is free to end a silent turn again.
+      session.pendingQuestion = null
+      await vi.advanceTimersByTimeAsync(45 * 60_000)
+      expect(input.isClosed()).toBe(true)
+    } finally {
+      vi.useRealTimers()
+    }
+
+    stream.endStream()
+  })
+
   it('retires the previous turn in the same order the stop path uses', async () => {
     const { sessionId } = await impl.connect('/proj', 'hive-1')
     const first = createOpenQueryIterator()
