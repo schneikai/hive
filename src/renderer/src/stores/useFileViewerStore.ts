@@ -81,16 +81,33 @@ function comparableFilePath(path: string, windows: boolean): string {
   // Only Windows can spell a separator two ways: on macOS and Linux a backslash
   // is a normal filename character, so `a\b.ts` and `a/b.ts` differ there.
   const slashed = windows ? path.replace(/\\/g, '/') : path
-  const absolute = slashed.startsWith('/')
+
+  // Split off the part ".." must never climb past: the server and share of a UNC
+  // path, or a drive letter, which can sit right in front of a relative path as
+  // in C:foo. Without this, ".." would eat the root and paths stop matching.
+  let root = ''
+  let rest = slashed
+  if (windows) {
+    const unc = slashed.match(/^\/\/[^/]+\/[^/]+/)
+    if (unc) {
+      root = unc[0]
+      rest = slashed.slice(root.length)
+    } else if (/^[a-zA-Z]:/.test(slashed)) {
+      root = slashed.slice(0, 2)
+      rest = slashed.slice(2)
+    }
+  }
+
+  const absolute = rest.startsWith('/')
   const segments: string[] = []
 
-  for (const segment of slashed.split('/')) {
+  for (const segment of rest.split('/')) {
     if (segment === '' || segment === '.') continue
     if (segment === '..') {
       if (segments.length && segments[segments.length - 1] !== '..') {
         segments.pop()
-      } else if (!absolute) {
-        // A relative path keeps leading "..", an absolute one cannot go above root.
+      } else if (!absolute && !root) {
+        // Only a rootless relative path keeps a leading "..".
         segments.push('..')
       }
       continue
@@ -98,7 +115,7 @@ function comparableFilePath(path: string, windows: boolean): string {
     segments.push(segment)
   }
 
-  return (absolute ? '/' : '') + segments.join('/')
+  return root + (absolute ? '/' : '') + segments.join('/')
 }
 
 /**

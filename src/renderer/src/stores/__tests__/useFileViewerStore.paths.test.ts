@@ -68,6 +68,23 @@ describe('isSameFilePath', () => {
     expect(isSameFilePath('C:\\base\\..\\repo\\src\\a.ts', 'C:\\repo\\src\\a.ts')).toBe(true)
   })
 
+  it('never lets ".." climb past a Windows root', () => {
+    isWindows.mockReturnValue(true)
+    // path.join keeps the drive and the UNC share, so ".." must stop there.
+    expect(isSameFilePath('C:\\..\\repo\\src\\a.ts', 'C:\\repo\\src\\a.ts')).toBe(true)
+    expect(
+      isSameFilePath('\\\\srv\\share\\..\\repo\\src\\a.ts', '\\\\srv\\share\\repo\\src\\a.ts')
+    ).toBe(true)
+    // A drive letter can sit in front of a relative path, as in C:foo
+    expect(isSameFilePath('C:foo\\..\\bar\\src\\a.ts', 'C:bar\\src\\a.ts')).toBe(true)
+  })
+
+  it('keeps different Windows roots apart', () => {
+    isWindows.mockReturnValue(true)
+    expect(isSameFilePath('C:\\repo\\src\\a.ts', 'D:\\repo\\src\\a.ts')).toBe(false)
+    expect(isSameFilePath('\\\\srv\\one\\src\\a.ts', '\\\\srv\\two\\src\\a.ts')).toBe(false)
+  })
+
   it('does not treat a dot inside a name as a segment', () => {
     isWindows.mockReturnValue(false)
     expect(isSameFilePath('/tmp/repo./src/a.ts', '/tmp/repo/src/a.ts')).toBe(false)
