@@ -1250,8 +1250,17 @@ export class ClaudeCodeImplementer implements AgentSdkImplementer {
     this.closePromptInput(session, 'new prompt started')
     retiredController?.abort()
 
-    if (session.subscription) {
-      await session.subscription.abort()
+    // Bounded like the stop path: a wedged child process must not keep the new
+    // prompt from ever reaching sdk.query(). The query.close() below kills it
+    // either way.
+    const subscription = session.subscription
+    if (subscription) {
+      const closed = await runBoundedAbortStep(() => subscription.abort())
+      if (!closed) {
+        log.warn('Prompt: previous turn teardown did not settle in time', {
+          hiveSessionId: session.hiveSessionId
+        })
+      }
       session.subscription = null
     }
 

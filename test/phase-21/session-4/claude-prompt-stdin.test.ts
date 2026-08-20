@@ -262,6 +262,41 @@ describe('ClaudeCodeImplementer – prompt stdin lifetime', () => {
     second.endStream()
   })
 
+  it('starts the new prompt even when the retired turn refuses to tear down', async () => {
+    const { sessionId } = await impl.connect('/proj', 'hive-1')
+    const first = createOpenQueryIterator()
+    mockQuery.mockReturnValue(first.iterator)
+
+    await impl.prompt('/proj', sessionId, 'launch a background agent')
+    first.emit(backgroundTasks('task-1'))
+    first.emit(result())
+    await vi.waitFor(() => {
+      expect((impl as any).getSession('/proj', 'sdk-1')?.liveBackgroundTasks.size).toBe(1)
+    })
+
+    // A wedged child process must not stop the replacement prompt from being
+    // dispatched, the same reason the stop path bounds every teardown step.
+    const session = (impl as any).getSession('/proj', 'sdk-1')
+    session.subscription = { abort: vi.fn(() => new Promise(() => {})), awaitDone: vi.fn() }
+
+    const second = createOpenQueryIterator()
+    mockQuery.mockReturnValue(second.iterator)
+
+    vi.useFakeTimers()
+    try {
+      const pending = impl.prompt('/proj', 'sdk-1', 'a new prompt while it runs')
+      await vi.advanceTimersByTimeAsync(10_000)
+      await expect(pending).resolves.toBeUndefined()
+    } finally {
+      vi.useRealTimers()
+    }
+
+    expect(mockQuery).toHaveBeenCalledTimes(2)
+
+    first.endStream()
+    second.endStream()
+  })
+
   it('reports live background work to the renderer, split by kind', async () => {
     const { sessionId } = await impl.connect('/proj', 'hive-1')
     const stream = createOpenQueryIterator()
