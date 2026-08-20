@@ -69,14 +69,25 @@ export function tabAbsolutePath(tab: TabEntry): string | null {
 }
 
 /**
- * Same file? Paths reach the renderer from several places, some native and some
- * slash separated, so callers do not have to agree on a separator. Only Windows
- * has that ambiguity: on macOS and Linux a backslash is a normal filename
- * character, so `a\b.ts` and `a/b.ts` are two different files there.
+ * Paths the backend builds go through path.join, which collapses repeated
+ * separators, while paths joined here keep whatever the worktree path had. A
+ * run of separators means the same thing as one, so level that out.
+ */
+function comparableFilePath(path: string, windows: boolean): string {
+  // Only Windows can spell a separator two ways: on macOS and Linux a backslash
+  // is a normal filename character, so `a\b.ts` and `a/b.ts` differ there.
+  const slashed = windows ? path.replace(/\\/g, '/') : path
+  return slashed.replace(/\/{2,}/g, '/')
+}
+
+/**
+ * Same file? Paths reach the renderer from several places and spell the same
+ * location differently, so callers do not have to agree on a form.
  */
 export function isSameFilePath(a: string, b: string): boolean {
   if (a === b) return true
-  return isWindows() && a.replace(/\\/g, '/') === b.replace(/\\/g, '/')
+  const windows = isWindows()
+  return comparableFilePath(a, windows) === comparableFilePath(b, windows)
 }
 
 interface FileViewerState {

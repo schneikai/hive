@@ -48,6 +48,12 @@ describe('isSameFilePath', () => {
     expect(isSameFilePath('C:\\wt\\src\\a.ts', 'C:\\wt/src/a.ts')).toBe(true)
   })
 
+  it('treats a run of separators as one, like path.join does', () => {
+    isWindows.mockReturnValue(false)
+    // A worktree saved as /tmp//repo reaches the rows as /tmp/repo via path.join.
+    expect(isSameFilePath('/tmp//repo/src/a.ts', '/tmp/repo/src/a.ts')).toBe(true)
+  })
+
   it('keeps backslash filenames distinct off Windows', () => {
     isWindows.mockReturnValue(false)
     // A backslash is a valid filename character on macOS and Linux, so these
