@@ -1,5 +1,5 @@
 import { existsSync, readdirSync, statSync } from 'node:fs'
-import { basename, join } from 'node:path'
+import { join } from 'node:path'
 import { Effect } from 'effect'
 import { z } from 'zod'
 import { isDesktopCommandResult, makeDesktopCommandRequest } from '../../../shared/desktop-command'
@@ -129,28 +129,15 @@ export const makeLiveProjectOpsRpcService = (): ProjectOpsRpcService => ({
       try: () => isGitRepositoryPath(path),
       catch: () => false
     }),
+  // Delegates so the path a project is stored under is canonicalized in exactly one
+  // place. A second copy here drifted out of step with the service once already.
   validateProject: (path) =>
-    Effect.sync(() => {
-      if (!isValidDirectory(path)) {
-        return {
-          success: false,
-          error: 'The selected path is not a valid directory.'
-        }
-      }
-
-      if (!isGitRepositoryPath(path)) {
-        return {
-          success: false,
-          error:
-            'The selected folder is not a Git repository. Please select a folder containing a .git directory.'
-        }
-      }
-
-      return {
-        success: true,
-        path,
-        name: basename(path)
-      }
+    Effect.tryPromise({
+      try: async () => {
+        const { validateProject } = await import('../../../main/services/project-ops')
+        return validateProject(path)
+      },
+      catch: (cause) => cause
     }),
   detectLanguage: (projectPath) =>
     Effect.tryPromise({
