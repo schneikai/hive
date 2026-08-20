@@ -1,13 +1,5 @@
 import { app } from 'electron'
-import {
-  existsSync,
-  statSync,
-  writeFileSync,
-  mkdirSync,
-  unlinkSync,
-  readdirSync,
-  realpathSync
-} from 'fs'
+import { existsSync, writeFileSync, mkdirSync, unlinkSync, readdirSync, realpathSync } from 'fs'
 import { join, basename, extname, resolve } from 'path'
 import { createLogger } from './logger'
 import { getDatabase } from '../db'
@@ -18,6 +10,7 @@ import {
   getProjectIconDataUrl,
   removeProjectIcon
 } from './project-icons'
+import { isValidDirectory, isGitRepository } from '../../shared/fs-path-checks'
 
 export {
   detectProjectLanguage,
@@ -28,6 +21,7 @@ export {
 export { detectSetupSuggestions } from './setup-script-suggester'
 export { loadLanguageIcons } from './language-icons'
 export { cloneRepository, deriveProjectNameFromGitUrl, initRepository } from './git-repository'
+export { isValidDirectory, isGitRepository } from '../../shared/fs-path-checks'
 
 const log = createLogger({ component: 'ProjectOps' })
 
@@ -49,29 +43,6 @@ const iconDir = join(app.getPath('home'), '.hive', 'project-icons')
 function ensureIconDir(): void {
   if (!existsSync(iconDir)) {
     mkdirSync(iconDir, { recursive: true })
-  }
-}
-
-/**
- * Check if a directory is a git repository by looking for .git folder
- */
-export function isGitRepository(path: string): boolean {
-  try {
-    const gitPath = join(path, '.git')
-    return existsSync(gitPath) && statSync(gitPath).isDirectory()
-  } catch {
-    return false
-  }
-}
-
-/**
- * Check if a path is a valid directory
- */
-export function isValidDirectory(path: string): boolean {
-  try {
-    return existsSync(path) && statSync(path).isDirectory()
-  } catch {
-    return false
   }
 }
 

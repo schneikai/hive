@@ -1,10 +1,14 @@
-import { existsSync, readdirSync, statSync } from 'node:fs'
+import { existsSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
 import { Effect } from 'effect'
 import { z } from 'zod'
 import { isDesktopCommandResult, makeDesktopCommandRequest } from '../../../shared/desktop-command'
 import type { SuggestionItem } from '../../../shared/types/setup-suggestions'
 import type { RpcHandler } from '../router'
+import {
+  isValidDirectory,
+  isGitRepository as isGitRepositoryPath
+} from '../../../shared/fs-path-checks'
 
 export interface ProjectOpsRpcService {
   readonly openDirectoryDialog: () => Effect.Effect<string | null, unknown, never>
@@ -80,23 +84,6 @@ const createProjectFolderParamsSchema = z
 const INVALID_PROJECT_NAME_PATTERN = /[/\\:*?"<>|]/
 // Windows device names; folders with these names fail or misbehave on Windows.
 const WINDOWS_RESERVED_NAME_PATTERN = /^(con|prn|aux|nul|com[1-9]|lpt[1-9])$/i
-
-const isValidDirectory = (path: string): boolean => {
-  try {
-    return existsSync(path) && statSync(path).isDirectory()
-  } catch {
-    return false
-  }
-}
-
-const isGitRepositoryPath = (path: string): boolean => {
-  try {
-    const gitPath = join(path, '.git')
-    return existsSync(gitPath) && statSync(gitPath).isDirectory()
-  } catch {
-    return false
-  }
-}
 
 export const makeLiveProjectOpsRpcService = (): ProjectOpsRpcService => ({
   openDirectoryDialog: () =>
