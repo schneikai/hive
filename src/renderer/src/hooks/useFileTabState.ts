@@ -1,4 +1,4 @@
-import { useFileViewerStore, tabAbsolutePath } from '@/stores/useFileViewerStore'
+import { useFileViewerStore, tabAbsolutePath, isSameFilePath } from '@/stores/useFileViewerStore'
 
 /** How a file relates to the open tabs: the active tab, open in a background tab, or not open. */
 export type FileTabState = 'active' | 'open' | null
@@ -12,9 +12,11 @@ export function useFileTabState(absolutePath: string | null): FileTabState {
   return useFileViewerStore((state) => {
     if (!absolutePath) return null
     const activeTab = state.activeFilePath ? state.openFiles.get(state.activeFilePath) : undefined
-    if (activeTab && tabAbsolutePath(activeTab) === absolutePath) return 'active'
+    const activePath = activeTab ? tabAbsolutePath(activeTab) : null
+    if (activePath && isSameFilePath(activePath, absolutePath)) return 'active'
     for (const tab of state.openFiles.values()) {
-      if (tabAbsolutePath(tab) === absolutePath) return 'open'
+      const path = tabAbsolutePath(tab)
+      if (path && isSameFilePath(path, absolutePath)) return 'open'
     }
     return null
   })

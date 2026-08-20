@@ -47,6 +47,21 @@ describe('useFileTabState', () => {
     expect(result.current).toBe('active')
   })
 
+  it('matches a row whose path uses the other separator', () => {
+    // Rows get native paths from the backend, diff tabs are joined in the renderer,
+    // so on Windows the two spellings have to still count as the same file.
+    useFileViewerStore.getState().setActiveDiff({
+      worktreePath: 'C:\\wt',
+      filePath: 'src/a.ts',
+      fileName: 'a.ts',
+      staged: false,
+      isUntracked: false
+    })
+
+    const { result } = renderHook(() => useFileTabState('C:\\wt\\src\\a.ts'))
+    expect(result.current).toBe('active')
+  })
+
   it('ignores context tabs', () => {
     useFileViewerStore.getState().openContextEditor('wt-1')
 

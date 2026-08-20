@@ -491,11 +491,11 @@ export function ChangesView({
       if (!memberWorktreePath) return
       const isNewFile = file.status === '?' || file.status === 'A'
       if (isNewFile) {
-        const fullPath = `${memberWorktreePath}/${file.relativePath}`
+        // file.path is already absolute and native, so no hand-built join here.
         const fileName = file.relativePath.split('/').pop() || file.relativePath
         const contextId = useConnectionStore.getState().selectedConnectionId
         if (contextId) {
-          useFileViewerStore.getState().openFile(fullPath, fileName, contextId)
+          useFileViewerStore.getState().openFile(file.path, fileName, contextId)
         }
       } else {
         useFileViewerStore.getState().setActiveDiff({

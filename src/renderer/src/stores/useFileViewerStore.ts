@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { isWindows } from '@/lib/platform'
 
 export interface FileViewerTab {
   type: 'file'
@@ -45,9 +46,15 @@ function diffTabKey(diff: { filePath: string; staged: boolean; compareBranch?: s
     : `diff:${diff.filePath}:${diff.staged ? 'staged' : 'unstaged'}`
 }
 
-/** A diff tab keeps its file path split in two, so only the store knows how to join it. */
+/**
+ * A diff tab keeps its file path split in two, so only the store knows how to join it.
+ * Git reports slash separated relative paths, so on Windows they need converting to
+ * get a native path, the same shape the file lists and "Copy Absolute Path" expect.
+ */
 export function diffTabAbsolutePath(diff: { worktreePath: string; filePath: string }): string {
-  return `${diff.worktreePath}/${diff.filePath}`
+  return isWindows()
+    ? `${diff.worktreePath}\\${diff.filePath.replace(/\//g, '\\')}`
+    : `${diff.worktreePath}/${diff.filePath}`
 }
 
 /** The file a tab shows, as an absolute path. Null for tabs that show no file. */
@@ -55,6 +62,14 @@ export function tabAbsolutePath(tab: TabEntry): string | null {
   if (tab.type === 'file') return tab.path
   if (tab.type === 'diff') return diffTabAbsolutePath(tab)
   return null
+}
+
+/**
+ * Same file? Paths reach the renderer from several places, some native and some
+ * slash separated, so callers do not have to agree on a separator.
+ */
+export function isSameFilePath(a: string, b: string): boolean {
+  return a === b || a.replace(/\\/g, '/') === b.replace(/\\/g, '/')
 }
 
 interface FileViewerState {
