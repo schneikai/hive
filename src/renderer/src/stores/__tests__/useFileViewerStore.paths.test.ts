@@ -54,6 +54,25 @@ describe('isSameFilePath', () => {
     expect(isSameFilePath('/tmp//repo/src/a.ts', '/tmp/repo/src/a.ts')).toBe(true)
   })
 
+  // These mirror what path.join gives the rows, verified against Node.
+  it('resolves dot segments the way path.join does', () => {
+    isWindows.mockReturnValue(false)
+    expect(isSameFilePath('/tmp/base/../repo/src/a.ts', '/tmp/repo/src/a.ts')).toBe(true)
+    expect(isSameFilePath('/tmp/./repo/src/a.ts', '/tmp/repo/src/a.ts')).toBe(true)
+    // ".." cannot climb above the root, same as path.join
+    expect(isSameFilePath('/a/../../b/src/a.ts', '/b/src/a.ts')).toBe(true)
+  })
+
+  it('resolves dot segments on Windows too', () => {
+    isWindows.mockReturnValue(true)
+    expect(isSameFilePath('C:\\base\\..\\repo\\src\\a.ts', 'C:\\repo\\src\\a.ts')).toBe(true)
+  })
+
+  it('does not treat a dot inside a name as a segment', () => {
+    isWindows.mockReturnValue(false)
+    expect(isSameFilePath('/tmp/repo./src/a.ts', '/tmp/repo/src/a.ts')).toBe(false)
+  })
+
   it('keeps backslash filenames distinct off Windows', () => {
     isWindows.mockReturnValue(false)
     // A backslash is a valid filename character on macOS and Linux, so these

@@ -69,15 +69,36 @@ export function tabAbsolutePath(tab: TabEntry): string | null {
 }
 
 /**
- * Paths the backend builds go through path.join, which collapses repeated
- * separators, while paths joined here keep whatever the worktree path had. A
- * run of separators means the same thing as one, so level that out.
+ * Paths the backend builds go through path.join, which resolves separators and
+ * dot segments, while paths joined here keep whatever the worktree path had. So
+ * a saved path like /tmp/base/../repo reaches the rows as /tmp/repo.
+ *
+ * path.join is purely lexical, it never touches the filesystem, so doing the
+ * same lexical work here is enough to compare the two. Kept local because the
+ * renderer has no path module and also runs in the browser.
  */
 function comparableFilePath(path: string, windows: boolean): string {
   // Only Windows can spell a separator two ways: on macOS and Linux a backslash
   // is a normal filename character, so `a\b.ts` and `a/b.ts` differ there.
   const slashed = windows ? path.replace(/\\/g, '/') : path
-  return slashed.replace(/\/{2,}/g, '/')
+  const absolute = slashed.startsWith('/')
+  const segments: string[] = []
+
+  for (const segment of slashed.split('/')) {
+    if (segment === '' || segment === '.') continue
+    if (segment === '..') {
+      if (segments.length && segments[segments.length - 1] !== '..') {
+        segments.pop()
+      } else if (!absolute) {
+        // A relative path keeps leading "..", an absolute one cannot go above root.
+        segments.push('..')
+      }
+      continue
+    }
+    segments.push(segment)
+  }
+
+  return (absolute ? '/' : '') + segments.join('/')
 }
 
 /**
