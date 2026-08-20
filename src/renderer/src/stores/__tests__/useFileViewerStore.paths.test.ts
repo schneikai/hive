@@ -27,6 +27,13 @@ describe('diffTabAbsolutePath', () => {
     expect(diffTabAbsolutePath({ worktreePath: '/', filePath: 'src/a.ts' })).toBe('/src/a.ts')
   })
 
+  it('keeps a trailing backslash that is part of the directory name', () => {
+    isWindows.mockReturnValue(false)
+    expect(diffTabAbsolutePath({ worktreePath: '/tmp/repo\\', filePath: 'src/a.ts' })).toBe(
+      '/tmp/repo\\/src/a.ts'
+    )
+  })
+
   it('does not double a trailing separator on Windows', () => {
     isWindows.mockReturnValue(true)
     expect(diffTabAbsolutePath({ worktreePath: 'C:\\wt\\', filePath: 'src/a.ts' })).toBe(

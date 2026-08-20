@@ -56,7 +56,8 @@ export function diffTabAbsolutePath(diff: { worktreePath: string; filePath: stri
   const filePath = isWindows() ? diff.filePath.replace(/\//g, separator) : diff.filePath
   // The backend joins with path.join, which collapses a trailing separator, so
   // trim one here too. Otherwise a worktree at "/" would give us "//src/a.ts".
-  const worktreePath = diff.worktreePath.replace(/[/\\]+$/, '')
+  // Only a slash counts off Windows, where a trailing backslash is part of the name.
+  const worktreePath = diff.worktreePath.replace(isWindows() ? /[/\\]+$/ : /\/+$/, '')
   return `${worktreePath}${separator}${filePath}`
 }
 
