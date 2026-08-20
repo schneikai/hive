@@ -52,9 +52,12 @@ function diffTabKey(diff: { filePath: string; staged: boolean; compareBranch?: s
  * get a native path, the same shape the file lists and "Copy Absolute Path" expect.
  */
 export function diffTabAbsolutePath(diff: { worktreePath: string; filePath: string }): string {
-  return isWindows()
-    ? `${diff.worktreePath}\\${diff.filePath.replace(/\//g, '\\')}`
-    : `${diff.worktreePath}/${diff.filePath}`
+  const separator = isWindows() ? '\\' : '/'
+  const filePath = isWindows() ? diff.filePath.replace(/\//g, separator) : diff.filePath
+  // The backend joins with path.join, which collapses a trailing separator, so
+  // trim one here too. Otherwise a worktree at "/" would give us "//src/a.ts".
+  const worktreePath = diff.worktreePath.replace(/[/\\]+$/, '')
+  return `${worktreePath}${separator}${filePath}`
 }
 
 /** The file a tab shows, as an absolute path. Null for tabs that show no file. */

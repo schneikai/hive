@@ -19,6 +19,20 @@ describe('diffTabAbsolutePath', () => {
       'C:\\wt\\src\\a.ts'
     )
   })
+
+  // These all match what path.join gives the rows on the backend side.
+  it('does not double a trailing separator', () => {
+    isWindows.mockReturnValue(false)
+    expect(diffTabAbsolutePath({ worktreePath: '/wt/', filePath: 'src/a.ts' })).toBe('/wt/src/a.ts')
+    expect(diffTabAbsolutePath({ worktreePath: '/', filePath: 'src/a.ts' })).toBe('/src/a.ts')
+  })
+
+  it('does not double a trailing separator on Windows', () => {
+    isWindows.mockReturnValue(true)
+    expect(diffTabAbsolutePath({ worktreePath: 'C:\\wt\\', filePath: 'src/a.ts' })).toBe(
+      'C:\\wt\\src\\a.ts'
+    )
+  })
 })
 
 describe('isSameFilePath', () => {
