@@ -81,6 +81,16 @@ describe('useProjectStore project adding', () => {
     expect(useProjectStore.getState().projects).toEqual([])
   })
 
+  it('checks the duplicate against the canonical path validation returned', async () => {
+    // The same folder spelled differently must not be added a second time.
+    await expect(useProjectStore.getState().addProject('/repo/hive/')).resolves.toEqual({
+      success: false,
+      error: 'This project has already been added to Hive.'
+    })
+
+    expect(request).toHaveBeenCalledWith('db.project.getByPath', { path: '/repo/hive' })
+  })
+
   it('creates new projects through dbApi after duplicate checks pass', async () => {
     request.mockImplementation((method) => {
       if (method === 'projectOps.validateProject') {

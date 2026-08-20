@@ -50,15 +50,14 @@ function diffTabKey(diff: { filePath: string; staged: boolean; compareBranch?: s
  * A diff tab keeps its file path split in two, so only the store knows how to join it.
  * Git reports slash separated relative paths, so on Windows they need converting to
  * get a native path, the same shape the file lists and "Copy Absolute Path" expect.
+ *
+ * Worktree paths are stored canonical, see canonicalProjectPath in project-ops, so
+ * joining here gives the same string the backend gets from path.join.
  */
 export function diffTabAbsolutePath(diff: { worktreePath: string; filePath: string }): string {
   const separator = isWindows() ? '\\' : '/'
   const filePath = isWindows() ? diff.filePath.replace(/\//g, separator) : diff.filePath
-  // The backend joins with path.join, which collapses a trailing separator, so
-  // trim one here too. Otherwise a worktree at "/" would give us "//src/a.ts".
-  // Only a slash counts off Windows, where a trailing backslash is part of the name.
-  const worktreePath = diff.worktreePath.replace(isWindows() ? /[/\\]+$/ : /\/+$/, '')
-  return `${worktreePath}${separator}${filePath}`
+  return `${diff.worktreePath}${separator}${filePath}`
 }
 
 /** The file a tab shows, as an absolute path. Null for tabs that show no file. */
@@ -69,63 +68,14 @@ export function tabAbsolutePath(tab: TabEntry): string | null {
 }
 
 /**
- * Paths the backend builds go through path.join, which resolves separators and
- * dot segments, while paths joined here keep whatever the worktree path had. So
- * a saved path like /tmp/base/../repo reaches the rows as /tmp/repo.
- *
- * path.join is purely lexical, it never touches the filesystem, so doing the
- * same lexical work here is enough to compare the two. Kept local because the
- * renderer has no path module and also runs in the browser.
- */
-function comparableFilePath(path: string, windows: boolean): string {
-  // Only Windows can spell a separator two ways: on macOS and Linux a backslash
-  // is a normal filename character, so `a\b.ts` and `a/b.ts` differ there.
-  const slashed = windows ? path.replace(/\\/g, '/') : path
-
-  // Split off the part ".." must never climb past: the server and share of a UNC
-  // path, or a drive letter, which can sit right in front of a relative path as
-  // in C:foo. Without this, ".." would eat the root and paths stop matching.
-  let root = ''
-  let rest = slashed
-  if (windows) {
-    const unc = slashed.match(/^\/\/[^/]+\/[^/]+/)
-    if (unc) {
-      root = unc[0]
-      rest = slashed.slice(root.length)
-    } else if (/^[a-zA-Z]:/.test(slashed)) {
-      root = slashed.slice(0, 2)
-      rest = slashed.slice(2)
-    }
-  }
-
-  const absolute = rest.startsWith('/')
-  const segments: string[] = []
-
-  for (const segment of rest.split('/')) {
-    if (segment === '' || segment === '.') continue
-    if (segment === '..') {
-      if (segments.length && segments[segments.length - 1] !== '..') {
-        segments.pop()
-      } else if (!absolute && !root) {
-        // Only a rootless relative path keeps a leading "..".
-        segments.push('..')
-      }
-      continue
-    }
-    segments.push(segment)
-  }
-
-  return root + (absolute ? '/' : '') + segments.join('/')
-}
-
-/**
- * Same file? Paths reach the renderer from several places and spell the same
- * location differently, so callers do not have to agree on a form.
+ * Same file? Stored paths are canonical and the backend hands us native paths, so
+ * this only has to forgive the one thing that is still ambiguous: on Windows both
+ * separators mean the same thing. Off Windows a backslash is a normal filename
+ * character, so `a\b.ts` and `a/b.ts` are two different files there.
  */
 export function isSameFilePath(a: string, b: string): boolean {
   if (a === b) return true
-  const windows = isWindows()
-  return comparableFilePath(a, windows) === comparableFilePath(b, windows)
+  return isWindows() && a.replace(/\\/g, '/') === b.replace(/\\/g, '/')
 }
 
 interface FileViewerState {

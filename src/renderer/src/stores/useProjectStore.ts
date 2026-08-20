@@ -138,8 +138,9 @@ export const useProjectStore = create<ProjectState>()(
             return { success: false, error: validation.error }
           }
 
-          // Check if project already exists
-          const existingProject = await dbApi.project.getByPath<Project>(path)
+          // Check if project already exists, by the canonical path validation returned,
+          // so the same folder spelled differently is not added twice
+          const existingProject = await dbApi.project.getByPath<Project>(validation.path!)
           if (existingProject) {
             return { success: false, error: 'This project has already been added to Hive.' }
           }

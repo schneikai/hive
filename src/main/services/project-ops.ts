@@ -5,9 +5,10 @@ import {
   writeFileSync,
   mkdirSync,
   unlinkSync,
-  readdirSync
+  readdirSync,
+  realpathSync
 } from 'fs'
-import { join, basename, extname } from 'path'
+import { join, basename, extname, resolve } from 'path'
 import { createLogger } from './logger'
 import { getDatabase } from '../db'
 import type { DatabaseService } from '../db/database'
@@ -84,14 +85,19 @@ export function validateProject(path: string): {
   name?: string
   error?: string
 } {
-  if (!isValidDirectory(path)) {
+  // Canonicalize first, then check. The checks join onto the path, and joining
+  // resolves dot segments lexically, which picks the wrong directory when a ".."
+  // follows a symlink.
+  const canonical = canonicalProjectPath(path)
+
+  if (!isValidDirectory(canonical)) {
     return {
       success: false,
       error: 'The selected path is not a valid directory.'
     }
   }
 
-  if (!isGitRepository(path)) {
+  if (!isGitRepository(canonical)) {
     return {
       success: false,
       error:
@@ -101,8 +107,28 @@ export function validateProject(path: string): {
 
   return {
     success: true,
-    path: path,
-    name: basename(path)
+    path: canonical,
+    name: basename(canonical)
+  }
+}
+
+/**
+ * The stored path has to be canonical, because everything downstream joins onto it
+ * with path.join, which drops dot segments and repeated separators. A raw path like
+ * /repo/../repo would then no longer match the paths built from it.
+ *
+ * realpath rather than resolve, because it follows symlinks the way the filesystem
+ * does: for /link/../other the kernel resolves the link first, so the lexical answer
+ * would point at a different directory.
+ */
+function canonicalProjectPath(path: string): string {
+  try {
+    return realpathSync(path)
+  } catch {
+    // realpath can fail where opening the path works, for instance on macOS when a
+    // ".." follows a symlink. Fall back to the lexical form, which the checks below
+    // then reject, so a wrong path never reaches the database.
+    return resolve(path)
   }
 }
 
