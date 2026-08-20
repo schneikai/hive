@@ -112,8 +112,10 @@ function comparableFilePath(path: string, windows: boolean): string {
     if (segment === '..') {
       if (segments.length && segments[segments.length - 1] !== '..') {
         segments.pop()
-      } else if (!absolute && !root) {
-        // Only a rootless relative path keeps a leading "..".
+      } else if (!absolute) {
+        // A relative path keeps a leading "..", including a drive relative one like
+        // C:..\repo, which path.join keeps too. Only an absolute path drops it,
+        // because there is nothing above the root.
         segments.push('..')
       }
       continue

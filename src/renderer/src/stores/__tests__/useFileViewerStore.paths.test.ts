@@ -75,6 +75,13 @@ describe('isSameFilePath', () => {
     expect(isSameFilePath('C:foo\\..\\bar\\src\\a.ts', 'C:bar\\src\\a.ts')).toBe(true)
   })
 
+  it('keeps a leading ".." on a drive relative path', () => {
+    isWindows.mockReturnValue(true)
+    // path.win32.join keeps the ".." in C:..\repo, because a drive prefix is not
+    // an absolute root, so these are two different locations.
+    expect(isSameFilePath('C:..\\repo\\src\\a.ts', 'C:repo\\src\\a.ts')).toBe(false)
+  })
+
   it('keeps different Windows roots apart', () => {
     isWindows.mockReturnValue(true)
     expect(isSameFilePath('C:\\repo\\src\\a.ts', 'D:\\repo\\src\\a.ts')).toBe(false)
