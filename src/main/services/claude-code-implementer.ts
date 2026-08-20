@@ -1224,8 +1224,41 @@ export class ClaudeCodeImplementer implements AgentSdkImplementer {
   }
 
   /**
+   * Close stdin and tear the message stream down. Bounded, because a wedged
+   * child process must not block the caller: the stop button has to stay
+   * responsive, and a superseding prompt has to reach sdk.query().
+   *
+   * Shared by both paths that end a turn. Reply to anything the CLI is blocked
+   * on (denyPendingRequests) before calling this: once the stream is gone the
+   * replies cannot reach the CLI, which is what makes it report
+   * "Tool permission request failed: AbortError: Stream closed".
+   */
+  private async teardownStream(session: ClaudeSessionState, reason: string): Promise<void> {
+    this.closePromptInput(session, reason)
+
+    const subscription = session.subscription
+    if (!subscription) return
+
+    const closed = await runBoundedAbortStep(() => subscription.abort())
+    if (!closed) {
+      log.warn('Stream teardown did not settle in time', {
+        hiveSessionId: session.hiveSessionId,
+        reason
+      })
+    }
+    session.subscription = null
+  }
+
+  /**
    * Shut down the turn that is still holding this session, if any. Only a turn
    * whose background work outlived its result can still be here.
+   *
+   * Same shape as abort(): reply to pending requests, then tear the stream
+   * down. It differs on purpose in three places. It skips the graceful
+   * interrupt and the reply-flush wait, because a new prompt is waiting and the
+   * process is about to be killed regardless. It closes the query rather than
+   * only dropping the handle, so the old process cannot outlive the new one.
+   * And it hands ownership over first, which abort() must not do.
    */
   private async retirePreviousTurn(session: ClaudeSessionState): Promise<void> {
     if (!session.promptInput && !session.query) return
@@ -1235,34 +1268,17 @@ export class ClaudeCodeImplementer implements AgentSdkImplementer {
       liveBackgroundTasks: [...(session.liveBackgroundTasks ?? [])]
     })
 
-    // Reply to whatever the old turn was blocked on while its transport is
-    // still up, same reason as abort(): an unanswered request never resolves
-    // and its prompt would sit in the UI over the new turn.
     this.denyPendingRequests(session, 'superseded by a new prompt')
 
     // Hand ownership over before tearing anything down. The old finisher wakes
-    // from the interrupt below, and while it still holds this controller it
+    // from the teardown below, and while it still holds this controller it
     // passes ownsSession(), so it would publish idle over the turn that is
     // starting and null out its query handle.
     const retiredController = session.abortController
     session.abortController = null
-
-    this.closePromptInput(session, 'new prompt started')
     retiredController?.abort()
 
-    // Bounded like the stop path: a wedged child process must not keep the new
-    // prompt from ever reaching sdk.query(). The query.close() below kills it
-    // either way.
-    const subscription = session.subscription
-    if (subscription) {
-      const closed = await runBoundedAbortStep(() => subscription.abort())
-      if (!closed) {
-        log.warn('Prompt: previous turn teardown did not settle in time', {
-          hiveSessionId: session.hiveSessionId
-        })
-      }
-      session.subscription = null
-    }
+    await this.teardownStream(session, 'new prompt started')
 
     if (session.query) {
       try {
@@ -1310,21 +1326,9 @@ export class ClaudeCodeImplementer implements AgentSdkImplementer {
       session.abortController.abort()
     }
 
-    // Stdin can go now: the pending replies above are already flushed, and with
-    // it still open the CLI would idle instead of exiting.
-    this.closePromptInput(session, 'session aborted')
-
-    const subscription = session.subscription
-    if (subscription) {
-      const closed = await runBoundedAbortStep(() => subscription.abort())
-      if (!closed) {
-        log.warn('Abort: stream teardown did not settle in time', {
-          worktreePath,
-          agentSessionId
-        })
-      }
-      session.subscription = null
-    }
+    // The pending replies above are already flushed, so stdin can go. With it
+    // still open the CLI would idle instead of exiting.
+    await this.teardownStream(session, 'session aborted')
 
     session.query = null
     this.emitStatus(session.hiveSessionId, 'idle')

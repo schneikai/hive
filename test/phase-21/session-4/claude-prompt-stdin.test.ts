@@ -262,6 +262,53 @@ describe('ClaudeCodeImplementer – prompt stdin lifetime', () => {
     second.endStream()
   })
 
+  it('retires the previous turn in the same order the stop path uses', async () => {
+    const { sessionId } = await impl.connect('/proj', 'hive-1')
+    const first = createOpenQueryIterator()
+    mockQuery.mockReturnValue(first.iterator)
+
+    await impl.prompt('/proj', sessionId, 'launch a background agent')
+    first.emit(backgroundTasks('task-1'))
+    first.emit(result())
+    await vi.waitFor(() => {
+      expect((impl as any).getSession('/proj', 'sdk-1')?.liveBackgroundTasks.size).toBe(1)
+    })
+
+    // Mirrors test/claude-code-abort-ordering.test.ts. The deny has to land
+    // while the stream is still up, or the CLI reports the reply as
+    // "Tool permission request failed: AbortError: Stream closed".
+    const order: string[] = []
+    const session = (impl as any).getSession('/proj', 'sdk-1')
+    session.pendingQuestion = {
+      requestId: 'q-1',
+      questions: [],
+      resolve: () => order.push('question-rejected')
+    }
+    session.abortController.signal.addEventListener('abort', () => order.push('controller-abort'))
+    session.subscription = {
+      abort: vi.fn(async () => {
+        order.push('subscription-abort')
+      }),
+      awaitDone: vi.fn()
+    }
+    session.query = {
+      close: vi.fn(() => order.push('query-close')),
+      interrupt: vi.fn()
+    }
+
+    mockQuery.mockReturnValue(createOpenQueryIterator().iterator)
+    await impl.prompt('/proj', 'sdk-1', 'a new prompt while it runs')
+
+    expect(order).toEqual([
+      'question-rejected',
+      'controller-abort',
+      'subscription-abort',
+      'query-close'
+    ])
+
+    first.endStream()
+  })
+
   it('starts the new prompt even when the retired turn refuses to tear down', async () => {
     const { sessionId } = await impl.connect('/proj', 'hive-1')
     const first = createOpenQueryIterator()
