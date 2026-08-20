@@ -72,17 +72,66 @@ export function tabAbsolutePath(tab: TabEntry): string | null {
 }
 
 /**
- * Same file? Stored paths are canonical and the backend hands us native paths, so
- * this only has to forgive what Windows itself treats as insignificant: either
- * separator, and the casing, including the drive letter.
+ * Row paths come from path.join on the backend, which resolves dot segments and
+ * repeated separators. Paths joined here keep whatever the worktree path had, and
+ * worktrees stored before those paths were canonicalized can still carry a "..".
  *
- * Neither applies off Windows, where a backslash is a normal filename character and
- * `a.ts` and `A.ts` can be two different files.
+ * Doing the same lexical work here is the right comparison, because the rows were
+ * produced lexically too. This is only for comparing: what a lexically resolved path
+ * opens can differ from the original when a ".." crosses a symlink, which is why the
+ * path a project is stored under goes through realpath instead. See project-ops.
+ *
+ * Kept local because the renderer has no path module and also runs in the browser.
  */
+function comparableFilePath(path: string, windows: boolean): string {
+  // Only Windows can spell a separator two ways: on macOS and Linux a backslash
+  // is a normal filename character, so `a\b.ts` and `a/b.ts` differ there.
+  const slashed = windows ? path.replace(/\\/g, '/') : path
+
+  // Split off the part ".." must never climb past: the server and share of a UNC
+  // path, or a drive letter, which can sit right in front of a relative path as
+  // in C:foo. Without this, ".." would eat the root and paths stop matching.
+  let root = ''
+  let rest = slashed
+  if (windows) {
+    const unc = slashed.match(/^\/\/[^/]+\/[^/]+/)
+    if (unc) {
+      root = unc[0]
+      rest = slashed.slice(root.length)
+    } else if (/^[a-zA-Z]:/.test(slashed)) {
+      root = slashed.slice(0, 2)
+      rest = slashed.slice(2)
+    }
+  }
+
+  const absolute = rest.startsWith('/')
+  const segments: string[] = []
+
+  for (const segment of rest.split('/')) {
+    if (segment === '' || segment === '.') continue
+    if (segment === '..') {
+      if (segments.length && segments[segments.length - 1] !== '..') {
+        segments.pop()
+      } else if (!absolute && !root) {
+        // Only a rootless relative path keeps a leading "..".
+        segments.push('..')
+      }
+      continue
+    }
+    segments.push(segment)
+  }
+
+  const joined = root + (absolute ? '/' : '') + segments.join('/')
+  // Windows treats casing as insignificant, including the drive letter. Everywhere
+  // else `a.ts` and `A.ts` can be two different files.
+  return windows ? joined.toLowerCase() : joined
+}
+
+/** Same file? Forgives every spelling difference that means the same path. */
 export function isSameFilePath(a: string, b: string): boolean {
   if (a === b) return true
-  if (!isWindows()) return false
-  return a.replace(/\\/g, '/').toLowerCase() === b.replace(/\\/g, '/').toLowerCase()
+  const windows = isWindows()
+  return comparableFilePath(a, windows) === comparableFilePath(b, windows)
 }
 
 interface FileViewerState {

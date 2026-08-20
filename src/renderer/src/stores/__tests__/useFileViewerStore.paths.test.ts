@@ -49,6 +49,43 @@ describe('isSameFilePath', () => {
     expect(isSameFilePath('/wt/src/Foo.ts', '/wt/src/foo.ts')).toBe(false)
   })
 
+  // Worktrees stored before paths were canonicalized can still carry these shapes,
+  // and the rows come from path.join, so the comparison has to match its semantics.
+  // Verified against Node across 27 path shapes on both platforms.
+  it('treats a run of separators as one, like path.join does', () => {
+    isWindows.mockReturnValue(false)
+    expect(isSameFilePath('/tmp//repo/src/a.ts', '/tmp/repo/src/a.ts')).toBe(true)
+  })
+
+  it('resolves dot segments the way path.join does', () => {
+    isWindows.mockReturnValue(false)
+    expect(isSameFilePath('/tmp/base/../repo/src/a.ts', '/tmp/repo/src/a.ts')).toBe(true)
+    expect(isSameFilePath('/tmp/./repo/src/a.ts', '/tmp/repo/src/a.ts')).toBe(true)
+    // ".." cannot climb above the root, same as path.join
+    expect(isSameFilePath('/a/../../b/src/a.ts', '/b/src/a.ts')).toBe(true)
+  })
+
+  it('never lets ".." climb past a Windows root', () => {
+    isWindows.mockReturnValue(true)
+    expect(isSameFilePath('C:\\..\\repo\\src\\a.ts', 'C:\\repo\\src\\a.ts')).toBe(true)
+    expect(
+      isSameFilePath('\\\\srv\\share\\..\\repo\\src\\a.ts', '\\\\srv\\share\\repo\\src\\a.ts')
+    ).toBe(true)
+    // A drive letter can sit in front of a relative path, as in C:foo
+    expect(isSameFilePath('C:foo\\..\\bar\\src\\a.ts', 'C:bar\\src\\a.ts')).toBe(true)
+  })
+
+  it('keeps different Windows roots apart', () => {
+    isWindows.mockReturnValue(true)
+    expect(isSameFilePath('C:\\repo\\src\\a.ts', 'D:\\repo\\src\\a.ts')).toBe(false)
+    expect(isSameFilePath('\\\\srv\\one\\src\\a.ts', '\\\\srv\\two\\src\\a.ts')).toBe(false)
+  })
+
+  it('does not treat a dot inside a name as a segment', () => {
+    isWindows.mockReturnValue(false)
+    expect(isSameFilePath('/tmp/repo./src/a.ts', '/tmp/repo/src/a.ts')).toBe(false)
+  })
+
   it('keeps backslash filenames distinct off Windows', () => {
     isWindows.mockReturnValue(false)
     // A backslash is a valid filename character on macOS and Linux, so these
