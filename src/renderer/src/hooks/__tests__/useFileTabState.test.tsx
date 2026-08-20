@@ -1,11 +1,16 @@
 import { cleanup, renderHook } from '@testing-library/react'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { useFileTabState } from '../useFileTabState'
 import { useFileViewerStore } from '@/stores/useFileViewerStore'
 
+const isWindows = vi.hoisted(() => vi.fn(() => false))
+
+vi.mock('@/lib/platform', () => ({ isWindows }))
+
 describe('useFileTabState', () => {
   beforeEach(() => {
+    isWindows.mockReturnValue(false)
     useFileViewerStore.getState().closeAllFiles()
   })
 
@@ -47,19 +52,21 @@ describe('useFileTabState', () => {
     expect(result.current).toBe('active')
   })
 
-  it('matches a row whose path uses the other separator', () => {
-    // Rows get native paths from the backend, diff tabs are joined in the renderer,
-    // so on Windows the two spellings have to still count as the same file.
-    useFileViewerStore.getState().setActiveDiff({
-      worktreePath: 'C:\\wt',
-      filePath: 'src/a.ts',
-      fileName: 'a.ts',
-      staged: false,
-      isUntracked: false
-    })
+  it('matches a row whose path uses the other separator on Windows', () => {
+    // Rows get native paths from the backend, but a tab can be opened with a
+    // slash separated one, so on Windows both spellings mean the same file.
+    isWindows.mockReturnValue(true)
+    useFileViewerStore.getState().openFile('C:\\wt/src/a.ts', 'a.ts', 'wt-1')
 
     const { result } = renderHook(() => useFileTabState('C:\\wt\\src\\a.ts'))
     expect(result.current).toBe('active')
+  })
+
+  it('keeps a backslash filename distinct off Windows', () => {
+    useFileViewerStore.getState().openFile('/wt/a\\b.ts', 'a\\b.ts', 'wt-1')
+
+    const { result } = renderHook(() => useFileTabState('/wt/a/b.ts'))
+    expect(result.current).toBeNull()
   })
 
   it('ignores context tabs', () => {

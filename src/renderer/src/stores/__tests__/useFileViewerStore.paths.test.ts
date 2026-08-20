@@ -22,12 +22,25 @@ describe('diffTabAbsolutePath', () => {
 })
 
 describe('isSameFilePath', () => {
-  it('accepts either separator for the same file', () => {
+  it('accepts either separator for the same file on Windows', () => {
+    isWindows.mockReturnValue(true)
     expect(isSameFilePath('C:\\wt\\src\\a.ts', 'C:\\wt/src/a.ts')).toBe(true)
+  })
+
+  it('keeps backslash filenames distinct off Windows', () => {
+    isWindows.mockReturnValue(false)
+    // A backslash is a valid filename character on macOS and Linux, so these
+    // are two different files and must not be treated as one.
+    expect(isSameFilePath('/wt/a\\b.ts', '/wt/a/b.ts')).toBe(false)
+  })
+
+  it('matches identical paths on any platform', () => {
+    isWindows.mockReturnValue(false)
     expect(isSameFilePath('/wt/src/a.ts', '/wt/src/a.ts')).toBe(true)
   })
 
   it('still tells different files apart', () => {
+    isWindows.mockReturnValue(true)
     expect(isSameFilePath('/wt/src/a.ts', '/wt/src/b.ts')).toBe(false)
   })
 })

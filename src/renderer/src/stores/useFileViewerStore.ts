@@ -66,10 +66,13 @@ export function tabAbsolutePath(tab: TabEntry): string | null {
 
 /**
  * Same file? Paths reach the renderer from several places, some native and some
- * slash separated, so callers do not have to agree on a separator.
+ * slash separated, so callers do not have to agree on a separator. Only Windows
+ * has that ambiguity: on macOS and Linux a backslash is a normal filename
+ * character, so `a\b.ts` and `a/b.ts` are two different files there.
  */
 export function isSameFilePath(a: string, b: string): boolean {
-  return a === b || a.replace(/\\/g, '/') === b.replace(/\\/g, '/')
+  if (a === b) return true
+  return isWindows() && a.replace(/\\/g, '/') === b.replace(/\\/g, '/')
 }
 
 interface FileViewerState {
